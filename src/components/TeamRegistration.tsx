@@ -12,6 +12,7 @@ import {
 } from '../services/registration'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
+import { registrationLockForTeam } from '../lib/matchWindow'
 import { validateAthlete } from '../services/validation'
 import { POSITIONS, type Category, type Player, type Position } from '../types'
 import { Button, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
@@ -295,6 +296,9 @@ function RosterCard({
   const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
+  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours)
+  const athletes = data.players.filter((p) => (p.role ?? 'atleta') === 'atleta').length
+  const staff = data.players.filter((p) => p.role === 'comissao').length
 
   async function remove(p: Player) {
     if (!confirm(`Remover ${p.name} do elenco?`)) return
@@ -306,11 +310,19 @@ function RosterCard({
     <section className="panel reg__panel">
       <div className="panel__head">
         <div>
-          <h2>Elenco ({data.players.length})</h2>
+          <h2>Elenco — {athletes} atleta(s), {staff} comissão</h2>
           <p className="muted">Inscreva os atletas com nome completo, CPF e data de nascimento.</p>
         </div>
-        <Button onClick={() => setAdding(true)}>＋ Inscrever atleta</Button>
+        <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
       </div>
+
+      {lock.locked && (
+        <div className="lock-banner">
+          🔒 Inscrições <b>encerradas</b> para a próxima partida
+          {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
+          Reabrem automaticamente após o jogo ser finalizado.
+        </div>
+      )}
 
       {data.players.length === 0 ? (
         <EmptyState icon="👤" title="Nenhum atleta inscrito">
@@ -390,6 +402,7 @@ export function AthleteDialog({
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
+  const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
   const [name, setName] = useState(initial?.name ?? '')
   const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
   const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
@@ -400,6 +413,7 @@ export function AthleteDialog({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const isAthlete = role === 'atleta'
 
   const category = categories.find((c) => c.id === categoryId)
   const ruleHint = category?.birthYear
@@ -427,10 +441,12 @@ export function AthleteDialog({
     setBusy(true)
     try {
       // Validação de CPF × data de nascimento (API + fallback local).
-      const check = await validateAthlete(cpf, birthdate)
-      if (!check.ok) {
-        setError(check.message)
-        return
+      if (isAthlete || (cpf && birthdate)) {
+        const check = await validateAthlete(cpf, birthdate)
+        if (!check.ok) {
+          setError(check.message)
+          return
+        }
       }
       const payload: PlayerInput = {
         name: name.trim(),
@@ -440,6 +456,7 @@ export function AthleteDialog({
         number: number ? Number(number) : undefined,
         position,
         categoryId: categoryId || undefined,
+        role,
       }
       if (initial) await updateRegPlayer(teamId, token, initial.id, payload)
       else await addRegPlayer(teamId, token, payload)
@@ -463,16 +480,23 @@ export function AthleteDialog({
           </div>
         </div>
 
+        <Field label="Tipo de inscrição">
+          <div className="segmented">
+            <button type="button" className={`segmented__item ${isAthlete ? 'is-active' : ''}`} onClick={() => setRole('atleta')}>🏃 Atleta</button>
+            <button type="button" className={`segmented__item ${!isAthlete ? 'is-active' : ''}`} onClick={() => setRole('comissao')}>📋 Comissão técnica</button>
+          </div>
+        </Field>
+
         <Field label="Nome completo">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo do atleta" required />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required />
         </Field>
 
         <div className="form-row">
-          <Field label="CPF">
-            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required />
+          <Field label={isAthlete ? 'CPF' : 'CPF (opcional)'}>
+            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} />
           </Field>
-          <Field label="Data de nascimento">
-            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required />
+          <Field label={isAthlete ? 'Data de nascimento' : 'Data de nascimento (opcional)'}>
+            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} />
           </Field>
         </div>
 
@@ -485,7 +509,7 @@ export function AthleteDialog({
             </select>
           </Field>
         )}
-        {ruleHint && (
+        {isAthlete && ruleHint && (
           <p className={`rule-hint ${outOfRule ? 'rule-hint--warn' : ''}`}>
             {outOfRule ? '⚠️ Fora da faixa: ' : 'ℹ️ '}
             {ruleHint}

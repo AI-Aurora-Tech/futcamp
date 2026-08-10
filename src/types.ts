@@ -30,6 +30,10 @@ export interface Category {
   birthYearMode?: 'min' | 'max'
   /** Nº de atletas por time que podem furar a regra de ano de nascimento. */
   exceptions?: number
+  /** Máximo de atletas por time nesta categoria (0/indefinido = sem limite). */
+  maxAthletes?: number
+  /** Máximo de membros da comissão técnica por time nesta categoria. */
+  maxStaff?: number
 }
 
 export interface Championship {
@@ -51,6 +55,11 @@ export interface Championship {
   pointsWin: number
   /** Pontuação por empate (padrão 1). */
   pointsDraw: number
+  /**
+   * Prazo de inscrição: encerra X horas antes de cada partida do time.
+   * Reabre automaticamente após a partida ser finalizada. 0 = sem prazo.
+   */
+  registrationCutoffHours: number
   /** Turno e returno (todos jogam duas vezes) no formato de pontos corridos. */
   doubleRound: boolean
   /** Número de grupos (formato grupos + mata-mata). */
@@ -103,6 +112,8 @@ export interface Player {
   cpf?: string
   /** Categoria em que o atleta está inscrito. */
   categoryId?: string
+  /** Atleta (jogador) ou membro da comissão técnica. */
+  role?: 'atleta' | 'comissao'
   createdAt: string
 }
 

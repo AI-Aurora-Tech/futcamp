@@ -26,8 +26,9 @@ export function computeStandings(
   }
 
   for (const m of matches) {
+    // Considera jogos finalizados e AO VIVO (placar provisório) na classificação.
     if (
-      m.status !== 'finished' ||
+      (m.status !== 'finished' && m.status !== 'live') ||
       m.homeTeamId == null ||
       m.awayTeamId == null ||
       m.homeScore == null ||

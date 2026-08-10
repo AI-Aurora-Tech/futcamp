@@ -18,6 +18,7 @@ function fromRow(r: any): Player {
     photo: r.photo ?? undefined,
     cpf: r.cpf ?? undefined,
     categoryId: r.category_id ?? undefined,
+    role: r.role ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -33,6 +34,7 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
   if (p.photo !== undefined) row.photo = p.photo
   if (p.cpf !== undefined) row.cpf = p.cpf
   if (p.categoryId !== undefined) row.category_id = p.categoryId
+  if (p.role !== undefined) row.role = p.role
   return row
 }
 

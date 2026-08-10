@@ -101,6 +101,7 @@ export function MatchesPanel({
 
       {editing && (
         <MatchResultModal
+          championship={championship}
           match={editing}
           teams={teams}
           players={players}
@@ -126,15 +127,18 @@ export function MatchRow({
 }) {
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
-  const played = match.status === 'finished'
+  const live = match.status === 'live'
+  const hasScore = match.homeScore != null && match.awayScore != null
+  const showScore = match.status === 'finished' || live
   return (
-    <button className={`match-row ${onClick ? 'is-clickable' : ''}`} onClick={onClick} disabled={!onClick}>
+    <button className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''}`} onClick={onClick} disabled={!onClick}>
       <span className="match-row__side match-row__side--home">
         <span className="match-row__name">{home?.name ?? 'A definir'}</span>
         <TeamBadge team={home} size={26} />
       </span>
-      <span className={`match-row__score ${played ? 'is-played' : ''}`}>
-        {played ? `${match.homeScore} × ${match.awayScore}` : 'vs'}
+      <span className={`match-row__score ${showScore && hasScore ? 'is-played' : ''}`}>
+        {live && <span className="live-dot live-dot--sm">ao vivo</span>}
+        {showScore && hasScore ? `${match.homeScore} × ${match.awayScore}` : 'vs'}
       </span>
       <span className="match-row__side match-row__side--away">
         <TeamBadge team={away} size={26} />

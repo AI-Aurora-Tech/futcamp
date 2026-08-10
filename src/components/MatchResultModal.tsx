@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
 import { addEvent, deleteEvent, listEvents, updateMatch, type NewEvent } from '../services/matches'
+import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { matchRegistrationClosed } from '../lib/matchWindow'
 import {
   EVENT_LABELS,
+  type Championship,
   type EventType,
   type Match,
   type MatchEvent,
+  type MatchStatus,
   type Player,
   type Team,
 } from '../types'
@@ -18,13 +22,24 @@ const EVENT_ICONS: Record<EventType, string> = {
   red_card: '🟥',
 }
 
+/** ISO → valor para <input type="datetime-local"> (horário local). */
+function toLocalInput(iso?: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function MatchResultModal({
+  championship,
   match,
   teams,
   players,
   onClose,
   onSaved,
 }: {
+  championship: Championship
   match: Match
   teams: Team[]
   players: Player[]
@@ -35,6 +50,9 @@ export function MatchResultModal({
   const away = teams.find((t) => t.id === match.awayTeamId)
   const [homeScore, setHomeScore] = useState<string>(match.homeScore != null ? String(match.homeScore) : '')
   const [awayScore, setAwayScore] = useState<string>(match.awayScore != null ? String(match.awayScore) : '')
+  const [status, setStatus] = useState<MatchStatus>(match.status)
+  const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
+  const [venue, setVenue] = useState<string>(match.venue ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [busy, setBusy] = useState(false)
 
@@ -48,7 +66,19 @@ export function MatchResultModal({
     listEvents(match.championshipId).then((all) => setEvents(all.filter((e) => e.matchId === match.id)))
   }, [match.id, match.championshipId])
 
-  const teamPlayers = players.filter((p) => p.teamId === evTeam)
+  const teamPlayers = players.filter((p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta')
+
+  function bumpScore(teamId: string, type: EventType) {
+    // Placar automático ao vivo: gol soma para o time; gol contra soma ao adversário.
+    const forHome =
+      (type === 'goal' && teamId === match.homeTeamId) ||
+      (type === 'own_goal' && teamId === match.awayTeamId)
+    const forAway =
+      (type === 'goal' && teamId === match.awayTeamId) ||
+      (type === 'own_goal' && teamId === match.homeTeamId)
+    if (forHome) setHomeScore((s) => String((Number(s) || 0) + 1))
+    if (forAway) setAwayScore((s) => String((Number(s) || 0) + 1))
+  }
 
   async function addNewEvent() {
     if (!evTeam) return
@@ -62,6 +92,7 @@ export function MatchResultModal({
     }
     const created = await addEvent(payload)
     setEvents((prev) => [...prev, created])
+    if (evType === 'goal' || evType === 'own_goal') bumpScore(evTeam, evType)
     setEvPlayer('')
     setEvMinute('')
   }
@@ -71,22 +102,69 @@ export function MatchResultModal({
     setEvents((prev) => prev.filter((e) => e.id !== id))
   }
 
-  async function saveResult(status: 'finished' | 'scheduled') {
+  async function save(newStatus: MatchStatus) {
+    // Ao vivo/encerrada, placar em branco vira 0 (entra na classificação);
+    // agendada mantém null (ainda sem placar).
+    const norm = (v: string) => (v === '' ? (newStatus === 'scheduled' ? null : 0) : Number(v))
     setBusy(true)
     await updateMatch(match.id, {
-      homeScore: homeScore === '' ? null : Number(homeScore),
-      awayScore: awayScore === '' ? null : Number(awayScore),
-      status,
+      homeScore: norm(homeScore),
+      awayScore: norm(awayScore),
+      status: newStatus,
+      scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+      venue: venue.trim() || undefined,
     })
     setBusy(false)
     onSaved()
   }
 
+  function generateSumula(action: 'print' | 'download') {
+    const category = championship.categories.length === 1 ? championship.categories[0] : undefined
+    const html = buildSumulaHtml({
+      championship,
+      match: { ...match, homeScore: homeScore === '' ? null : Number(homeScore), awayScore: awayScore === '' ? null : Number(awayScore), status },
+      teams,
+      players,
+      events,
+      category,
+    })
+    if (action === 'print') openSumula(html)
+    else downloadSumula(`sumula-${home?.shortName || 'mandante'}-x-${away?.shortName || 'visitante'}.html`, html)
+  }
+
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
   const teamShort = (id: string) => teams.find((t) => t.id === id)?.shortName || teams.find((t) => t.id === id)?.name
+  const canSumula =
+    status === 'live' ||
+    status === 'finished' ||
+    matchRegistrationClosed(match, championship.registrationCutoffHours)
 
   return (
     <Modal title="Registrar resultado" onClose={onClose} wide>
+      <div className="status-tabs">
+        {(['scheduled', 'live', 'finished'] as MatchStatus[]).map((s) => (
+          <button
+            key={s}
+            type="button"
+            className={`status-tab ${status === s ? 'is-active' : ''} status-tab--${s}`}
+            onClick={() => setStatus(s)}
+          >
+            {s === 'scheduled' ? 'Agendada' : s === 'live' ? '● Ao vivo' : 'Encerrada'}
+          </button>
+        ))}
+      </div>
+
+      <div className="schedule-row">
+        <label className="field">
+          <span className="field__label">Data e hora do jogo</span>
+          <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        </label>
+        <label className="field">
+          <span className="field__label">Local</span>
+          <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Estádio / quadra" />
+        </label>
+      </div>
+
       <div className="scoreboard">
         <div className="scoreboard__team">
           <TeamBadge team={home} size={48} />
@@ -103,9 +181,9 @@ export function MatchResultModal({
         </div>
       </div>
 
-      {(match.homeTeamId && match.awayTeamId) && (
+      {match.homeTeamId && match.awayTeamId && (
         <div className="events-box">
-          <h4>Eventos da partida</h4>
+          <h4>Eventos da partida {status === 'live' && <span className="live-dot">ao vivo</span>}</h4>
           <div className="event-form">
             <select value={evTeam} onChange={(e) => { setEvTeam(e.target.value); setEvPlayer('') }}>
               {match.homeTeamId && <option value={match.homeTeamId}>{home?.name}</option>}
@@ -143,15 +221,26 @@ export function MatchResultModal({
                 ))}
             </ul>
           )}
-          <p className="hint">Dica: registre os gols para alimentar a artilharia automaticamente.</p>
+          <p className="hint">
+            Gols e cartões alimentam automaticamente a classificação e as estatísticas. No modo “ao vivo”, o placar soma sozinho a cada gol.
+          </p>
         </div>
       )}
 
+      <div className="sumula-row">
+        <span className="muted small">
+          Súmula {canSumula ? 'disponível' : '— liberada quando as inscrições da partida encerrarem'}
+        </span>
+        <div className="sumula-row__actions">
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('print')}>🖨️ Imprimir</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('download')}>⬇ Baixar súmula</Button>
+        </div>
+      </div>
+
       <div className="form-actions">
-        <Button variant="ghost" type="button" onClick={() => void saveResult('scheduled')} disabled={busy}>
-          Salvar como agendada
-        </Button>
-        <Button type="button" onClick={() => void saveResult('finished')} disabled={busy}>
+        <Button variant="ghost" type="button" onClick={() => void save('scheduled')} disabled={busy}>Salvar agendada</Button>
+        <Button variant="soft" type="button" onClick={() => void save('live')} disabled={busy}>● Salvar ao vivo</Button>
+        <Button type="button" onClick={() => void save('finished')} disabled={busy}>
           {busy ? 'Salvando…' : 'Encerrar partida'}
         </Button>
       </div>

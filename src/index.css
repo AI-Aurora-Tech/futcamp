@@ -405,6 +405,27 @@ table { border-collapse: collapse; width: 100%; }
 .rule-hint { font-size: 0.83rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0; }
 .rule-hint--warn { color: #92400e; background: #fef3c7; }
 
+/* ---------- Prazo / trava de inscrição ---------- */
+.lock-banner { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 0.7rem 0.9rem; font-size: 0.88rem; margin-bottom: 1rem; }
+
+/* ---------- Status da partida (ao vivo) ---------- */
+.status-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; justify-content: center; }
+.status-tab { border: 1.5px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 0.45rem 1rem; font-weight: 700; color: var(--muted); font-size: 0.85rem; }
+.status-tab.is-active { border-color: var(--brand); background: rgba(22,163,74,0.12); color: var(--brand-dark); }
+.status-tab--live.is-active { border-color: #dc2626; background: #fee2e2; color: #b91c1c; }
+.live-dot { color: #dc2626; font-weight: 800; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 0.3rem; }
+.live-dot::before { content: '●'; animation: pulse 1.1s ease-in-out infinite; }
+.live-dot--sm { display: block; font-size: 0.6rem; margin-bottom: 1px; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.match-row.is-live { border-color: #fecaca; background: #fef2f2; }
+
+.schedule-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+.schedule-row input { border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0.55rem 0.65rem; background: var(--surface); width: 100%; }
+
+/* ---------- Súmula ---------- */
+.sumula-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; border-top: 1px solid var(--line); margin-top: 1.1rem; padding-top: 1rem; }
+.sumula-row__actions { display: flex; gap: 0.5rem; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .landing { grid-template-columns: 1fr; }

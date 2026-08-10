@@ -20,6 +20,8 @@ interface CatDraft {
   name: string
   year: string
   exceptions: string
+  maxAthletes: string
+  maxStaff: string
 }
 
 function toDraft(c: Category): CatDraft {
@@ -28,7 +30,13 @@ function toDraft(c: Category): CatDraft {
     name: c.name,
     year: c.birthYear != null ? String(c.birthYear) : '',
     exceptions: c.exceptions != null ? String(c.exceptions) : '',
+    maxAthletes: c.maxAthletes != null ? String(c.maxAthletes) : '',
+    maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
   }
+}
+
+function emptyDraft(): CatDraft {
+  return { id: uid('cat'), name: '', year: '', exceptions: '', maxAthletes: '', maxStaff: '' }
 }
 
 export function ChampionshipForm({
@@ -44,7 +52,7 @@ export function ChampionshipForm({
   const [sport, setSport] = useState<Sport>(initial?.sport ?? 'futebol')
   const [audience, setAudience] = useState<Audience>(initial?.audience ?? 'adulto')
   const [cats, setCats] = useState<CatDraft[]>(
-    initial?.categories?.length ? initial.categories.map(toDraft) : [{ id: uid('cat'), name: '', year: '', exceptions: '' }],
+    initial?.categories?.length ? initial.categories.map(toDraft) : [emptyDraft()],
   )
   const [format, setFormat] = useState<ChampionshipFormat>(initial?.format ?? 'league')
   const [season, setSeason] = useState(initial?.season ?? String(new Date().getFullYear()))
@@ -55,6 +63,7 @@ export function ChampionshipForm({
   const [pointsDraw, setPointsDraw] = useState(initial?.pointsDraw ?? 1)
   const [doubleRound, setDoubleRound] = useState(initial?.doubleRound ?? false)
   const [numGroups, setNumGroups] = useState(initial?.numGroups ?? 2)
+  const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -62,7 +71,7 @@ export function ChampionshipForm({
     setCats((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }
   function addCat() {
-    setCats((prev) => [...prev, { id: uid('cat'), name: '', year: '', exceptions: '' }])
+    setCats((prev) => [...prev, emptyDraft()])
   }
   function removeCat(id: string) {
     setCats((prev) => (prev.length > 1 ? prev.filter((c) => c.id !== id) : prev))
@@ -79,6 +88,8 @@ export function ChampionshipForm({
           birthYear: year,
           birthYearMode: year ? (audience === 'infantil' ? 'min' : 'max') : undefined,
           exceptions: audience === 'adulto' && c.exceptions ? Number(c.exceptions) : 0,
+          maxAthletes: c.maxAthletes ? Number(c.maxAthletes) : undefined,
+          maxStaff: c.maxStaff ? Number(c.maxStaff) : undefined,
         }
       })
   }
@@ -109,6 +120,7 @@ export function ChampionshipForm({
       primaryColor,
       pointsWin: Number(pointsWin),
       pointsDraw: Number(pointsDraw),
+      registrationCutoffHours: Number(cutoffHours),
       doubleRound,
       numGroups: format === 'groups_knockout' ? Number(numGroups) : undefined,
     })
@@ -192,6 +204,26 @@ export function ChampionshipForm({
                     title="Exceções de idade por time"
                   />
                 )}
+                <input
+                  className="cat-row__exc"
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={c.maxAthletes}
+                  onChange={(e) => updateCat(c.id, { maxAthletes: e.target.value })}
+                  placeholder="máx atl."
+                  title="Máximo de atletas por time"
+                />
+                <input
+                  className="cat-row__exc"
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={c.maxStaff}
+                  onChange={(e) => updateCat(c.id, { maxStaff: e.target.value })}
+                  placeholder="máx com."
+                  title="Máximo de comissão técnica por time"
+                />
                 <button
                   type="button"
                   className="icon-btn icon-btn--danger"
@@ -237,6 +269,10 @@ export function ChampionshipForm({
             <span>Turno e returno (todos se enfrentam duas vezes)</span>
           </label>
         )}
+
+        <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições de um time encerram este tempo antes da partida e reabrem após o jogo ser finalizado. Use 0 para não limitar.">
+          <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />
+        </Field>
 
         <Field label="Brasão (emoji)">
           <div className="emoji-picker">

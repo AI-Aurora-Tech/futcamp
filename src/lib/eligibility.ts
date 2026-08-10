@@ -76,6 +76,33 @@ export function checkEligibility(params: {
   return { ok: true, isException: true }
 }
 
+/**
+ * Verifica o limite de atletas / comissão técnica por categoria (por time).
+ * `existingInCategory` deve conter os demais registros do MESMO time e categoria
+ * (exclua o próprio ao editar).
+ */
+export function checkRosterLimit(params: {
+  category?: Category
+  role: 'atleta' | 'comissao'
+  existingInCategory: Player[]
+}): { ok: boolean; reason?: string } {
+  const { category, role, existingInCategory } = params
+  if (!category) return { ok: true }
+  const limit = role === 'comissao' ? category.maxStaff : category.maxAthletes
+  if (!limit || limit <= 0) return { ok: true }
+  const count = existingInCategory.filter((p) => (p.role ?? 'atleta') === role).length
+  if (count >= limit) {
+    return {
+      ok: false,
+      reason:
+        role === 'comissao'
+          ? `Limite de ${limit} membro(s) da comissão técnica por time atingido em "${category.name}".`
+          : `Limite de ${limit} atleta(s) por time atingido em "${category.name}".`,
+    }
+  }
+  return { ok: true }
+}
+
 /** Máscara simples de CPF (000.000.000-00). Retorna só dígitos se incompleto. */
 export function formatCpf(value: string): string {
   const d = value.replace(/\D/g, '').slice(0, 11)

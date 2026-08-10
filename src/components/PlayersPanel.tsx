@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { createPlayer, deletePlayer, updatePlayer, type NewPlayer } from '../services/players'
-import { checkEligibility, formatCpf, isValidCpf } from '../lib/eligibility'
+import { checkEligibility, checkRosterLimit, formatCpf, isValidCpf } from '../lib/eligibility'
 import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
@@ -143,6 +143,7 @@ function PlayerForm({
   onSaved: () => void
 }) {
   const categories = championship.categories
+  const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
   const [name, setName] = useState(initial?.name ?? '')
   const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
   const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
@@ -176,9 +177,16 @@ function PlayerForm({
       return
     }
     const existing = teamPlayers.filter((p) => p.categoryId === categoryId && p.id !== initial?.id)
-    const elig = checkEligibility({ category, birthdate: birthdate || undefined, existingInCategory: existing })
-    if (!elig.ok) {
-      setError(elig.reason ?? 'Atleta não elegível para esta categoria.')
+    if (role === 'atleta') {
+      const elig = checkEligibility({ category, birthdate: birthdate || undefined, existingInCategory: existing })
+      if (!elig.ok) {
+        setError(elig.reason ?? 'Atleta não elegível para esta categoria.')
+        return
+      }
+    }
+    const limit = checkRosterLimit({ category, role, existingInCategory: existing })
+    if (!limit.ok) {
+      setError(limit.reason ?? 'Limite da categoria atingido.')
       return
     }
     setBusy(true)
@@ -201,6 +209,7 @@ function PlayerForm({
         number: number ? Number(number) : undefined,
         position,
         categoryId: categoryId || undefined,
+        role,
       }
       if (initial) await updatePlayer(initial.id, payload)
       else await createPlayer(payload)
@@ -223,6 +232,13 @@ function PlayerForm({
             {photo && <button type="button" className="link-btn" onClick={() => setPhoto(undefined)}>remover foto</button>}
           </div>
         </div>
+
+        <Field label="Tipo de inscrição">
+          <div className="segmented">
+            <button type="button" className={`segmented__item ${role === 'atleta' ? 'is-active' : ''}`} onClick={() => setRole('atleta')}>🏃 Atleta</button>
+            <button type="button" className={`segmented__item ${role === 'comissao' ? 'is-active' : ''}`} onClick={() => setRole('comissao')}>📋 Comissão</button>
+          </div>
+        </Field>
 
         <Field label="Nome completo">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo do atleta" required />

@@ -14,8 +14,9 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
-import { checkEligibility } from '../lib/eligibility'
-import type { Category, Player, Position, Team } from '../types'
+import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
+import { registrationLockForTeam } from '../lib/matchWindow'
+import type { Category, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -28,6 +29,10 @@ export interface RegistrationData {
   categories: Category[]
   players: Player[]
   hasAccount: boolean
+  /** Prazo de inscrição (horas antes da partida). 0 = sem prazo. */
+  registrationCutoffHours: number
+  /** Partidas do time (para calcular a trava de inscrição). */
+  matches: Match[]
 }
 
 export interface TeamInfoPatch {
@@ -46,6 +51,7 @@ export interface PlayerInput {
   number?: number
   position?: Position
   categoryId?: string
+  role?: 'atleta' | 'comissao'
 }
 
 /** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
@@ -103,6 +109,8 @@ export async function loadRegistration(
       categories: Array.isArray(data.categories) ? data.categories : [],
       players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
       hasAccount: Boolean(data.has_account),
+      registrationCutoffHours: data.registration_cutoff_hours ?? 0,
+      matches: Array.isArray(data.matches) ? data.matches.map(matchFromRow) : [],
     }
   }
 
@@ -121,8 +129,28 @@ export async function loadRegistration(
         .filter((p) => p.teamId === teamId)
         .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
       hasAccount: Boolean(team.username && team.passwordHash),
+      registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
+      matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
     }
   })
+}
+
+function matchFromRow(r: any): Match {
+  return {
+    id: r.id,
+    championshipId: r.championship_id,
+    round: r.round,
+    phase: r.phase,
+    group: r.group ?? undefined,
+    homeTeamId: r.home_team_id,
+    awayTeamId: r.away_team_id,
+    homeScore: r.home_score,
+    awayScore: r.away_score,
+    status: r.status,
+    scheduledAt: r.scheduled_at ?? undefined,
+    venue: r.venue ?? undefined,
+    createdAt: r.created_at,
+  }
 }
 
 function assertTokenDemo(teamId: string, token: string): void {
@@ -231,19 +259,32 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 // Atletas (com validação de categoria / ano de nascimento)
 // ---------------------------------------------------------------------------
 
-/** Valida a elegibilidade no modo demo (o Supabase valida via RPC). */
+/** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
-  const { category, existing } = query((d) => {
+  const role = input.role ?? 'atleta'
+  const { category, existing, cutoff, matches } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
     const existing = d.players.filter(
       (p) => p.teamId === teamId && p.categoryId === input.categoryId && p.id !== excludePlayerId,
     )
-    return { category, existing }
+    const matches = d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)
+    return { category, existing, cutoff: champ?.registrationCutoffHours ?? 0, matches }
   })
-  const result = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })
-  if (!result.ok) throw new Error(result.reason ?? 'Atleta não elegível para esta categoria.')
+
+  const lock = registrationLockForTeam(teamId, matches, cutoff)
+  if (lock.locked) {
+    throw new Error('As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.')
+  }
+
+  if (role === 'atleta') {
+    const elig = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })
+    if (!elig.ok) throw new Error(elig.reason ?? 'Atleta não elegível para esta categoria.')
+  }
+
+  const limit = checkRosterLimit({ category, role, existingInCategory: existing })
+  if (!limit.ok) throw new Error(limit.reason ?? 'Limite da categoria atingido.')
 }
 
 export async function addRegPlayer(teamId: string, token: string, input: PlayerInput): Promise<void> {
@@ -258,6 +299,7 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
       p_number: input.number ?? null,
       p_position: input.position ?? null,
       p_category: input.categoryId ?? null,
+      p_role: input.role ?? 'atleta',
     })
     if (error) throw error
     return
@@ -278,6 +320,7 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
       number: input.number,
       position: input.position,
       categoryId: input.categoryId,
+      role: input.role ?? 'atleta',
       createdAt: new Date().toISOString(),
     })
   })
@@ -301,6 +344,7 @@ export async function updateRegPlayer(
       p_number: input.number ?? null,
       p_position: input.position ?? null,
       p_category: input.categoryId ?? null,
+      p_role: input.role ?? 'atleta',
     })
     if (error) throw error
     return
@@ -319,6 +363,7 @@ export async function updateRegPlayer(
         number: input.number,
         position: input.position,
         categoryId: input.categoryId,
+        role: input.role ?? 'atleta',
       }
     }
   })
