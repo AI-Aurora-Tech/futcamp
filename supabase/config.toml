@@ -1,0 +1,30 @@
+# Configuração local do Supabase CLI para o FutCamp.
+# Ajuste "project_id" para o ref do seu projeto ao usar `supabase link`.
+project_id = "futcamp"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+# URL do site para links de confirmação/redirect em desenvolvimento.
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Em desenvolvimento é conveniente desligar a confirmação por e-mail.
+enable_confirmations = false
