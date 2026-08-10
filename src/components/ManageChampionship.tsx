@@ -8,30 +8,34 @@ import {
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
 import { listEvents, listMatches } from '../services/matches'
+import { listOfficials } from '../services/officials'
 import {
   FORMAT_LABELS,
   SPORT_LABELS,
   type Championship,
   type Match,
   type MatchEvent,
+  type Official,
   type Player,
   type Team,
 } from '../types'
-import { Button, Spinner, StatusPill } from './ui'
+import { Button, ChampLogo, Spinner, StatusPill } from './ui'
 import { Overview } from './Overview'
 import { TeamsPanel } from './TeamsPanel'
 import { PlayersPanel } from './PlayersPanel'
 import { MatchesPanel } from './MatchesPanel'
 import { StatsPanel } from './StatsPanel'
+import { OfficialsPanel } from './OfficialsPanel'
 import { ChampionshipForm } from './ChampionshipForm'
 
-type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'stats' | 'settings'
+type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'stats' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'overview', label: 'Visão geral', icon: '📊' },
   { id: 'teams', label: 'Times', icon: '🛡️' },
   { id: 'players', label: 'Elencos', icon: '👥' },
   { id: 'matches', label: 'Partidas', icon: '📅' },
+  { id: 'officials', label: 'Mesários', icon: '🧑‍⚖️' },
   { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   { id: 'settings', label: 'Ajustes', icon: '⚙️' },
 ]
@@ -48,23 +52,26 @@ export function ManageChampionship({
   const [players, setPlayers] = useState<Player[]>([])
   const [matches, setMatches] = useState<Match[]>([])
   const [events, setEvents] = useState<MatchEvent[]>([])
+  const [officials, setOfficials] = useState<Official[]>([])
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
 
   const reload = useCallback(async () => {
-    const [c, t, p, m, e] = await Promise.all([
+    const [c, t, p, m, e, o] = await Promise.all([
       getChampionship(championshipId),
       listTeams(championshipId),
       listPlayers(championshipId),
       listMatches(championshipId),
       listEvents(championshipId),
+      listOfficials(championshipId),
     ])
     setChamp(c)
     setTeams(t)
     setPlayers(p)
     setMatches(m)
     setEvents(e)
+    setOfficials(o)
   }, [championshipId])
 
   useEffect(() => {
@@ -114,7 +121,7 @@ export function ManageChampionship({
         <div className="container manage__hero-inner">
           <button className="back-link" onClick={onBack}>← Meus campeonatos</button>
           <div className="manage__title">
-            <span className="manage__logo">{champ.logo ?? '🏆'}</span>
+            <span className="manage__logo"><ChampLogo logo={champ.logo} /></span>
             <div>
               <div className="manage__title-row">
                 <h1>{champ.name}</h1>
@@ -143,7 +150,8 @@ export function ManageChampionship({
         {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} />}
         {tab === 'teams' && <TeamsPanel championship={champ} teams={teams} onChange={reload} />}
         {tab === 'players' && <PlayersPanel championship={champ} teams={teams} players={players} onChange={reload} />}
-        {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} onChange={reload} />}
+        {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} officials={officials} onChange={reload} />}
+        {tab === 'officials' && <OfficialsPanel championship={champ} officials={officials} matches={matches} onChange={reload} />}
         {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} />}
         {tab === 'settings' && (
           <section className="panel">

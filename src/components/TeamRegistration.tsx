@@ -15,7 +15,7 @@ import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { validateAthlete } from '../services/validation'
 import { POSITIONS, type Category, type Player, type Position } from '../types'
-import { Button, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
+import { Button, ChampLogo, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
 
 const LOGO_CHOICES = ['🦁', '🦅', '🐯', '🐺', '🐉', '🦈', '🐂', '🦉', '🐆', '⚡', '🔥', '⭐', '🛡️', '⚽']
 
@@ -81,7 +81,7 @@ export function TeamRegistration({
       <header className="reg__hero">
         <div className="container">
           <div className="reg__champ">
-            <span className="reg__champ-logo">{data.championshipLogo ?? '🏆'}</span>
+            <span className="reg__champ-logo"><ChampLogo logo={data.championshipLogo} /></span>
             <div>
               <p className="reg__eyebrow">Inscrição · {data.team.name}</p>
               <h1>{data.championshipName}</h1>

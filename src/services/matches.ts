@@ -25,6 +25,7 @@ function fromRow(r: any): Match {
     status: r.status,
     scheduledAt: r.scheduled_at ?? undefined,
     venue: r.venue ?? undefined,
+    officialId: r.official_id ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -42,7 +43,20 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.status !== undefined) row.status = m.status
   if (m.scheduledAt !== undefined) row.scheduled_at = m.scheduledAt
   if (m.venue !== undefined) row.venue = m.venue
+  if (m.officialId !== undefined) row.official_id = m.officialId
   return row
+}
+
+/**
+ * Abstração de escrita de partida — permite que o modal de resultado seja usado
+ * tanto pelo administrador (serviço padrão) quanto pelo mesário (writer restrito
+ * aos jogos atribuídos). Ver services/officials.ts.
+ */
+export interface MatchWriter {
+  listEvents(championshipId: string): Promise<MatchEvent[]>
+  updateMatch(id: string, patch: Partial<Match>): Promise<void>
+  addEvent(input: NewEvent): Promise<MatchEvent>
+  deleteEvent(id: string): Promise<void>
 }
 
 export async function listMatches(championshipId: string): Promise<Match[]> {
@@ -198,6 +212,9 @@ async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<
     void championshipId
   })
 }
+
+/** Writer padrão (administrador). */
+export const defaultMatchWriter: MatchWriter = { listEvents, updateMatch, addEvent, deleteEvent }
 
 // ---------------------------------------------------------------------------
 // Eventos de partida

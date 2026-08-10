@@ -6,7 +6,7 @@ import {
   type NewChampionship,
 } from '../services/championships'
 import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
-import { Button, EmptyState, Spinner, StatusPill } from './ui'
+import { Button, ChampLogo, EmptyState, Spinner, StatusPill } from './ui'
 import { ChampionshipForm } from './ChampionshipForm'
 
 export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
@@ -53,7 +53,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="champ-grid">
           {items.map((c) => (
             <button key={c.id} className="champ-card" onClick={() => onOpen(c.id)} style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}>
-              <div className="champ-card__logo">{c.logo ?? '🏆'}</div>
+              <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>
               <div className="champ-card__body">
                 <div className="champ-card__top">
                   <h3>{c.name}</h3>

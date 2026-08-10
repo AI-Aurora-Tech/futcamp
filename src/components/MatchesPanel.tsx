@@ -9,27 +9,32 @@ import {
   type Championship,
   type Match,
   type MatchPhase,
+  type Official,
   type Player,
   type Team,
 } from '../types'
 import { Button, EmptyState, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
+import { MatchScheduler } from './MatchScheduler'
 
 export function MatchesPanel({
   championship,
   teams,
   players,
   matches,
+  officials,
   onChange,
 }: {
   championship: Championship
   teams: Team[]
   players: Player[]
   matches: Match[]
+  officials: Official[]
   onChange: () => void
 }) {
   const [editing, setEditing] = useState<Match | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
   const isKnockout = championship.format === 'knockout'
   const isGroups = championship.format === 'groups_knockout'
 
@@ -54,6 +59,7 @@ export function MatchesPanel({
         await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound)
       }
       onChange()
+      setScheduling(true) // abre o agendador para informar data/hora jogo a jogo
     } finally {
       setGenerating(false)
     }
@@ -75,12 +81,28 @@ export function MatchesPanel({
                 : 'Pontos corridos — todos contra todos.'}
           </p>
         </div>
-        <Button onClick={() => void generate()} disabled={generating}>
-          {generating ? 'Gerando…' : matches.length ? '↻ Regerar tabela' : '⚙ Gerar tabela de jogos'}
-        </Button>
+        <div className="panel__head-actions">
+          {matches.length > 0 && (
+            <Button variant="soft" onClick={() => setScheduling((s) => !s)}>🗓️ Datas e horários</Button>
+          )}
+          <Button onClick={() => void generate()} disabled={generating}>
+            {generating ? 'Gerando…' : matches.length ? '↻ Regerar tabela' : '⚙ Gerar tabela de jogos'}
+          </Button>
+        </div>
       </div>
 
-      {matches.length === 0 ? (
+      {scheduling && matches.length > 0 ? (
+        <MatchScheduler
+          teams={teams}
+          matches={matches}
+          isKnockout={isKnockout}
+          onClose={() => setScheduling(false)}
+          onSaved={() => {
+            onChange()
+            setScheduling(false)
+          }}
+        />
+      ) : matches.length === 0 ? (
         <EmptyState icon="📅" title="Nenhuma partida ainda">
           <p>Cadastre os times e clique em “Gerar tabela de jogos” para criar as rodadas automaticamente.</p>
         </EmptyState>
@@ -105,6 +127,7 @@ export function MatchesPanel({
           match={editing}
           teams={teams}
           players={players}
+          officials={officials}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)

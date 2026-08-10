@@ -153,6 +153,19 @@ export interface Match {
   status: MatchStatus
   scheduledAt?: string
   venue?: string
+  /** Mesário responsável por lançar os dados desta partida. */
+  officialId?: string
+  createdAt: string
+}
+
+/** Mesário: lança dados das partidas em tempo real (login próprio). */
+export interface Official {
+  id: string
+  championshipId: string
+  name: string
+  username: string
+  /** Hash da senha (modo demo). */
+  passwordHash?: string
   createdAt: string
 }
 

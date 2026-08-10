@@ -33,6 +33,13 @@ export function TeamBadge({
   )
 }
 
+/** Brasão do campeonato: renderiza imagem (data/URL) ou emoji. */
+export function ChampLogo({ logo, fallback = '🏆' }: { logo?: string; fallback?: string }) {
+  const isImage = logo?.startsWith('data:') || logo?.startsWith('http')
+  if (isImage) return <img className="champ-logo-img" src={logo} alt="" />
+  return <>{logo || fallback}</>
+}
+
 export function Button({
   variant = 'primary',
   children,

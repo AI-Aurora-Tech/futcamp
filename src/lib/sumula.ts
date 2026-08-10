@@ -102,7 +102,7 @@ export function buildSumulaHtml(params: {
 <div class="noprint"><button class="btn" onclick="window.print()">🖨️ Imprimir / Salvar em PDF</button></div>
 <div class="head">
   <div>
-    <h1>${esc(championship.logo ?? '')} ${esc(championship.name)}</h1>
+    <h1>${championship.logo && /^(data:|https?:)/.test(championship.logo) ? `<img src="${esc(championship.logo)}" style="height:28px;vertical-align:middle;border-radius:4px;margin-right:6px">` : esc(championship.logo ?? '')} ${esc(championship.name)}</h1>
     <div class="muted">Súmula da partida${category ? ' — ' + esc(category.name) : ''}</div>
   </div>
   <div class="score">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   AUDIENCE_LABELS,
   FORMAT_LABELS,
@@ -9,8 +9,9 @@ import {
   type ChampionshipFormat,
   type Sport,
 } from '../types'
-import { Button, Field, Modal } from './ui'
+import { Button, ChampLogo, Field, Modal } from './ui'
 import { uid } from '../lib/id'
+import { fileToDataUrl } from '../lib/image'
 import type { NewChampionship } from '../services/championships'
 
 const LOGO_CHOICES = ['🏆', '⚽', '🥇', '🔥', '⭐', '🦁', '🦅', '🐯', '🐺', '🛡️']
@@ -66,6 +67,19 @@ export function ChampionshipForm({
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const logoRef = useRef<HTMLInputElement>(null)
+
+  async function onLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setLogo(await fileToDataUrl(file, 512))
+    } catch {
+      setError('Não foi possível carregar a imagem.')
+    } finally {
+      if (logoRef.current) logoRef.current.value = ''
+    }
+  }
 
   function updateCat(id: string, patch: Partial<CatDraft>) {
     setCats((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
@@ -274,18 +288,30 @@ export function ChampionshipForm({
           <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />
         </Field>
 
-        <Field label="Brasão (emoji)">
-          <div className="emoji-picker">
-            {LOGO_CHOICES.map((e) => (
-              <button
-                type="button"
-                key={e}
-                className={`emoji-picker__item ${logo === e ? 'is-active' : ''}`}
-                onClick={() => setLogo(e)}
-              >
-                {e}
-              </button>
-            ))}
+        <Field label="Brasão do campeonato">
+          <div className="champ-logo-field">
+            <span className="champ-logo-preview">
+              <ChampLogo logo={logo} />
+            </span>
+            <div className="champ-logo-actions">
+              <input ref={logoRef} type="file" accept="image/*" hidden onChange={onLogoUpload} />
+              <Button variant="soft" type="button" onClick={() => logoRef.current?.click()}>⬆ Enviar imagem</Button>
+              {logo?.startsWith('data:') && (
+                <button type="button" className="link-btn" onClick={() => setLogo('🏆')}>remover imagem</button>
+              )}
+              <div className="emoji-picker">
+                {LOGO_CHOICES.map((e) => (
+                  <button
+                    type="button"
+                    key={e}
+                    className={`emoji-picker__item ${logo === e ? 'is-active' : ''}`}
+                    onClick={() => setLogo(e)}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </Field>
 

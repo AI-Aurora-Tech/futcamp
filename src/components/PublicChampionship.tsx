@@ -12,7 +12,7 @@ import {
   type Player,
   type Team,
 } from '../types'
-import { Spinner, StatusPill } from './ui'
+import { ChampLogo, Spinner, StatusPill } from './ui'
 import { Overview } from './Overview'
 import { MatchesReadOnly } from './MatchesReadOnly'
 import { StatsPanel } from './StatsPanel'
@@ -77,7 +77,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
         <div className="container manage__hero-inner">
           <button className="back-link" onClick={onHome}>← FutCamp</button>
           <div className="manage__title">
-            <span className="manage__logo">{champ.logo ?? '🏆'}</span>
+            <span className="manage__logo"><ChampLogo logo={champ.logo} /></span>
             <div>
               <div className="manage__title-row">
                 <h1>{champ.name}</h1>

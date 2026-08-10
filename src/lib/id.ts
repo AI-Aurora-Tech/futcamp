@@ -7,6 +7,17 @@ export function uid(prefix = ''): string {
   return prefix ? `${prefix}_${rand}` : rand
 }
 
+/**
+ * Hash leve e determinístico (djb2) — usado APENAS no modo demo para não
+ * guardar senhas em texto puro no localStorage. Não é criptografia; o Supabase
+ * usa bcrypt (pgcrypto).
+ */
+export function simpleHash(text: string): string {
+  let h = 5381
+  for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0
+  return h.toString(16)
+}
+
 /** Gera um token de acesso curto e opaco (para links de inscrição de times). */
 export function accessToken(): string {
   if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {

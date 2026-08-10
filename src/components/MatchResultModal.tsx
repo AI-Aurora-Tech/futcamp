@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { addEvent, deleteEvent, listEvents, updateMatch, type NewEvent } from '../services/matches'
+import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
 import { matchRegistrationClosed } from '../lib/matchWindow'
 import {
@@ -9,6 +9,7 @@ import {
   type Match,
   type MatchEvent,
   type MatchStatus,
+  type Official,
   type Player,
   type Team,
 } from '../types'
@@ -36,6 +37,9 @@ export function MatchResultModal({
   match,
   teams,
   players,
+  officials,
+  writer,
+  readOnlySchedule = false,
   onClose,
   onSaved,
 }: {
@@ -43,9 +47,16 @@ export function MatchResultModal({
   match: Match
   teams: Team[]
   players: Player[]
+  /** Presente apenas no modo administrador: habilita atribuir mesário. */
+  officials?: Official[]
+  /** Camada de escrita (admin por padrão; mesário injeta writer restrito). */
+  writer?: MatchWriter
+  /** Mesário não edita agendamento. */
+  readOnlySchedule?: boolean
   onClose: () => void
   onSaved: () => void
 }) {
+  const w = writer ?? defaultMatchWriter
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
   const [homeScore, setHomeScore] = useState<string>(match.homeScore != null ? String(match.homeScore) : '')
@@ -53,6 +64,7 @@ export function MatchResultModal({
   const [status, setStatus] = useState<MatchStatus>(match.status)
   const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
   const [venue, setVenue] = useState<string>(match.venue ?? '')
+  const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [busy, setBusy] = useState(false)
 
@@ -63,8 +75,8 @@ export function MatchResultModal({
   const [evMinute, setEvMinute] = useState<string>('')
 
   useEffect(() => {
-    listEvents(match.championshipId).then((all) => setEvents(all.filter((e) => e.matchId === match.id)))
-  }, [match.id, match.championshipId])
+    w.listEvents(match.championshipId).then((all) => setEvents(all.filter((e) => e.matchId === match.id)))
+  }, [match.id, match.championshipId, w])
 
   const teamPlayers = players.filter((p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta')
 
@@ -90,7 +102,7 @@ export function MatchResultModal({
       type: evType,
       minute: evMinute ? Number(evMinute) : undefined,
     }
-    const created = await addEvent(payload)
+    const created = await w.addEvent(payload)
     setEvents((prev) => [...prev, created])
     if (evType === 'goal' || evType === 'own_goal') bumpScore(evTeam, evType)
     setEvPlayer('')
@@ -98,7 +110,7 @@ export function MatchResultModal({
   }
 
   async function removeEvent(id: string) {
-    await deleteEvent(id)
+    await w.deleteEvent(id)
     setEvents((prev) => prev.filter((e) => e.id !== id))
   }
 
@@ -106,14 +118,18 @@ export function MatchResultModal({
     // Ao vivo/encerrada, placar em branco vira 0 (entra na classificação);
     // agendada mantém null (ainda sem placar).
     const norm = (v: string) => (v === '' ? (newStatus === 'scheduled' ? null : 0) : Number(v))
-    setBusy(true)
-    await updateMatch(match.id, {
+    const patch: Partial<Match> = {
       homeScore: norm(homeScore),
       awayScore: norm(awayScore),
       status: newStatus,
-      scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-      venue: venue.trim() || undefined,
-    })
+    }
+    if (!readOnlySchedule) {
+      patch.scheduledAt = scheduledAt ? new Date(scheduledAt).toISOString() : undefined
+      patch.venue = venue.trim() || undefined
+    }
+    if (officials) patch.officialId = officialId || undefined
+    setBusy(true)
+    await w.updateMatch(match.id, patch)
     setBusy(false)
     onSaved()
   }
@@ -154,16 +170,30 @@ export function MatchResultModal({
         ))}
       </div>
 
-      <div className="schedule-row">
-        <label className="field">
-          <span className="field__label">Data e hora do jogo</span>
-          <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+      {!readOnlySchedule && (
+        <div className="schedule-row">
+          <label className="field">
+            <span className="field__label">Data e hora do jogo</span>
+            <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          </label>
+          <label className="field">
+            <span className="field__label">Local</span>
+            <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Estádio / quadra" />
+          </label>
+        </div>
+      )}
+
+      {officials && (
+        <label className="field mesa-assign">
+          <span className="field__label">Mesário responsável</span>
+          <select value={officialId} onChange={(e) => setOfficialId(e.target.value)}>
+            <option value="">— sem mesário —</option>
+            {officials.map((o) => (
+              <option key={o.id} value={o.id}>{o.name} ({o.username})</option>
+            ))}
+          </select>
         </label>
-        <label className="field">
-          <span className="field__label">Local</span>
-          <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Estádio / quadra" />
-        </label>
-      </div>
+      )}
 
       <div className="scoreboard">
         <div className="scoreboard__team">

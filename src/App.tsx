@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard'
 import { ManageChampionship } from './components/ManageChampionship'
 import { PublicChampionship } from './components/PublicChampionship'
 import { TeamRegistration } from './components/TeamRegistration'
+import { MesaPortal } from './components/MesaPortal'
 import { Spinner } from './components/ui'
 
 /** Extrai o ID de campeonato público de um hash `#/c/<id>`, se houver. */
@@ -22,16 +23,24 @@ function readTeamRoute(): { teamId: string; token: string } | null {
   return { teamId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
 }
 
+/** Extrai `#/mesa/<championshipId>` (portal do mesário), se houver. */
+function readMesaId(): string | null {
+  const m = window.location.hash.match(/^#\/mesa\/([^?]+)$/)
+  return m ? decodeURIComponent(m[1]) : null
+}
+
 export default function App() {
   const { organizer, loading } = useAuth()
   const [publicId, setPublicId] = useState<string | null>(readPublicId())
   const [teamRoute, setTeamRoute] = useState(readTeamRoute())
+  const [mesaId, setMesaId] = useState<string | null>(readMesaId())
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
     const onHash = () => {
       setPublicId(readPublicId())
       setTeamRoute(readTeamRoute())
+      setMesaId(readMesaId())
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
@@ -43,7 +52,13 @@ export default function App() {
     }
     setPublicId(null)
     setTeamRoute(null)
+    setMesaId(null)
     setSelected(null)
+  }
+
+  // Portal do mesário (login próprio).
+  if (mesaId) {
+    return <MesaPortal championshipId={mesaId} onHome={goHome} />
   }
 
   // Link de inscrição do time (não exige login).

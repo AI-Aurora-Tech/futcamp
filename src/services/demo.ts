@@ -4,10 +4,12 @@
 // por completo sem backend. Os serviços em src/services caem aqui quando o
 // Supabase não está configurado.
 // ---------------------------------------------------------------------------
+import { simpleHash } from '../lib/id'
 import type {
   Championship,
   Match,
   MatchEvent,
+  Official,
   Player,
   Team,
 } from '../types'
@@ -20,6 +22,7 @@ interface DemoData {
   players: Player[]
   matches: Match[]
   events: MatchEvent[]
+  officials: Official[]
 }
 
 const EMPTY: DemoData = {
@@ -28,6 +31,7 @@ const EMPTY: DemoData = {
   players: [],
   matches: [],
   events: [],
+  officials: [],
 }
 
 function load(): DemoData {
@@ -105,5 +109,13 @@ export function ensureSeed(ownerId: string): void {
   })
   data.teams.push(...teams)
   data.players.push(...players)
+  data.officials.push({
+    id: 'demo-mesa-1',
+    championshipId: champId,
+    name: 'Mesário Demo',
+    username: 'mesa1',
+    passwordHash: simpleHash('mesa:1234'),
+    createdAt: now,
+  })
   save(data)
 }
