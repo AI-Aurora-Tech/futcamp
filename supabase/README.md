@@ -8,6 +8,7 @@ Backend do FutCamp: autenticação de organizadores + banco Postgres com RLS.
 |---|---|
 | `migrations/0001_init.sql` | Tabelas: `profiles`, `championships`, `teams`, `players`, `matches`, `match_events` + trigger de criação de perfil. |
 | `migrations/0002_rls.sql` | Row Level Security: leitura pública, escrita restrita ao dono do campeonato. |
+| `migrations/0003_team_registration.sql` | Link de inscrição de times: tabela `team_invites` + RPCs `SECURITY DEFINER` (o time inclui escudo/atletas via token, sem login). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
 | `config.toml` | Configuração do Supabase CLI (dev local). |
 
@@ -19,6 +20,7 @@ Backend do FutCamp: autenticação de organizadores + banco Postgres com RLS.
 2. Vá em **SQL Editor** e execute, nesta ordem:
    - `migrations/0001_init.sql`
    - `migrations/0002_rls.sql`
+   - `migrations/0003_team_registration.sql`
 3. Em **Project Settings → API**, copie a `Project URL` e a `anon public key`.
 4. Preencha o arquivo `.env` na raiz do projeto:
    ```

@@ -44,6 +44,8 @@ export interface Team {
   group?: string
   color?: string
   coach?: string
+  /** Token do link de inscrição (o time edita logo/elenco sem login). */
+  accessToken?: string
   createdAt: string
 }
 

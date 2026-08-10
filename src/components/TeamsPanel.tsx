@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createTeam, deleteTeam, updateTeam, type NewTeam } from '../services/teams'
+import { createTeam, deleteTeam, ensureTeamToken, updateTeam, type NewTeam } from '../services/teams'
 import type { Championship, Team } from '../types'
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 
@@ -22,6 +22,20 @@ export function TeamsPanel({
     if (!confirm(`Remover o time "${team.name}"? Os jogadores e resultados vinculados também serão afetados.`)) return
     await deleteTeam(team.id)
     onChange()
+  }
+
+  async function copyInviteLink(team: Team) {
+    try {
+      const token = await ensureTeamToken(team.id)
+      const url = `${location.origin}${location.pathname}#/t/${team.id}?k=${token}`
+      await navigator.clipboard?.writeText(url).catch(() => {})
+      window.prompt(
+        `Link de inscrição de ${team.name}\n\nEnvie ao representante do time — ele poderá incluir o escudo e os atletas:`,
+        url,
+      )
+    } catch {
+      alert('Não foi possível gerar o link agora.')
+    }
   }
 
   return (
@@ -51,6 +65,7 @@ export function TeamsPanel({
                 </span>
               </div>
               <div className="team-item__actions">
+                <button className="icon-btn" title="Copiar link de inscrição" onClick={() => void copyInviteLink(t)}>🔗</button>
                 <button className="icon-btn" title="Editar" onClick={() => setEditing(t)}>✎</button>
                 <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(t)}>🗑</button>
               </div>

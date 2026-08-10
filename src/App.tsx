@@ -5,21 +5,34 @@ import { Landing } from './components/Landing'
 import { Dashboard } from './components/Dashboard'
 import { ManageChampionship } from './components/ManageChampionship'
 import { PublicChampionship } from './components/PublicChampionship'
+import { TeamRegistration } from './components/TeamRegistration'
 import { Spinner } from './components/ui'
 
 /** Extrai o ID de campeonato público de um hash `#/c/<id>`, se houver. */
 function readPublicId(): string | null {
-  const m = window.location.hash.match(/^#\/c\/(.+)$/)
+  const m = window.location.hash.match(/^#\/c\/([^?]+)$/)
   return m ? decodeURIComponent(m[1]) : null
+}
+
+/** Extrai `#/t/<teamId>?k=<token>` (link de inscrição de time), se houver. */
+function readTeamRoute(): { teamId: string; token: string } | null {
+  const m = window.location.hash.match(/^#\/t\/([^?]+)(?:\?(.*))?$/)
+  if (!m) return null
+  const params = new URLSearchParams(m[2] ?? '')
+  return { teamId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
 }
 
 export default function App() {
   const { organizer, loading } = useAuth()
   const [publicId, setPublicId] = useState<string | null>(readPublicId())
+  const [teamRoute, setTeamRoute] = useState(readTeamRoute())
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
-    const onHash = () => setPublicId(readPublicId())
+    const onHash = () => {
+      setPublicId(readPublicId())
+      setTeamRoute(readTeamRoute())
+    }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
@@ -29,7 +42,13 @@ export default function App() {
       window.location.hash = ''
     }
     setPublicId(null)
+    setTeamRoute(null)
     setSelected(null)
+  }
+
+  // Link de inscrição do time (não exige login).
+  if (teamRoute) {
+    return <TeamRegistration teamId={teamRoute.teamId} token={teamRoute.token} onHome={goHome} />
   }
 
   // Página pública tem prioridade e não exige login.

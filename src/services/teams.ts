@@ -1,7 +1,7 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
-import { uid } from '../lib/id'
+import { accessToken, uid } from '../lib/id'
 import type { Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -55,10 +55,34 @@ export async function createTeam(input: NewTeam): Promise<Team> {
     if (error) throw error
     return fromRow(data)
   }
-  const team: Team = { ...input, id: uid('team'), createdAt: new Date().toISOString() }
+  const team: Team = {
+    ...input,
+    accessToken: input.accessToken ?? accessToken(),
+    id: uid('team'),
+    createdAt: new Date().toISOString(),
+  }
   return mutate((d) => {
     d.teams.push(team)
     return team
+  })
+}
+
+/**
+ * Garante que o time tenha um token de link de inscrição e o retorna.
+ * No modo Supabase o token vive em `team_invites` (via RPC `ensure_team_invite`),
+ * nunca exposto na leitura pública dos times.
+ */
+export async function ensureTeamToken(teamId: string): Promise<string> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('ensure_team_invite', { p_team: teamId })
+    if (error) throw error
+    return data as string
+  }
+  return mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) throw new Error('Time não encontrado.')
+    if (!t.accessToken) t.accessToken = accessToken()
+    return t.accessToken
   })
 }
 

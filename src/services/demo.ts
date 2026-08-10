@@ -70,10 +70,10 @@ export function ensureSeed(ownerId: string): void {
   const now = new Date().toISOString()
   const champId = 'demo-champ-1'
   const teams: Team[] = [
-    { id: 'demo-t1', championshipId: champId, name: 'Leões FC', shortName: 'LEO', logo: '🦁', color: '#f59e0b', coach: 'Carlos Menezes', createdAt: now },
-    { id: 'demo-t2', championshipId: champId, name: 'Águias United', shortName: 'AGU', logo: '🦅', color: '#2563eb', coach: 'Rita Alcântara', createdAt: now },
-    { id: 'demo-t3', championshipId: champId, name: 'Tigres do Vale', shortName: 'TIG', logo: '🐯', color: '#dc2626', coach: 'Paulo Vidal', createdAt: now },
-    { id: 'demo-t4', championshipId: champId, name: 'Fúria Azul', shortName: 'FUR', logo: '🐺', color: '#0ea5e9', coach: 'Marina Souza', createdAt: now },
+    { id: 'demo-t1', championshipId: champId, name: 'Leões FC', shortName: 'LEO', logo: '🦁', color: '#f59e0b', coach: 'Carlos Menezes', accessToken: 'demo-token-leoes', createdAt: now },
+    { id: 'demo-t2', championshipId: champId, name: 'Águias United', shortName: 'AGU', logo: '🦅', color: '#2563eb', coach: 'Rita Alcântara', accessToken: 'demo-token-aguias', createdAt: now },
+    { id: 'demo-t3', championshipId: champId, name: 'Tigres do Vale', shortName: 'TIG', logo: '🐯', color: '#dc2626', coach: 'Paulo Vidal', accessToken: 'demo-token-tigres', createdAt: now },
+    { id: 'demo-t4', championshipId: champId, name: 'Fúria Azul', shortName: 'FUR', logo: '🐺', color: '#0ea5e9', coach: 'Marina Souza', accessToken: 'demo-token-furia', createdAt: now },
   ]
   const players: Player[] = [
     { id: 'demo-p1', teamId: 'demo-t1', championshipId: champId, name: 'Gabriel Lima', number: 10, position: 'ATA', createdAt: now },
