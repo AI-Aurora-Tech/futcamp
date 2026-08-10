@@ -371,6 +371,40 @@ table { border-collapse: collapse; width: 100%; }
 .link-btn { background: none; border: none; color: var(--muted); font-size: 0.78rem; text-decoration: underline; padding: 0; }
 .link-btn:hover { color: var(--danger); }
 
+/* ---------- Segmented (infantil/adulto) ---------- */
+.segmented { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
+.segmented__item { border: none; background: none; padding: 0.5rem 1.1rem; border-radius: 999px; font-weight: 700; color: var(--muted); font-size: 0.9rem; }
+.segmented__item.is-active { background: var(--brand); color: #fff; }
+
+/* ---------- Editor de categorias ---------- */
+.cats { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.9rem; background: var(--surface-2); }
+.cats__head { display: flex; align-items: center; justify-content: space-between; }
+.cats__list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
+.cat-row { display: flex; gap: 0.5rem; align-items: center; }
+.cat-row input { border: 1.5px solid var(--line-strong); border-radius: 8px; padding: 0.5rem 0.6rem; background: var(--surface); }
+.cat-row__name { flex: 1; min-width: 0; }
+.cat-row__year { width: 96px; flex: none; }
+.cat-row__exc { width: 76px; flex: none; }
+.link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
+.link-btn--add:hover { color: var(--brand); }
+
+/* ---------- Gate de acesso do time ---------- */
+.reg__gate { max-width: 460px; margin: 0 auto; }
+.reg__gate-form .btn { width: 100%; justify-content: center; margin-top: 0.3rem; }
+.reg__gate-switch { text-align: center; margin-top: 1rem; }
+
+/* ---------- Atleta (foto / CPF / regra) ---------- */
+.athlete-cell { display: flex; align-items: center; gap: 0.6rem; text-align: left; }
+.athlete-cell > span:last-child { display: flex; flex-direction: column; line-height: 1.2; }
+.athlete-cpf { font-size: 0.75rem; color: var(--muted); }
+.athlete-photo { width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; flex: none; font-size: 1rem; }
+.athlete-photo img { width: 100%; height: 100%; object-fit: cover; }
+.athlete-photo--lg { width: 76px; height: 76px; font-size: 2rem; }
+.athlete-photo-field { display: flex; align-items: center; gap: 1rem; }
+.athlete-photo-field .link-btn { display: inline-block; margin-top: 0.4rem; margin-left: 0.6rem; }
+.rule-hint { font-size: 0.83rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0; }
+.rule-hint--warn { color: #92400e; background: #fef3c7; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .landing { grid-template-columns: 1fr; }

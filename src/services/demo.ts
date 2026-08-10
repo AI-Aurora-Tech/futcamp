@@ -76,12 +76,12 @@ export function ensureSeed(ownerId: string): void {
     { id: 'demo-t4', championshipId: champId, name: 'Fúria Azul', shortName: 'FUR', logo: '🐺', color: '#0ea5e9', coach: 'Marina Souza', accessToken: 'demo-token-furia', createdAt: now },
   ]
   const players: Player[] = [
-    { id: 'demo-p1', teamId: 'demo-t1', championshipId: champId, name: 'Gabriel Lima', number: 10, position: 'ATA', createdAt: now },
-    { id: 'demo-p2', teamId: 'demo-t1', championshipId: champId, name: 'Diego Rocha', number: 1, position: 'GOL', createdAt: now },
-    { id: 'demo-p3', teamId: 'demo-t2', championshipId: champId, name: 'Rafael Torres', number: 9, position: 'ATA', createdAt: now },
-    { id: 'demo-p4', teamId: 'demo-t2', championshipId: champId, name: 'Bruno Aguiar', number: 5, position: 'VOL', createdAt: now },
-    { id: 'demo-p5', teamId: 'demo-t3', championshipId: champId, name: 'Igor Nunes', number: 7, position: 'MEI', createdAt: now },
-    { id: 'demo-p6', teamId: 'demo-t4', championshipId: champId, name: 'Léo Prado', number: 11, position: 'ATA', createdAt: now },
+    { id: 'demo-p1', teamId: 'demo-t1', championshipId: champId, name: 'Gabriel Lima', number: 10, position: 'ATA', categoryId: 'cat-livre', createdAt: now },
+    { id: 'demo-p2', teamId: 'demo-t1', championshipId: champId, name: 'Diego Rocha', number: 1, position: 'GOL', categoryId: 'cat-livre', createdAt: now },
+    { id: 'demo-p3', teamId: 'demo-t2', championshipId: champId, name: 'Rafael Torres', number: 9, position: 'ATA', categoryId: 'cat-livre', createdAt: now },
+    { id: 'demo-p4', teamId: 'demo-t2', championshipId: champId, name: 'Bruno Aguiar', number: 5, position: 'VOL', categoryId: 'cat-livre', createdAt: now },
+    { id: 'demo-p5', teamId: 'demo-t3', championshipId: champId, name: 'Igor Nunes', number: 7, position: 'MEI', categoryId: 'cat-livre', createdAt: now },
+    { id: 'demo-p6', teamId: 'demo-t4', championshipId: champId, name: 'Léo Prado', number: 11, position: 'ATA', categoryId: 'cat-livre', createdAt: now },
   ]
 
   data.championships.push({
@@ -89,6 +89,8 @@ export function ensureSeed(ownerId: string): void {
     ownerId,
     name: 'Copa FutCamp 2026',
     sport: 'futebol',
+    audience: 'adulto',
+    categories: [{ id: 'cat-livre', name: 'Adulto Livre', exceptions: 0 }],
     format: 'league',
     season: '2026',
     status: 'active',

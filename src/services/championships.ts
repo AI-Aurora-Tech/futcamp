@@ -12,6 +12,8 @@ function fromRow(r: any): Championship {
     ownerId: r.owner_id,
     name: r.name,
     sport: r.sport,
+    audience: r.audience ?? 'adulto',
+    categories: Array.isArray(r.categories) ? r.categories : [],
     format: r.format,
     season: r.season ?? '',
     status: r.status,
@@ -31,6 +33,8 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.ownerId !== undefined) row.owner_id = c.ownerId
   if (c.name !== undefined) row.name = c.name
   if (c.sport !== undefined) row.sport = c.sport
+  if (c.audience !== undefined) row.audience = c.audience
+  if (c.categories !== undefined) row.categories = c.categories
   if (c.format !== undefined) row.format = c.format
   if (c.season !== undefined) row.season = c.season
   if (c.status !== undefined) row.status = c.status

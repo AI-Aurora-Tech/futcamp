@@ -10,11 +10,36 @@ export type ChampionshipFormat = 'league' | 'groups_knockout' | 'knockout'
 
 export type ChampionshipStatus = 'draft' | 'active' | 'finished'
 
+/** Público-alvo do campeonato. */
+export type Audience = 'infantil' | 'adulto'
+
+/**
+ * Categoria do campeonato. Serve para enquadrar e validar os atletas pela regra
+ * de ano de nascimento.
+ *
+ *  • Infantil → `birthYearMode: 'min'`: só entram atletas nascidos em `birthYear`
+ *    ou depois (mais novos).
+ *  • Adulto/veterano → `birthYearMode: 'max'` (opcional): só entram atletas
+ *    nascidos em `birthYear` ou antes; `exceptions` permite N atletas por time
+ *    fora dessa regra.
+ */
+export interface Category {
+  id: string
+  name: string
+  birthYear?: number
+  birthYearMode?: 'min' | 'max'
+  /** Nº de atletas por time que podem furar a regra de ano de nascimento. */
+  exceptions?: number
+}
+
 export interface Championship {
   id: string
   ownerId: string
   name: string
   sport: Sport
+  audience: Audience
+  /** Categorias do campeonato (ao menos uma). */
+  categories: Category[]
   format: ChampionshipFormat
   season: string
   status: ChampionshipStatus
@@ -44,8 +69,12 @@ export interface Team {
   group?: string
   color?: string
   coach?: string
-  /** Token do link de inscrição (o time edita logo/elenco sem login). */
+  /** Token do link de inscrição (o responsável cria o acesso do time). */
   accessToken?: string
+  /** Usuário do responsável pelo time (definido via link de inscrição). */
+  username?: string
+  /** Hash da senha do responsável (modo demo). */
+  passwordHash?: string
   createdAt: string
 }
 
@@ -70,6 +99,10 @@ export interface Player {
   position?: Position
   birthdate?: string
   photo?: string
+  /** CPF do atleta (obrigatório na inscrição). */
+  cpf?: string
+  /** Categoria em que o atleta está inscrito. */
+  categoryId?: string
   createdAt: string
 }
 
@@ -166,4 +199,9 @@ export const FORMAT_LABELS: Record<ChampionshipFormat, string> = {
   league: 'Pontos corridos',
   groups_knockout: 'Grupos + mata-mata',
   knockout: 'Mata-mata',
+}
+
+export const AUDIENCE_LABELS: Record<Audience, string> = {
+  infantil: 'Infantil',
+  adulto: 'Adulto',
 }

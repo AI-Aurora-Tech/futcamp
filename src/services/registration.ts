@@ -1,25 +1,33 @@
 // ---------------------------------------------------------------------------
-// Inscrição de time via link (sem login).
-// O representante do time acessa `#/t/<teamId>?k=<token>` e edita o escudo e o
-// elenco. Todas as operações são validadas pelo token.
+// Inscrição de time via link (sem conta no app principal).
 //
-//  • Modo demo: o token vive em Team.accessToken (localStorage).
-//  • Modo Supabase: o token vive em `team_invites` e as operações passam por
-//    RPCs SECURITY DEFINER (o token nunca é exposto na leitura pública).
+// Fluxo: o organizador envia `#/t/<teamId>?k=<token>`. Pelo link o responsável
+// CRIA um usuário e senha do time e, autenticado, inscreve os atletas
+// (NOME COMPLETO, CPF, DATA DE NASCIMENTO e FOTO opcional). A inscrição respeita
+// a categoria e a regra de ano de nascimento do campeonato.
+//
+//  • Modo demo: token/credenciais no localStorage; validação client-side.
+//  • Modo Supabase: token em `team_invites` e operações via RPCs SECURITY
+//    DEFINER (ver migration 0003/0004).
 // ---------------------------------------------------------------------------
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
-import type { Player, Position, Team } from '../types'
+import { checkEligibility } from '../lib/eligibility'
+import type { Category, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface RegistrationData {
   team: Team
+  championshipId: string
   championshipName: string
   championshipLogo?: string
+  audience: 'infantil' | 'adulto'
+  categories: Category[]
   players: Player[]
+  hasAccount: boolean
 }
 
 export interface TeamInfoPatch {
@@ -32,8 +40,20 @@ export interface TeamInfoPatch {
 
 export interface PlayerInput {
   name: string
+  cpf?: string
+  birthdate?: string
+  photo?: string
   number?: number
   position?: Position
+  categoryId?: string
+}
+
+/** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
+function demoHash(password: string): string {
+  let h = 5381
+  const s = `futcamp:${password}`
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
+  return h.toString(16)
 }
 
 function playerFromRow(r: any): Player {
@@ -46,6 +66,8 @@ function playerFromRow(r: any): Player {
     position: r.position ?? undefined,
     birthdate: r.birthdate ?? undefined,
     photo: r.photo ?? undefined,
+    cpf: r.cpf ?? undefined,
+    categoryId: r.category_id ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -70,16 +92,17 @@ export async function loadRegistration(
   token: string,
 ): Promise<RegistrationData | null> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase.rpc('team_registration', {
-      p_team: teamId,
-      p_token: token,
-    })
+    const { data, error } = await supabase.rpc('team_registration', { p_team: teamId, p_token: token })
     if (error || !data) return null
     return {
       team: teamFromRow(data.team),
+      championshipId: data.team?.championship_id,
       championshipName: data.championship_name ?? 'Campeonato',
       championshipLogo: data.championship_logo ?? undefined,
+      audience: data.audience ?? 'adulto',
+      categories: Array.isArray(data.categories) ? data.categories : [],
       players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
+      hasAccount: Boolean(data.has_account),
     }
   }
 
@@ -89,11 +112,15 @@ export async function loadRegistration(
     const champ = d.championships.find((c) => c.id === team.championshipId)
     return {
       team,
+      championshipId: team.championshipId,
       championshipName: champ?.name ?? 'Campeonato',
       championshipLogo: champ?.logo,
+      audience: champ?.audience ?? 'adulto',
+      categories: champ?.categories ?? [],
       players: d.players
         .filter((p) => p.teamId === teamId)
         .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+      hasAccount: Boolean(team.username && team.passwordHash),
     }
   })
 }
@@ -106,11 +133,70 @@ function assertTokenDemo(teamId: string, token: string): void {
   if (!ok) throw new Error('Link inválido ou expirado.')
 }
 
-export async function saveTeamInfo(
+// ---------------------------------------------------------------------------
+// Acesso do time (usuário + senha)
+// ---------------------------------------------------------------------------
+
+/** Cria o usuário/senha do responsável pelo time (uma única vez). */
+export async function createTeamAccount(
   teamId: string,
   token: string,
-  patch: TeamInfoPatch,
-): Promise<void> {
+  username: string,
+  password: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('create_team_account', {
+      p_team: teamId,
+      p_token: token,
+      p_username: username.trim(),
+      p_password: password,
+    })
+    return error ? { ok: false, error: error.message } : { ok: true }
+  }
+  try {
+    assertTokenDemo(teamId, token)
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  return mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) return { ok: false, error: 'Time não encontrado.' }
+    if (t.username && t.passwordHash) return { ok: false, error: 'Este time já possui acesso. Faça login.' }
+    t.username = username.trim()
+    t.passwordHash = demoHash(password)
+    return { ok: true }
+  })
+}
+
+/** Autentica o responsável pelo time. */
+export async function teamLogin(
+  teamId: string,
+  token: string,
+  username: string,
+  password: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('team_login', {
+      p_team: teamId,
+      p_token: token,
+      p_username: username.trim(),
+      p_password: password,
+    })
+    if (error) return { ok: false, error: error.message }
+    return data ? { ok: true } : { ok: false, error: 'Usuário ou senha inválidos.' }
+  }
+  return query((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t || t.accessToken !== token) return { ok: false, error: 'Link inválido.' }
+    if (t.username === username.trim() && t.passwordHash === demoHash(password)) return { ok: true }
+    return { ok: false, error: 'Usuário ou senha inválidos.' }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Dados do time
+// ---------------------------------------------------------------------------
+export async function saveTeamInfo(teamId: string, token: string, patch: TeamInfoPatch): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.rpc('reg_update_team', {
       p_team: teamId,
@@ -141,23 +227,43 @@ export async function saveTeamInfo(
   })
 }
 
-export async function addRegPlayer(
-  teamId: string,
-  token: string,
-  input: PlayerInput,
-): Promise<void> {
+// ---------------------------------------------------------------------------
+// Atletas (com validação de categoria / ano de nascimento)
+// ---------------------------------------------------------------------------
+
+/** Valida a elegibilidade no modo demo (o Supabase valida via RPC). */
+function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
+  const { category, existing } = query((d) => {
+    const team = d.teams.find((t) => t.id === teamId)
+    const champ = d.championships.find((c) => c.id === team?.championshipId)
+    const category = champ?.categories.find((c) => c.id === input.categoryId)
+    const existing = d.players.filter(
+      (p) => p.teamId === teamId && p.categoryId === input.categoryId && p.id !== excludePlayerId,
+    )
+    return { category, existing }
+  })
+  const result = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })
+  if (!result.ok) throw new Error(result.reason ?? 'Atleta não elegível para esta categoria.')
+}
+
+export async function addRegPlayer(teamId: string, token: string, input: PlayerInput): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.rpc('reg_add_player', {
       p_team: teamId,
       p_token: token,
       p_name: input.name,
+      p_cpf: input.cpf ?? null,
+      p_birthdate: input.birthdate ?? null,
+      p_photo: input.photo ?? null,
       p_number: input.number ?? null,
       p_position: input.position ?? null,
+      p_category: input.categoryId ?? null,
     })
     if (error) throw error
     return
   }
   assertTokenDemo(teamId, token)
+  validateDemo(teamId, input)
   mutate((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     if (!team) return
@@ -166,8 +272,12 @@ export async function addRegPlayer(
       teamId,
       championshipId: team.championshipId,
       name: input.name,
+      cpf: input.cpf,
+      birthdate: input.birthdate,
+      photo: input.photo,
       number: input.number,
       position: input.position,
+      categoryId: input.categoryId,
       createdAt: new Date().toISOString(),
     })
   })
@@ -177,39 +287,44 @@ export async function updateRegPlayer(
   teamId: string,
   token: string,
   playerId: string,
-  patch: PlayerInput,
+  input: PlayerInput,
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.rpc('reg_update_player', {
       p_team: teamId,
       p_token: token,
       p_player: playerId,
-      p_name: patch.name,
-      p_number: patch.number ?? null,
-      p_position: patch.position ?? null,
+      p_name: input.name,
+      p_cpf: input.cpf ?? null,
+      p_birthdate: input.birthdate ?? null,
+      p_photo: input.photo ?? null,
+      p_number: input.number ?? null,
+      p_position: input.position ?? null,
+      p_category: input.categoryId ?? null,
     })
     if (error) throw error
     return
   }
   assertTokenDemo(teamId, token)
+  validateDemo(teamId, input, playerId)
   mutate((d) => {
     const i = d.players.findIndex((p) => p.id === playerId && p.teamId === teamId)
     if (i >= 0) {
       d.players[i] = {
         ...d.players[i],
-        name: patch.name,
-        number: patch.number,
-        position: patch.position,
+        name: input.name,
+        cpf: input.cpf,
+        birthdate: input.birthdate,
+        photo: input.photo,
+        number: input.number,
+        position: input.position,
+        categoryId: input.categoryId,
       }
     }
   })
 }
 
-export async function removeRegPlayer(
-  teamId: string,
-  token: string,
-  playerId: string,
-): Promise<void> {
+export async function removeRegPlayer(teamId: string, token: string, playerId: string): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.rpc('reg_delete_player', {
       p_team: teamId,
