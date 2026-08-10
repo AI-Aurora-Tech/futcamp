@@ -11,7 +11,8 @@ import {
   type RegistrationData,
 } from '../services/registration'
 import { fileToDataUrl } from '../lib/image'
-import { formatCpf, isValidCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
+import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
+import { validateAthlete } from '../services/validation'
 import { POSITIONS, type Category, type Player, type Position } from '../types'
 import { Button, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
 
@@ -423,21 +424,23 @@ export function AthleteDialog({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (cpf && !isValidCpf(cpf)) {
-      setError('CPF inválido.')
-      return
-    }
-    const payload: PlayerInput = {
-      name: name.trim(),
-      cpf: cpf.replace(/\D/g, '') || undefined,
-      birthdate: birthdate || undefined,
-      photo,
-      number: number ? Number(number) : undefined,
-      position,
-      categoryId: categoryId || undefined,
-    }
     setBusy(true)
     try {
+      // Validação de CPF × data de nascimento (API + fallback local).
+      const check = await validateAthlete(cpf, birthdate)
+      if (!check.ok) {
+        setError(check.message)
+        return
+      }
+      const payload: PlayerInput = {
+        name: name.trim(),
+        cpf: cpf.replace(/\D/g, '') || undefined,
+        birthdate: birthdate || undefined,
+        photo,
+        number: number ? Number(number) : undefined,
+        position,
+        categoryId: categoryId || undefined,
+      }
       if (initial) await updateRegPlayer(teamId, token, initial.id, payload)
       else await addRegPlayer(teamId, token, payload)
       await onSaved()
@@ -506,7 +509,7 @@ export function AthleteDialog({
 
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>
+          <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Validando…' : 'Salvar'}</Button>
         </div>
       </form>
     </Modal>

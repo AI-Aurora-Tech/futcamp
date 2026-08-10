@@ -22,7 +22,9 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 📊 **Classificação automática** com critérios de desempate (pontos, saldo, gols pró, vitórias).
 - 🏅 **Rankings**: artilharia, assistências e cartões.
 - 🔗 **Página pública** por campeonato (`#/c/<id>`), somente leitura, para compartilhar com torcedores.
-- 📨 **Link de inscrição por time** (`#/t/<id>?k=<token>`): o organizador envia o link e o próprio time inclui **escudo (emoji ou upload)** e **atletas**, sem precisar de login.
+- 📨 **Link de inscrição por time** (`#/t/<id>?k=<token>`): o organizador envia o link, o responsável **cria usuário/senha** e inscreve os atletas (nome completo, CPF, data de nascimento e foto).
+- 🧒🧑 **Infantil ou Adulto** com **categorias** e regra de **ano de nascimento** (+ exceções por time no adulto) — o sistema barra atletas fora da faixa.
+- 🛂 **API de validação do atleta** (Edge Function `validate-athlete`): valida o **CPF** e confere **CPF × data de nascimento** (via provedor configurável), com fallback local.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
 
 ## 🚀 Começando

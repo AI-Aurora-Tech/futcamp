@@ -28,3 +28,7 @@ enable_signup = true
 enable_signup = true
 # Em desenvolvimento é conveniente desligar a confirmação por e-mail.
 enable_confirmations = false
+
+# A validação de atleta é usada na página pública de inscrição (sem login).
+[functions.validate-athlete]
+verify_jwt = false

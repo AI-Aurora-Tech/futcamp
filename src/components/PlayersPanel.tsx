@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { createPlayer, deletePlayer, updatePlayer, type NewPlayer } from '../services/players'
 import { checkEligibility, formatCpf, isValidCpf } from '../lib/eligibility'
+import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
@@ -170,7 +171,7 @@ function PlayerForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (cpf && !isValidCpf(cpf)) {
+    if (cpf && !birthdate && !isValidCpf(cpf)) {
       setError('CPF inválido.')
       return
     }
@@ -180,19 +181,27 @@ function PlayerForm({
       setError(elig.reason ?? 'Atleta não elegível para esta categoria.')
       return
     }
-    const payload: NewPlayer = {
-      championshipId: championship.id,
-      teamId,
-      name: name.trim(),
-      cpf: cpf.replace(/\D/g, '') || undefined,
-      birthdate: birthdate || undefined,
-      photo,
-      number: number ? Number(number) : undefined,
-      position,
-      categoryId: categoryId || undefined,
-    }
     setBusy(true)
     try {
+      // Validação CPF × data de nascimento quando ambos informados.
+      if (cpf && birthdate) {
+        const check = await validateAthlete(cpf, birthdate)
+        if (!check.ok) {
+          setError(check.message)
+          return
+        }
+      }
+      const payload: NewPlayer = {
+        championshipId: championship.id,
+        teamId,
+        name: name.trim(),
+        cpf: cpf.replace(/\D/g, '') || undefined,
+        birthdate: birthdate || undefined,
+        photo,
+        number: number ? Number(number) : undefined,
+        position,
+        categoryId: categoryId || undefined,
+      }
       if (initial) await updatePlayer(initial.id, payload)
       else await createPlayer(payload)
       onSaved()
