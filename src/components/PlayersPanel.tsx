@@ -5,6 +5,7 @@ import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
+import { ImportAthletesModal } from './ImportAthletesModal'
 
 export function PlayersPanel({
   championship,
@@ -20,6 +21,7 @@ export function PlayersPanel({
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.id ?? '')
   const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const teamPlayers = useMemo(
     () => players.filter((p) => p.teamId === selectedTeam).sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
@@ -51,7 +53,10 @@ export function PlayersPanel({
           <h2>Elencos</h2>
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
-        <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
+        <div className="panel__head-actions">
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📄 Importar TXT</Button>
+          <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
+        </div>
       </div>
 
       <div className="chip-row">
@@ -121,6 +126,26 @@ export function PlayersPanel({
             setEditing(null)
             onChange()
           }}
+        />
+      )}
+
+      {importing && (
+        <ImportAthletesModal
+          categories={championship.categories}
+          existing={teamPlayers}
+          onAdd={async (i) => {
+            await createPlayer({
+              championshipId: championship.id,
+              teamId: selectedTeam,
+              name: i.name,
+              cpf: i.cpf,
+              birthdate: i.birthdate,
+              categoryId: i.categoryId,
+              role: i.role,
+            })
+          }}
+          onClose={() => setImporting(false)}
+          onDone={onChange}
         />
       )}
     </section>

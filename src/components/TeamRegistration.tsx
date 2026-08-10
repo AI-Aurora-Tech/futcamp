@@ -16,6 +16,7 @@ import { registrationLockForTeam } from '../lib/matchWindow'
 import { validateAthlete } from '../services/validation'
 import { POSITIONS, type Category, type Player, type Position } from '../types'
 import { Button, ChampLogo, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
+import { ImportAthletesModal } from './ImportAthletesModal'
 
 const LOGO_CHOICES = ['🦁', '🦅', '🐯', '🐺', '🐉', '🦈', '🐂', '🦉', '🐆', '⚡', '🔥', '⭐', '🛡️', '⚽']
 
@@ -295,6 +296,7 @@ function RosterCard({
 }) {
   const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
   const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours)
   const athletes = data.players.filter((p) => (p.role ?? 'atleta') === 'atleta').length
@@ -313,7 +315,10 @@ function RosterCard({
           <h2>Elenco — {athletes} atleta(s), {staff} comissão</h2>
           <p className="muted">Inscreva os atletas com nome completo, CPF e data de nascimento.</p>
         </div>
-        <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
+        <div className="panel__head-actions">
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={lock.locked}>📄 Importar TXT</Button>
+          <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
+        </div>
       </div>
 
       {lock.locked && (
@@ -381,6 +386,24 @@ function RosterCard({
             setEditing(null)
             await onChanged()
           }}
+        />
+      )}
+
+      {importing && (
+        <ImportAthletesModal
+          categories={data.categories}
+          existing={data.players}
+          onAdd={async (i) => {
+            await addRegPlayer(teamId, token, {
+              name: i.name,
+              cpf: i.cpf,
+              birthdate: i.birthdate,
+              categoryId: i.categoryId,
+              role: i.role,
+            })
+          }}
+          onClose={() => setImporting(false)}
+          onDone={onChanged}
         />
       )}
     </section>

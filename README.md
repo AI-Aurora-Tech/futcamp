@@ -30,6 +30,8 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 📄 **Súmula**: gere e exporte (imprimir/PDF ou HTML) a súmula do jogo quando as inscrições encerram.
 - 🔴 **Ao vivo**: o organizador lança gols/cartões durante o jogo e a **classificação e estatísticas** atualizam em tempo real.
 - 🧑‍⚖️ **Mesários**: logins próprios (vários mesários) que lançam os dados **em tempo real**; o administrador define **quais jogos** cada mesário pode preencher. Portal em `#/mesa/<id>`.
+- 📄 **Importar atletas por .txt**: uma linha por atleta no formato `NOME - CPF - DATA DE NASCIMENTO`, com prévia e validação (CPF, idade, limites) antes de importar.
+- 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
 
 ## 🚀 Começando

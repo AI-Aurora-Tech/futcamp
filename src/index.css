@@ -454,7 +454,20 @@ table { border-collapse: collapse; width: 100%; }
 .mesa-assign { margin-bottom: 1rem; }
 .mesa-assign select { border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0.55rem 0.65rem; background: var(--surface); width: 100%; }
 
+/* ---------- Importar atletas (.txt) ---------- */
+.import-controls { display: flex; align-items: flex-end; gap: 0.75rem; flex-wrap: wrap; margin: 0.75rem 0; }
+.import-textarea { width: 100%; border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0.6rem 0.7rem; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; background: var(--surface); }
+.import-preview { margin-top: 1rem; }
+.import-preview__head { font-size: 0.9rem; margin-bottom: 0.5rem; }
+.import-table { font-size: 0.85rem; }
+.import-row--bad td { background: #fef2f2; }
+.import-reason { color: var(--danger); font-size: 0.8rem; }
+
 /* ---------- Responsive ---------- */
+/* Nunca deixar a página rolar horizontalmente. */
+html, body { max-width: 100%; overflow-x: hidden; }
+.table-wrap { -webkit-overflow-scrolling: touch; }
+.cat-row { flex-wrap: wrap; }
 @media (max-width: 900px) {
   .landing { grid-template-columns: 1fr; }
   .landing__hero { padding: 2.5rem 1.5rem; }
@@ -463,12 +476,42 @@ table { border-collapse: collapse; width: 100%; }
   .stat-row { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 620px) {
+  .container { padding: 0 0.9rem; }
+  .dashboard { padding: 1.25rem 0.9rem 3rem; }
   .dashboard__head { flex-direction: column; align-items: stretch; }
+  .dashboard__head h1 { font-size: 1.5rem; }
+  .champ-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .event-form { grid-template-columns: 1fr 1fr; }
   .manage__title { flex-wrap: wrap; }
+  .manage__title-row h1 { font-size: 1.35rem; }
   .manage__actions { margin-left: 0; width: 100%; }
   .manage__actions .btn { width: 100%; justify-content: center; }
+  .manage__content { padding: 1.25rem 0.9rem 3rem; }
+  .panel { padding: 1.1rem; }
   .rounds { grid-template-columns: 1fr; }
   .reg__team { grid-template-columns: 1fr; }
+  .reg__badge { align-items: flex-start; }
+  .schedule-row { grid-template-columns: 1fr; }
+  .scheduler__bulk-fields { flex-direction: column; align-items: stretch; }
+  .scheduler__bulk-fields .btn { width: 100%; justify-content: center; }
+  .sched-row { grid-template-columns: 1fr; gap: 0.4rem; }
+  .sched-row__name { max-width: none; }
+  .sched-row__venue { width: 100%; }
+  .status-tabs { flex-wrap: wrap; }
+  .panel__head { flex-direction: column; align-items: stretch; }
+  .panel__head-actions { width: 100%; }
+  .panel__head-actions .btn { flex: 1; justify-content: center; }
+  .form-actions { flex-wrap: wrap; }
+  .form-actions .btn { flex: 1; justify-content: center; }
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid { grid-template-columns: 1fr; }
+  .team-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 400px) {
+  .event-form { grid-template-columns: 1fr; }
+  .stat-row { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .stat-tile__value { font-size: 1.5rem; }
+  .topbar__uname { display: none; }
+  .logo-word { font-size: 1.1rem; }
 }
