@@ -58,13 +58,17 @@ export function ManageChampionship({
   const [editing, setEditing] = useState(false)
 
   const reload = useCallback(async () => {
+    // Carrega o campeonato (crítico) e os demais dados de forma resiliente:
+    // a falha de uma consulta secundária (ex.: mesários sem a migration 0006)
+    // não pode "derrubar" a tela inteira nem esconder o campeonato.
+    const empty = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[])
     const [c, t, p, m, e, o] = await Promise.all([
-      getChampionship(championshipId),
-      listTeams(championshipId),
-      listPlayers(championshipId),
-      listMatches(championshipId),
-      listEvents(championshipId),
-      listOfficials(championshipId),
+      getChampionship(championshipId).catch(() => null),
+      empty(listTeams(championshipId)),
+      empty(listPlayers(championshipId)),
+      empty(listMatches(championshipId)),
+      empty(listEvents(championshipId)),
+      empty(listOfficials(championshipId)),
     ])
     setChamp(c)
     setTeams(t)

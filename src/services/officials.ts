@@ -43,7 +43,12 @@ export async function listOfficials(championshipId: string): Promise<Official[]>
       .select('id, championship_id, name, username, created_at')
       .eq('championship_id', championshipId)
       .order('name')
-    if (error) throw error
+    // Se a tabela ainda não existe (migration 0006 não aplicada), não quebra a
+    // tela — apenas retorna vazio.
+    if (error) {
+      console.warn('officials indisponível:', error.message)
+      return []
+    }
     return (data ?? []).map(fromRow)
   }
   return query((d) => d.officials.filter((o) => o.championshipId === championshipId))

@@ -39,7 +39,17 @@ function load(): DemoData {
     const raw = localStorage.getItem(KEY)
     if (!raw) return structuredClone(EMPTY)
     const parsed = JSON.parse(raw) as Partial<DemoData>
-    return { ...structuredClone(EMPTY), ...parsed }
+    const merged = { ...structuredClone(EMPTY), ...parsed }
+    // Garante que toda coleção seja um array (dados antigos/parciais não podem
+    // quebrar filtros como d.officials.filter(...)).
+    const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
+    merged.championships = arr(merged.championships)
+    merged.teams = arr(merged.teams)
+    merged.players = arr(merged.players)
+    merged.matches = arr(merged.matches)
+    merged.events = arr(merged.events)
+    merged.officials = arr(merged.officials)
+    return merged
   } catch {
     return structuredClone(EMPTY)
   }
