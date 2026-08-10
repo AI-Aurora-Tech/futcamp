@@ -82,8 +82,8 @@ export function ChampionshipForm({
         </Field>
 
         {format === 'groups_knockout' && (
-          <Field label="Número de grupos">
-            <input type="number" min={2} max={8} value={numGroups} onChange={(e) => setNumGroups(Number(e.target.value))} />
+          <Field label="Número de grupos" hint="Use 1 para uma fase única seguida de mata-mata.">
+            <input type="number" min={1} max={8} value={numGroups} onChange={(e) => setNumGroups(Number(e.target.value))} />
           </Field>
         )}
 

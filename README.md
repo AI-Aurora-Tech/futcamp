@@ -63,6 +63,30 @@ supabase/
   seed.sql      # dados de exemplo (opcional)
 ```
 
+## ▲ Deploy na Vercel
+
+O projeto já vem com [`vercel.json`](vercel.json) configurado (framework Vite,
+build `npm run build`, saída `dist`, e *rewrite* de SPA para o `index.html`).
+
+1. Em <https://vercel.com>, clique em **Add New → Project** e importe o
+   repositório do GitHub. A Vercel detecta o Vite automaticamente.
+2. (Opcional) Em **Settings → Environment Variables**, adicione as variáveis do
+   Supabase para usar o backend real (sem elas o app sobe em **modo demo**):
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+
+   > ⚠️ Variáveis `VITE_*` são lidas **no build** — após alterá-las, faça um
+   > *redeploy* para que passem a valer.
+3. Clique em **Deploy**. Cada `push` na branch de produção gera um novo deploy.
+
+### Via CLI (opcional)
+
+```bash
+npm i -g vercel
+vercel        # preview
+vercel --prod # produção
+```
+
 ## 🛠️ Scripts
 
 | Comando | Descrição |
