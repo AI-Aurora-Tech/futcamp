@@ -36,7 +36,7 @@ create or replace function public.create_official(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if not public.owns_championship(p_champ) then
@@ -55,7 +55,7 @@ returns uuid
 language sql
 security definer
 stable
-set search_path = public
+set search_path = public, extensions
 as $$
   select id from public.officials
   where championship_id = p_champ and username = p_username

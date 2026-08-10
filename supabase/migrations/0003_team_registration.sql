@@ -32,7 +32,7 @@ create or replace function public.ensure_team_invite(p_team uuid)
 returns text
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_champ uuid;

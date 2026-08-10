@@ -29,7 +29,7 @@ create or replace function public.create_team_account(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if not public.invite_valid(p_team, p_token) then
@@ -55,7 +55,7 @@ returns boolean
 language plpgsql
 security definer
 stable
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_hash text;

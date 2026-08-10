@@ -51,6 +51,15 @@ supabase db reset      # aplica as migrations e o seed
 - **Somente o organizador dono** do campeonato pode criar/editar/excluir seus
   dados (validado por `owns_championship()`).
 
+## Solução de problemas
+
+**`ERROR: function crypt(text, text) does not exist`** — o `pgcrypto` no Supabase
+fica no schema `extensions`. As funções que usam `crypt`/`gen_salt`/`gen_random_bytes`
+já declaram `set search_path = public, extensions` para encontrá-lo. Se você
+aplicou uma versão anterior e viu esse erro, basta **re-executar** os arquivos
+`0003_team_registration.sql`, `0004_categories_and_accounts.sql` e
+`0006_officials.sql` (são `create or replace`, seguros para rodar de novo).
+
 ## Modo demo (sem Supabase)
 
 Se o `.env` não estiver preenchido, o FutCamp roda em **modo demo**: os dados
