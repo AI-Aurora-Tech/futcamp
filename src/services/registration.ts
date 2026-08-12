@@ -31,6 +31,8 @@ export interface RegistrationData {
   hasAccount: boolean
   /** Prazo de inscrição (horas antes da partida). 0 = sem prazo. */
   registrationCutoffHours: number
+  /** Rodadas com inscrições encerradas manualmente pelo organizador. */
+  closedRounds: number[]
   /** Partidas do time (para calcular a trava de inscrição). */
   matches: Match[]
 }
@@ -110,6 +112,7 @@ export async function loadRegistration(
       players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
       hasAccount: Boolean(data.has_account),
       registrationCutoffHours: data.registration_cutoff_hours ?? 0,
+      closedRounds: Array.isArray(data.closed_rounds) ? data.closed_rounds : [],
       matches: Array.isArray(data.matches) ? data.matches.map(matchFromRow) : [],
     }
   }
@@ -130,6 +133,7 @@ export async function loadRegistration(
         .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
       hasAccount: Boolean(team.username && team.passwordHash),
       registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
+      closedRounds: champ?.closedRounds ?? [],
       matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
     }
   })
@@ -262,7 +266,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
-  const { category, existing, cutoff, matches } = query((d) => {
+  const { category, existing, cutoff, closedRounds, matches } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
@@ -270,12 +274,22 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
       (p) => p.teamId === teamId && p.categoryId === input.categoryId && p.id !== excludePlayerId,
     )
     const matches = d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)
-    return { category, existing, cutoff: champ?.registrationCutoffHours ?? 0, matches }
+    return {
+      category,
+      existing,
+      cutoff: champ?.registrationCutoffHours ?? 0,
+      closedRounds: champ?.closedRounds ?? [],
+      matches,
+    }
   })
 
-  const lock = registrationLockForTeam(teamId, matches, cutoff)
+  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
   if (lock.locked) {
-    throw new Error('As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.')
+    throw new Error(
+      lock.reason === 'manual'
+        ? 'As inscrições da próxima rodada foram encerradas pelo organizador.'
+        : 'As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.',
+    )
   }
 
   if (role === 'atleta') {

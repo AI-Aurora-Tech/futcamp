@@ -106,6 +106,7 @@ export function ensureSeed(ownerId: string): void {
     audience: 'adulto',
     categories: [{ id: 'cat-livre', name: 'Adulto Livre', exceptions: 0, maxAthletes: 25, maxStaff: 5 }],
     registrationCutoffHours: 3,
+    closedRounds: [],
     format: 'league',
     season: '2026',
     status: 'active',

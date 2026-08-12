@@ -23,6 +23,7 @@ function fromRow(r: any): Championship {
     pointsWin: r.points_win ?? 3,
     pointsDraw: r.points_draw ?? 1,
     registrationCutoffHours: r.registration_cutoff_hours ?? 0,
+    closedRounds: Array.isArray(r.closed_rounds) ? r.closed_rounds : [],
     doubleRound: Boolean(r.double_round),
     numGroups: r.num_groups ?? undefined,
     createdAt: r.created_at,
@@ -45,6 +46,7 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.pointsWin !== undefined) row.points_win = c.pointsWin
   if (c.pointsDraw !== undefined) row.points_draw = c.pointsDraw
   if (c.registrationCutoffHours !== undefined) row.registration_cutoff_hours = c.registrationCutoffHours
+  if (c.closedRounds !== undefined) row.closed_rounds = c.closedRounds
   if (c.doubleRound !== undefined) row.double_round = c.doubleRound
   if (c.numGroups !== undefined) row.num_groups = c.numGroups
   return row

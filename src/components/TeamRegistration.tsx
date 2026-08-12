@@ -298,7 +298,7 @@ function RosterCard({
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
-  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours)
+  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
   const athletes = data.players.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = data.players.filter((p) => p.role === 'comissao').length
 
@@ -323,9 +323,15 @@ function RosterCard({
 
       {lock.locked && (
         <div className="lock-banner">
-          🔒 Inscrições <b>encerradas</b> para a próxima partida
-          {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
-          Reabrem automaticamente após o jogo ser finalizado.
+          {lock.reason === 'manual' ? (
+            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
+          ) : (
+            <>
+              🔒 Inscrições <b>encerradas</b> para a próxima partida
+              {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
+              Reabrem automaticamente após o jogo ser finalizado.
+            </>
+          )}
         </div>
       )}
 

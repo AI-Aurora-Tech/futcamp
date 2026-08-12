@@ -4,6 +4,7 @@ import {
   generateKnockout,
   generateLeague,
 } from '../services/matches'
+import { updateChampionship } from '../services/championships'
 import {
   PHASE_LABELS,
   type Championship,
@@ -67,6 +68,15 @@ export function MatchesPanel({
 
   // Agrupa por fase (mata-mata) ou por rodada (liga/grupos).
   const sections = useMemo(() => groupMatches(matches, isKnockout), [matches, isKnockout])
+  const closedRounds = new Set(championship.closedRounds ?? [])
+
+  async function toggleRound(round: number) {
+    const set = new Set(championship.closedRounds ?? [])
+    if (set.has(round)) set.delete(round)
+    else set.add(round)
+    await updateChampionship(championship.id, { closedRounds: [...set].sort((a, b) => a - b) })
+    onChange()
+  }
 
   return (
     <section className="panel">
@@ -108,16 +118,32 @@ export function MatchesPanel({
         </EmptyState>
       ) : (
         <div className="rounds">
-          {sections.map((sec) => (
-            <div key={sec.key} className="round">
-              <h3 className="round__title">{sec.title}</h3>
-              <div className="round__matches">
-                {sec.matches.map((m) => (
-                  <MatchRow key={m.id} match={m} teams={teams} onClick={() => setEditing(m)} />
-                ))}
+          {sections.map((sec) => {
+            const roundNo = sec.matches[0]?.round
+            const isClosed = !isKnockout && roundNo != null && closedRounds.has(roundNo)
+            return (
+              <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
+                <div className="round__head">
+                  <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
+                  {!isKnockout && roundNo != null && (
+                    <button
+                      type="button"
+                      className="round__toggle"
+                      onClick={() => void toggleRound(roundNo)}
+                      title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
+                    >
+                      {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
+                    </button>
+                  )}
+                </div>
+                <div className="round__matches">
+                  {sec.matches.map((m) => (
+                    <MatchRow key={m.id} match={m} teams={teams} onClick={() => setEditing(m)} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
