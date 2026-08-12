@@ -14,6 +14,7 @@ Backend do FutCamp: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0006_officials.sql` | Mesários (`officials`), `matches.official_id` e RPCs de login/escrita do mesário (SECURITY DEFINER). |
 | `migrations/0007_closed_rounds.sql` | Encerramento manual de inscrições por rodada (`championships.closed_rounds`) + RPC atualizada. |
 | `migrations/0008_sumula_details.sql` | Súmula detalhada: substituição/motivo nos eventos (`player_in_id`, `detail`) e `matches.incidents` + RPCs do mesário. |
+| `migrations/0009_teams_per_group.sql` | Meta opcional de times por grupo (`championships.teams_per_group`). |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
 | `config.toml` | Configuração do Supabase CLI (dev local). |
@@ -32,6 +33,7 @@ Backend do FutCamp: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0006_officials.sql`
    - `migrations/0007_closed_rounds.sql`
    - `migrations/0008_sumula_details.sql`
+   - `migrations/0009_teams_per_group.sql`
 3. Em **Project Settings → API**, copie a `Project URL` e a `anon public key`.
 4. Preencha o arquivo `.env` na raiz do projeto:
    ```

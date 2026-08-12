@@ -66,6 +66,7 @@ export function ChampionshipForm({
   const [pointsDraw, setPointsDraw] = useState(initial?.pointsDraw ?? 1)
   const [doubleRound, setDoubleRound] = useState(initial?.doubleRound ?? false)
   const [numGroups, setNumGroups] = useState(initial?.numGroups ?? 2)
+  const [teamsPerGroup, setTeamsPerGroup] = useState<string>(initial?.teamsPerGroup != null ? String(initial.teamsPerGroup) : '')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -140,6 +141,7 @@ export function ChampionshipForm({
       registrationCutoffHours: Number(cutoffHours),
       doubleRound,
       numGroups: format === 'groups_knockout' ? Number(numGroups) : undefined,
+      teamsPerGroup: format === 'groups_knockout' && teamsPerGroup ? Number(teamsPerGroup) : undefined,
     })
     setBusy(false)
   }
@@ -301,9 +303,14 @@ export function ChampionshipForm({
         </Field>
 
         {format === 'groups_knockout' && (
-          <Field label="Número de grupos" hint="Use 1 para uma fase única seguida de mata-mata.">
-            <input type="number" min={1} max={8} value={numGroups} onChange={(e) => setNumGroups(Number(e.target.value))} />
-          </Field>
+          <div className="form-row">
+            <Field label="Número de grupos" hint="Use 1 para uma fase única seguida de mata-mata.">
+              <input type="number" min={1} max={8} value={numGroups} onChange={(e) => setNumGroups(Number(e.target.value))} />
+            </Field>
+            <Field label="Times por grupo (opcional)" hint="Meta de times em cada grupo. Deixe em branco para não limitar.">
+              <input type="number" min={2} max={64} value={teamsPerGroup} onChange={(e) => setTeamsPerGroup(e.target.value)} placeholder="ex.: 4" />
+            </Field>
+          </div>
         )}
 
         {format !== 'knockout' && (

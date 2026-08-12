@@ -72,6 +72,8 @@ export interface Championship {
   doubleRound: boolean
   /** Número de grupos (formato grupos + mata-mata). */
   numGroups?: number
+  /** Quantidade de times por grupo (opcional; formato grupos + mata-mata). */
+  teamsPerGroup?: number
   createdAt: string
 }
 

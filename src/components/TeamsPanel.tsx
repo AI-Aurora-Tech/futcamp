@@ -77,6 +77,7 @@ export function TeamsPanel({
       {(adding || editing) && (
         <TeamForm
           championship={championship}
+          teams={teams}
           initial={editing ?? undefined}
           onClose={() => {
             setAdding(false)
@@ -95,11 +96,13 @@ export function TeamsPanel({
 
 function TeamForm({
   championship,
+  teams,
   initial,
   onClose,
   onSaved,
 }: {
   championship: Championship
+  teams: Team[]
   initial?: Team
   onClose: () => void
   onSaved: () => void
@@ -112,12 +115,19 @@ function TeamForm({
   const [group, setGroup] = useState(initial?.group ?? 'A')
   const [busy, setBusy] = useState(false)
   const grouped = championship.format === 'groups_knockout'
+  const target = championship.teamsPerGroup
   const groupOptions = Array.from({ length: championship.numGroups ?? 2 }, (_, i) =>
     String.fromCharCode(65 + i),
   )
+  const countIn = (g: string) => teams.filter((t) => t.group === g && t.id !== initial?.id).length
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    // Aviso (não bloqueia) se o grupo atingiu a meta de times.
+    if (grouped && target && countIn(group) >= target) {
+      const okGo = confirm(`O Grupo ${group} já tem ${countIn(group)} time(s) (meta: ${target}). Adicionar mesmo assim?`)
+      if (!okGo) return
+    }
     setBusy(true)
     const payload: NewTeam = {
       championshipId: championship.id,
@@ -167,10 +177,12 @@ function TeamForm({
           </Field>
         </div>
         {grouped && (
-          <Field label="Grupo">
+          <Field label="Grupo" hint={target ? `Meta: ${target} time(s) por grupo` : undefined}>
             <select value={group} onChange={(e) => setGroup(e.target.value)}>
               {groupOptions.map((g) => (
-                <option key={g} value={g}>Grupo {g}</option>
+                <option key={g} value={g}>
+                  Grupo {g}{target ? ` (${countIn(g)}/${target})` : ` (${countIn(g)})`}
+                </option>
               ))}
             </select>
           </Field>

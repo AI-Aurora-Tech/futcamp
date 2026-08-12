@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Button, Field } from './ui'
+import { listPublicChampionships } from '../services/championships'
+import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
+import { Button, ChampLogo, Field } from './ui'
+
+function openPublic(id: string) {
+  window.location.hash = `#/c/${id}`
+}
 
 export function Landing() {
   const { signIn, signUp, enterDemo, mode } = useAuth()
@@ -10,6 +16,17 @@ export function Landing() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [ongoing, setOngoing] = useState<Championship[]>([])
+
+  useEffect(() => {
+    let active = true
+    listPublicChampionships()
+      .then((list) => active && setOngoing(list))
+      .catch(() => active && setOngoing([]))
+    return () => {
+      active = false
+    }
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -29,6 +46,7 @@ export function Landing() {
   ]
 
   return (
+    <div className="landing-page">
     <div className="landing">
       <div className="landing__hero">
         <div className="landing__brand">
@@ -117,6 +135,42 @@ export function Landing() {
           </p>
         </div>
       </div>
+    </div>
+
+    <section className="pub-band">
+      <div className="container">
+        <div className="pub-band__head">
+          <h2>📣 Campeonatos em andamento</h2>
+          <p className="muted">Acompanhe a classificação e as estatísticas — acesso público, sem login.</p>
+        </div>
+        {ongoing.length === 0 ? (
+          <p className="muted">Nenhum campeonato em andamento no momento.</p>
+        ) : (
+          <div className="champ-grid">
+            {ongoing.map((c) => (
+              <button
+                key={c.id}
+                className="champ-card"
+                onClick={() => openPublic(c.id)}
+                style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}
+              >
+                <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>
+                <div className="champ-card__body">
+                  <div className="champ-card__top">
+                    <h3>{c.name}</h3>
+                    <span className="pill pill--active">ao vivo</span>
+                  </div>
+                  <p className="champ-card__meta">
+                    {SPORT_LABELS[c.sport]} · {FORMAT_LABELS[c.format]}{c.season ? ` · ${c.season}` : ''}
+                  </p>
+                  <p className="champ-card__desc">Ver classificação e estatísticas →</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
     </div>
   )
 }

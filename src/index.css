@@ -483,6 +483,13 @@ table { border-collapse: collapse; width: 100%; }
 .import-row--bad td { background: #fef2f2; }
 .import-reason { color: var(--danger); font-size: 0.8rem; }
 
+/* ---------- Home: campeonatos em andamento (público) ---------- */
+.landing-page { background: var(--bg); }
+.pub-band { padding: 2.5rem 0 3.5rem; }
+.pub-band__head { margin-bottom: 1.25rem; }
+.pub-band__head h2 { font-size: 1.4rem; }
+.pub-band .champ-card__desc { color: var(--brand-dark); font-weight: 600; }
+
 /* ---------- Responsive ---------- */
 /* Nunca deixar a página rolar horizontalmente. */
 html, body { max-width: 100%; overflow-x: hidden; }

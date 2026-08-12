@@ -26,6 +26,7 @@ function fromRow(r: any): Championship {
     closedRounds: Array.isArray(r.closed_rounds) ? r.closed_rounds : [],
     doubleRound: Boolean(r.double_round),
     numGroups: r.num_groups ?? undefined,
+    teamsPerGroup: r.teams_per_group ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -49,6 +50,7 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.closedRounds !== undefined) row.closed_rounds = c.closedRounds
   if (c.doubleRound !== undefined) row.double_round = c.doubleRound
   if (c.numGroups !== undefined) row.num_groups = c.numGroups
+  if (c.teamsPerGroup !== undefined) row.teams_per_group = c.teamsPerGroup
   return row
 }
 
@@ -66,6 +68,25 @@ export async function listChampionships(ownerId: string): Promise<Championship[]
   return query((d) =>
     d.championships
       .filter((c) => c.ownerId === ownerId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  )
+}
+
+/** Campeonatos EM ANDAMENTO (status "active") visíveis publicamente. */
+export async function listPublicChampionships(): Promise<Championship[]> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase
+      .from('championships')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(60)
+    if (error) throw error
+    return (data ?? []).map(fromRow)
+  }
+  return query((d) =>
+    d.championships
+      .filter((c) => c.status === 'active')
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   )
 }
