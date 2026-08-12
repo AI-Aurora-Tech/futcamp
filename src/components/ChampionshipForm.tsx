@@ -189,64 +189,87 @@ export function ChampionshipForm({
           </p>
           <div className="cats__list">
             {cats.map((c, i) => (
-              <div key={c.id} className="cat-row">
-                <input
-                  className="cat-row__name"
-                  value={c.name}
-                  onChange={(e) => updateCat(c.id, { name: e.target.value })}
-                  placeholder={audience === 'infantil' ? `Ex.: Sub-${13 + i}` : i === 0 ? 'Ex.: Adulto Livre' : 'Ex.: Veterano +40'}
-                />
-                <input
-                  className="cat-row__year"
-                  type="number"
-                  min={1930}
-                  max={2100}
-                  value={c.year}
-                  onChange={(e) => updateCat(c.id, { year: e.target.value })}
-                  placeholder={audience === 'infantil' ? 'ano nasc.' : 'ano (opc.)'}
-                  title={audience === 'infantil' ? 'Ano de nascimento da categoria (ou depois)' : 'Ano de nascimento limite (ou antes)'}
-                />
-                {audience === 'adulto' && (
-                  <input
-                    className="cat-row__exc"
-                    type="number"
-                    min={0}
-                    max={20}
-                    value={c.exceptions}
-                    onChange={(e) => updateCat(c.id, { exceptions: e.target.value })}
-                    placeholder="exceç."
-                    title="Exceções de idade por time"
-                  />
-                )}
-                <input
-                  className="cat-row__exc"
-                  type="number"
-                  min={0}
-                  max={99}
-                  value={c.maxAthletes}
-                  onChange={(e) => updateCat(c.id, { maxAthletes: e.target.value })}
-                  placeholder="máx atl."
-                  title="Máximo de atletas por time"
-                />
-                <input
-                  className="cat-row__exc"
-                  type="number"
-                  min={0}
-                  max={30}
-                  value={c.maxStaff}
-                  onChange={(e) => updateCat(c.id, { maxStaff: e.target.value })}
-                  placeholder="máx com."
-                  title="Máximo de comissão técnica por time"
-                />
-                <button
-                  type="button"
-                  className="icon-btn icon-btn--danger"
-                  title="Remover categoria"
-                  onClick={() => removeCat(c.id)}
-                  disabled={cats.length <= 1}
-                >
-                  🗑
-                </button>
+              <div key={c.id} className="cat-card">
+                <div className="cat-card__head">
+                  <span className="cat-card__idx">Categoria {i + 1}</span>
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn--danger"
+                    title="Remover categoria"
+                    onClick={() => removeCat(c.id)}
+                    disabled={cats.length <= 1}
+                  >
+                    🗑 remover
+                  </button>
+                </div>
+                <div className="cat-card__grid">
+                  <label className="mini-field mini-field--wide">
+                    <span className="mini-field__label">Nome da categoria</span>
+                    <input
+                      value={c.name}
+                      onChange={(e) => updateCat(c.id, { name: e.target.value })}
+                      placeholder={audience === 'infantil' ? `Ex.: Sub-${13 + i}` : i === 0 ? 'Ex.: Adulto Livre' : 'Ex.: Veterano +40'}
+                    />
+                  </label>
+
+                  <label className="mini-field">
+                    <span className="mini-field__label">
+                      {audience === 'infantil' ? 'Ano de nascimento' : 'Ano-limite (opcional)'}
+                    </span>
+                    <input
+                      type="number"
+                      min={1930}
+                      max={2100}
+                      value={c.year}
+                      onChange={(e) => updateCat(c.id, { year: e.target.value })}
+                      placeholder="Ex.: 2013"
+                    />
+                    <small className="mini-field__hint">
+                      {audience === 'infantil' ? 'nascidos neste ano ou depois' : 'nascidos neste ano ou antes'}
+                    </small>
+                  </label>
+
+                  {audience === 'adulto' && (
+                    <label className="mini-field">
+                      <span className="mini-field__label">Exceções de idade</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={c.exceptions}
+                        onChange={(e) => updateCat(c.id, { exceptions: e.target.value })}
+                        placeholder="0"
+                      />
+                      <small className="mini-field__hint">atletas fora da idade, por time</small>
+                    </label>
+                  )}
+
+                  <label className="mini-field">
+                    <span className="mini-field__label">Máx. de atletas</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={c.maxAthletes}
+                      onChange={(e) => updateCat(c.id, { maxAthletes: e.target.value })}
+                      placeholder="sem limite"
+                    />
+                    <small className="mini-field__hint">por time (0 = sem limite)</small>
+                  </label>
+
+                  <label className="mini-field">
+                    <span className="mini-field__label">Máx. comissão técnica</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={c.maxStaff}
+                      onChange={(e) => updateCat(c.id, { maxStaff: e.target.value })}
+                      placeholder="sem limite"
+                    />
+                    <small className="mini-field__hint">técnicos/auxiliares por time</small>
+                  </label>
+                </div>
               </div>
             ))}
           </div>
