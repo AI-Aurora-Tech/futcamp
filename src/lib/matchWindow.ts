@@ -52,13 +52,19 @@ export function registrationLockForTeam(
   return { locked: false }
 }
 
-/** As inscrições para ESTA partida já encerraram? (base para gerar a súmula) */
+/**
+ * As inscrições para ESTA partida já encerraram? (base para liberar a súmula)
+ * Considera: jogo ao vivo/encerrado, rodada fechada manualmente pelo organizador
+ * (closedRounds) ou o prazo por proximidade do jogo.
+ */
 export function matchRegistrationClosed(
   match: Match,
   cutoffHours: number,
+  closedRounds: number[] = [],
   now: Date = new Date(),
 ): boolean {
   if (match.status === 'live' || match.status === 'finished') return true
+  if (closedRounds.includes(match.round)) return true
   if (!cutoffHours || cutoffHours <= 0 || !match.scheduledAt) return false
   const at = new Date(match.scheduledAt)
   if (Number.isNaN(at.getTime())) return false

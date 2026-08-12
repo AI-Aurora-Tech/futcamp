@@ -153,7 +153,7 @@ export function MatchResultModal({
   const canSumula =
     status === 'live' ||
     status === 'finished' ||
-    matchRegistrationClosed(match, championship.registrationCutoffHours)
+    matchRegistrationClosed(match, championship.registrationCutoffHours, championship.closedRounds ?? [])
 
   return (
     <Modal title="Registrar resultado" onClose={onClose} wide>
