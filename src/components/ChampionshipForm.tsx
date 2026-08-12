@@ -21,6 +21,7 @@ interface CatDraft {
   name: string
   year: string
   exceptions: string
+  exceptionYear: string
   maxAthletes: string
   maxStaff: string
 }
@@ -31,13 +32,14 @@ function toDraft(c: Category): CatDraft {
     name: c.name,
     year: c.birthYear != null ? String(c.birthYear) : '',
     exceptions: c.exceptions != null ? String(c.exceptions) : '',
+    exceptionYear: c.exceptionYear != null ? String(c.exceptionYear) : '',
     maxAthletes: c.maxAthletes != null ? String(c.maxAthletes) : '',
     maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
   }
 }
 
 function emptyDraft(): CatDraft {
-  return { id: uid('cat'), name: '', year: '', exceptions: '', maxAthletes: '', maxStaff: '' }
+  return { id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '', maxAthletes: '', maxStaff: '' }
 }
 
 export function ChampionshipForm({
@@ -102,6 +104,7 @@ export function ChampionshipForm({
           birthYear: year,
           birthYearMode: year ? (audience === 'infantil' ? 'min' : 'max') : undefined,
           exceptions: audience === 'adulto' && c.exceptions ? Number(c.exceptions) : 0,
+          exceptionYear: audience === 'adulto' && c.exceptionYear ? Number(c.exceptionYear) : undefined,
           maxAthletes: c.maxAthletes ? Number(c.maxAthletes) : undefined,
           maxStaff: c.maxStaff ? Number(c.maxStaff) : undefined,
         }
@@ -185,7 +188,7 @@ export function ChampionshipForm({
           <p className="field__hint">
             {audience === 'infantil'
               ? 'Só poderão ser inscritos atletas nascidos no ano informado ou depois (mais novos).'
-              : 'Defina a categoria. Opcional: ano de nascimento limite e quantas exceções de idade cada time pode ter.'}
+              : 'Ex.: nascidos em 1979 ou mais velho. A exceção permite N atletas até um ano mais novo (ex.: 3 atletas de 1980 ou mais velho).'}
           </p>
           <div className="cats__list">
             {cats.map((c, i) => (
@@ -231,7 +234,7 @@ export function ChampionshipForm({
 
                   {audience === 'adulto' && (
                     <label className="mini-field">
-                      <span className="mini-field__label">Exceções de idade</span>
+                      <span className="mini-field__label">Exceções de idade (qtd.)</span>
                       <input
                         type="number"
                         min={0}
@@ -241,6 +244,20 @@ export function ChampionshipForm({
                         placeholder="0"
                       />
                       <small className="mini-field__hint">atletas fora da idade, por time</small>
+                    </label>
+                  )}
+                  {audience === 'adulto' && (
+                    <label className="mini-field">
+                      <span className="mini-field__label">Ano da exceção</span>
+                      <input
+                        type="number"
+                        min={1930}
+                        max={2100}
+                        value={c.exceptionYear}
+                        onChange={(e) => updateCat(c.id, { exceptionYear: e.target.value })}
+                        placeholder="Ex.: 1980"
+                      />
+                      <small className="mini-field__hint">até este ano de nascimento (ou antes)</small>
                     </label>
                   )}
 

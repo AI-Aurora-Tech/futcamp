@@ -30,6 +30,12 @@ export interface Category {
   birthYearMode?: 'min' | 'max'
   /** Nº de atletas por time que podem furar a regra de ano de nascimento. */
   exceptions?: number
+  /**
+   * Ano-limite da EXCEÇÃO (mesma direção da regra). Ex.: regra "1979 ou mais
+   * velho" e exceção "1980 ou mais velho" → exceptionYear = 1980. Atletas fora
+   * até deste ano podem entrar como exceção; além disso, nunca.
+   */
+  exceptionYear?: number
   /** Máximo de atletas por time nesta categoria (0/indefinido = sem limite). */
   maxAthletes?: number
   /** Máximo de membros da comissão técnica por time nesta categoria. */

@@ -48,16 +48,11 @@ export function checkEligibility(params: {
     return { ok: true, isException: false }
   }
 
-  // Fora da regra: só entra como exceção, se houver vaga de exceção no time.
+  // Fora da regra principal: só entra como EXCEÇÃO (se houver vaga e dentro do
+  // ano-limite da exceção).
   const limit = category.exceptions ?? 0
-  const usedExceptions = existingInCategory.filter(
-    (p) => !withinAgeRule(category, birthYearOf(p.birthdate)),
-  ).length
-
-  const rule =
-    category.birthYearMode === 'min'
-      ? `nascidos em ${category.birthYear} ou depois`
-      : `nascidos em ${category.birthYear} ou antes`
+  const older = category.birthYearMode === 'min' ? 'depois' : 'antes'
+  const rule = `nascidos em ${category.birthYear} ou ${older}`
 
   if (limit <= 0) {
     return {
@@ -66,6 +61,25 @@ export function checkEligibility(params: {
       reason: `A categoria "${category.name}" aceita apenas atletas ${rule}.`,
     }
   }
+
+  // Respeita o ano-limite da exceção, quando definido.
+  if (category.exceptionYear) {
+    const withinException = withinAgeRule(
+      { id: category.id, name: category.name, birthYear: category.exceptionYear, birthYearMode: category.birthYearMode },
+      year,
+    )
+    if (!withinException) {
+      return {
+        ok: false,
+        isException: true,
+        reason: `Exceção permite apenas atletas nascidos em ${category.exceptionYear} ou ${older} em "${category.name}".`,
+      }
+    }
+  }
+
+  const usedExceptions = existingInCategory.filter(
+    (p) => !withinAgeRule(category, birthYearOf(p.birthdate)),
+  ).length
   if (usedExceptions >= limit) {
     return {
       ok: false,
