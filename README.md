@@ -1,6 +1,6 @@
 # ⚽ FutCamp
 
-**Plataforma de gestão de campeonatos esportivos** — inspirada no [iFut](https://www.ifut.com.br/).
+**Plataforma completa de gestão de campeonatos esportivos amadores.**
 
 Crie e administre competições amadoras de ponta a ponta: cadastre times e
 elencos, gere a tabela de jogos automaticamente, registre resultados com gols
@@ -31,6 +31,13 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🔴 **Ao vivo**: o organizador lança gols/cartões durante o jogo e a **classificação e estatísticas** atualizam em tempo real.
 - 🧑‍⚖️ **Mesários**: logins próprios (vários mesários) que lançam os dados **em tempo real**; o administrador define **quais jogos** cada mesário pode preencher. Portal em `#/mesa/<id>`.
 - 📄 **Importar atletas por .txt**: uma linha por atleta no formato `NOME - CPF - DATA DE NASCIMENTO`, com prévia e validação (CPF, idade, limites) antes de importar.
+- 🚫 **Suspensão automática**: alerta quando um atleta acumula **3 amarelos** na fase de grupos / pontos corridos ou leva **cartão vermelho** (qualquer fase).
+- 🎲 **Sorteio automático dos grupos**: distribui os times nos grupos de forma equilibrada com um clique.
+- 🧑‍⚖️🏟️ **Cadastro de árbitros e campos**: escale o árbitro e informe o local de cada jogo (aparecem na súmula e no calendário).
+- 📆 **Calendário de jogos**: agenda das partidas por data, com horário, local e árbitro.
+- 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
+- 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento, abertos a qualquer visitante.
+- 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
 - 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
 
@@ -48,8 +55,8 @@ campeonato de exemplo já criado. Os dados ficam salvos no `localStorage`.
 ### Conectando ao Supabase (backend real)
 
 1. Crie um projeto em <https://supabase.com>.
-2. No **SQL Editor**, rode as migrations em `supabase/migrations/` na ordem:
-   `0001_init.sql` e depois `0002_rls.sql`.
+2. No **SQL Editor**, rode as migrations em `supabase/migrations/` na ordem
+   numérica (`0001_init.sql`, `0002_rls.sql`, … até a mais recente).
 3. Copie `Project URL` e `anon key` (Project Settings → API) para um `.env`:
    ```bash
    cp .env.example .env
@@ -117,4 +124,4 @@ vercel --prod # produção
 
 ---
 
-_Projeto inspirado no iFut, desenvolvido como aplicação de demonstração._
+_FutCamp — gestão de campeonatos esportivos amadores._

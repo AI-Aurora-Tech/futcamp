@@ -65,6 +65,7 @@ export function MatchResultModal({
   const [status, setStatus] = useState<MatchStatus>(match.status)
   const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
   const [venue, setVenue] = useState<string>(match.venue ?? '')
+  const [refereeId, setRefereeId] = useState<string>(match.refereeId ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
   const [incidents, setIncidents] = useState<string>(match.incidents ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
@@ -134,6 +135,7 @@ export function MatchResultModal({
     if (!readOnlySchedule) {
       patch.scheduledAt = scheduledAt ? new Date(scheduledAt).toISOString() : undefined
       patch.venue = venue.trim() || undefined
+      patch.refereeId = refereeId || undefined
     }
     if (officials) patch.officialId = officialId || undefined
     patch.incidents = incidents.trim() || undefined
@@ -193,7 +195,28 @@ export function MatchResultModal({
           </label>
           <label className="field">
             <span className="field__label">Local</span>
-            <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Estádio / quadra" />
+            <input
+              value={venue}
+              onChange={(e) => setVenue(e.target.value)}
+              placeholder="Estádio / quadra"
+              list={`venues-${match.id}`}
+            />
+            {(championship.venues?.length ?? 0) > 0 && (
+              <datalist id={`venues-${match.id}`}>
+                {championship.venues!.map((v) => (
+                  <option key={v.id} value={v.name} />
+                ))}
+              </datalist>
+            )}
+          </label>
+          <label className="field">
+            <span className="field__label">Árbitro</span>
+            <select value={refereeId} onChange={(e) => setRefereeId(e.target.value)}>
+              <option value="">— sem árbitro —</option>
+              {(championship.referees ?? []).map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
           </label>
         </div>
       )}

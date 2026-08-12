@@ -17,6 +17,7 @@ export function Landing() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ongoing, setOngoing] = useState<Championship[]>([])
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     let active = true
@@ -44,6 +45,14 @@ export function Landing() {
     { icon: '📊', title: 'Classificação ao vivo', text: 'Pontos, saldo e desempates calculados sozinhos.' },
     { icon: '⚽', title: 'Artilharia & cartões', text: 'Registre gols e cartões por jogador.' },
   ]
+
+  const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const q = normalize(search.trim())
+  const filtered = q
+    ? ongoing.filter(
+        (c) => normalize(c.name).includes(q) || normalize(c.season ?? '').includes(q),
+      )
+    : ongoing
 
   return (
     <div className="landing-page">
@@ -140,14 +149,32 @@ export function Landing() {
     <section className="pub-band">
       <div className="container">
         <div className="pub-band__head">
-          <h2>📣 Campeonatos em andamento</h2>
-          <p className="muted">Acompanhe a classificação e as estatísticas — acesso público, sem login.</p>
+          <div>
+            <h2>📣 Campeonatos em andamento</h2>
+            <p className="muted">Acompanhe a classificação e as estatísticas — acesso público, sem login.</p>
+          </div>
+          {ongoing.length > 0 && (
+            <div className="pub-search">
+              <span className="pub-search__icon">🔎</span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar campeonato pelo nome…"
+                aria-label="Buscar campeonato"
+              />
+              {search && (
+                <button className="pub-search__clear" onClick={() => setSearch('')} aria-label="Limpar busca">✕</button>
+              )}
+            </div>
+          )}
         </div>
         {ongoing.length === 0 ? (
           <p className="muted">Nenhum campeonato em andamento no momento.</p>
+        ) : filtered.length === 0 ? (
+          <p className="muted">Nenhum campeonato encontrado para “{search}”.</p>
         ) : (
           <div className="champ-grid">
-            {ongoing.map((c) => (
+            {filtered.map((c) => (
               <button
                 key={c.id}
                 className="champ-card"

@@ -25,6 +25,7 @@ function fromRow(r: any): Match {
     status: r.status,
     scheduledAt: r.scheduled_at ?? undefined,
     venue: r.venue ?? undefined,
+    refereeId: r.referee_id ?? undefined,
     officialId: r.official_id ?? undefined,
     incidents: r.incidents ?? undefined,
     createdAt: r.created_at,
@@ -44,6 +45,7 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.status !== undefined) row.status = m.status
   if (m.scheduledAt !== undefined) row.scheduled_at = m.scheduledAt
   if (m.venue !== undefined) row.venue = m.venue
+  if (m.refereeId !== undefined) row.referee_id = m.refereeId
   if (m.officialId !== undefined) row.official_id = m.officialId
   if (m.incidents !== undefined) row.incidents = m.incidents
   return row

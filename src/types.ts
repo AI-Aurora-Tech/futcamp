@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // FutCamp — modelos de domínio
-// Plataforma de gestão de campeonatos esportivos (inspirada no iFut).
+// Plataforma de gestão de campeonatos esportivos.
 // ---------------------------------------------------------------------------
 
 export type Sport = 'futebol' | 'futsal' | 'society' | 'volei' | 'basquete'
@@ -42,6 +42,31 @@ export interface Category {
   maxStaff?: number
 }
 
+/** Árbitro do campeonato (apita as partidas). */
+export interface Referee {
+  id: string
+  name: string
+  phone?: string
+}
+
+/** Campo / local onde as partidas são disputadas. */
+export interface Venue {
+  id: string
+  name: string
+  address?: string
+}
+
+/** Patrocinador ou parceiro exibido na página pública. */
+export interface Sponsor {
+  id: string
+  name: string
+  /** Emoji ou data URL do logotipo. */
+  logo?: string
+  /** Link do site do patrocinador (opcional). */
+  url?: string
+  tier: 'patrocinador' | 'parceiro'
+}
+
 export interface Championship {
   id: string
   ownerId: string
@@ -74,6 +99,12 @@ export interface Championship {
   numGroups?: number
   /** Quantidade de times por grupo (opcional; formato grupos + mata-mata). */
   teamsPerGroup?: number
+  /** Árbitros cadastrados no campeonato. */
+  referees?: Referee[]
+  /** Campos / locais das partidas. */
+  venues?: Venue[]
+  /** Patrocinadores e parceiros exibidos na página pública. */
+  sponsors?: Sponsor[]
   createdAt: string
 }
 
@@ -163,6 +194,8 @@ export interface Match {
   status: MatchStatus
   scheduledAt?: string
   venue?: string
+  /** Árbitro escalado (id em Championship.referees). */
+  refereeId?: string
   /** Mesário responsável por lançar os dados desta partida. */
   officialId?: string
   /** Relato de incidentes (atrasos, segurança, conduta de torcidas). */

@@ -116,6 +116,18 @@ export function ensureSeed(ownerId: string): void {
     pointsWin: 3,
     pointsDraw: 1,
     doubleRound: true,
+    referees: [
+      { id: 'demo-ref-1', name: 'Ricardo Árbitro', phone: '(11) 90000-0001' },
+      { id: 'demo-ref-2', name: 'Fernanda Apito' },
+    ],
+    venues: [
+      { id: 'demo-venue-1', name: 'Estádio Municipal', address: 'Av. Central, 100' },
+      { id: 'demo-venue-2', name: 'Arena Vila Nova' },
+    ],
+    sponsors: [
+      { id: 'demo-spon-1', name: 'Loja do Esporte', tier: 'patrocinador', logo: '🏪' },
+      { id: 'demo-spon-2', name: 'Rádio Local FM', tier: 'parceiro', logo: '📻' },
+    ],
     createdAt: now,
   })
   data.teams.push(...teams)

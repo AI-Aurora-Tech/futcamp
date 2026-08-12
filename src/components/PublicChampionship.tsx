@@ -15,9 +15,11 @@ import {
 import { ChampLogo, Spinner, StatusPill } from './ui'
 import { Overview } from './Overview'
 import { MatchesReadOnly } from './MatchesReadOnly'
+import { MatchCalendar } from './MatchCalendar'
+import { SponsorsStrip } from './SponsorsStrip'
 import { StatsPanel } from './StatsPanel'
 
-type Tab = 'overview' | 'matches' | 'stats'
+type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
 
 export function PublicChampionship({ championshipId, onHome }: { championshipId: string; onHome: () => void }) {
   const [champ, setChamp] = useState<Championship | null>(null)
@@ -68,6 +70,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Classificação', icon: '📊' },
     { id: 'matches', label: 'Jogos', icon: '📅' },
+    { id: 'calendar', label: 'Calendário', icon: '📆' },
     { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   ]
 
@@ -103,8 +106,11 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       <div className="container manage__content">
         {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} />}
         {tab === 'matches' && <MatchesReadOnly championship={champ} teams={teams} matches={matches} />}
-        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} />}
+        {tab === 'calendar' && <MatchCalendar championship={champ} teams={teams} matches={matches} />}
+        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} />}
       </div>
+
+      <SponsorsStrip sponsors={champ.sponsors ?? []} />
 
       <footer className="public__footer">
         <span className="logo-word">Fut<b>Camp</b></span> · Gerencie seu campeonato em futcamp

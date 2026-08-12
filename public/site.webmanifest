@@ -1,0 +1,13 @@
+{
+  "name": "FutCamp — Gestão de Campeonatos",
+  "short_name": "FutCamp",
+  "description": "Organize campeonatos de futebol amador: tabela, classificação, artilharia e súmula digital.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#16a34a",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -26,9 +26,10 @@ import { PlayersPanel } from './PlayersPanel'
 import { MatchesPanel } from './MatchesPanel'
 import { StatsPanel } from './StatsPanel'
 import { OfficialsPanel } from './OfficialsPanel'
+import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
 
-type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'stats' | 'settings'
+type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'overview', label: 'Visão geral', icon: '📊' },
@@ -36,6 +37,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'players', label: 'Elencos', icon: '👥' },
   { id: 'matches', label: 'Partidas', icon: '📅' },
   { id: 'officials', label: 'Mesários', icon: '🧑‍⚖️' },
+  { id: 'registries', label: 'Cadastros', icon: '🏟️' },
   { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   { id: 'settings', label: 'Ajustes', icon: '⚙️' },
 ]
@@ -156,7 +158,8 @@ export function ManageChampionship({
         {tab === 'players' && <PlayersPanel championship={champ} teams={teams} players={players} onChange={reload} />}
         {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} officials={officials} onChange={reload} />}
         {tab === 'officials' && <OfficialsPanel championship={champ} officials={officials} matches={matches} onChange={reload} />}
-        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} />}
+        {tab === 'registries' && <RegistriesPanel championship={champ} onChange={reload} />}
+        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} />}
         {tab === 'settings' && (
           <section className="panel">
             <div className="panel__head">

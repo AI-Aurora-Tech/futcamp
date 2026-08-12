@@ -16,7 +16,36 @@ export function TeamsPanel({
 }) {
   const [editing, setEditing] = useState<Team | null>(null)
   const [adding, setAdding] = useState(false)
+  const [drawing, setDrawing] = useState(false)
   const grouped = championship.format === 'groups_knockout'
+  const numGroups = Math.max(1, championship.numGroups ?? 2)
+
+  async function drawGroups() {
+    if (teams.length < 2) {
+      alert('Cadastre ao menos 2 times para sortear os grupos.')
+      return
+    }
+    if (!confirm(`Sortear ${teams.length} time(s) em ${numGroups} grupo(s)? Isso substitui a divisão atual.`)) return
+    setDrawing(true)
+    try {
+      const labels = Array.from({ length: numGroups }, (_, i) => String.fromCharCode(65 + i))
+      // Embaralhamento Fisher–Yates.
+      const shuffled = [...teams]
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      // Distribui em rodízio (serpentina) para equilibrar os grupos.
+      await Promise.all(
+        shuffled.map((t, idx) => updateTeam(t.id, { group: labels[idx % numGroups] })),
+      )
+      onChange()
+    } catch {
+      alert('Não foi possível sortear os grupos agora.')
+    } finally {
+      setDrawing(false)
+    }
+  }
 
   async function remove(team: Team) {
     if (!confirm(`Remover o time "${team.name}"? Os jogadores e resultados vinculados também serão afetados.`)) return
@@ -45,7 +74,14 @@ export function TeamsPanel({
           <h2>Times ({teams.length})</h2>
           <p className="muted">Cadastre os clubes participantes do campeonato.</p>
         </div>
-        <Button onClick={() => setAdding(true)}>＋ Adicionar time</Button>
+        <div className="panel__head-actions">
+          {grouped && (
+            <Button variant="ghost" onClick={() => void drawGroups()} disabled={drawing}>
+              {drawing ? 'Sorteando…' : '🎲 Sortear grupos'}
+            </Button>
+          )}
+          <Button onClick={() => setAdding(true)}>＋ Adicionar time</Button>
+        </div>
       </div>
 
       {teams.length === 0 ? (

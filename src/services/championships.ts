@@ -27,6 +27,9 @@ function fromRow(r: any): Championship {
     doubleRound: Boolean(r.double_round),
     numGroups: r.num_groups ?? undefined,
     teamsPerGroup: r.teams_per_group ?? undefined,
+    referees: Array.isArray(r.referees) ? r.referees : [],
+    venues: Array.isArray(r.venues) ? r.venues : [],
+    sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
     createdAt: r.created_at,
   }
 }
@@ -51,6 +54,9 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.doubleRound !== undefined) row.double_round = c.doubleRound
   if (c.numGroups !== undefined) row.num_groups = c.numGroups
   if (c.teamsPerGroup !== undefined) row.teams_per_group = c.teamsPerGroup
+  if (c.referees !== undefined) row.referees = c.referees
+  if (c.venues !== undefined) row.venues = c.venues
+  if (c.sponsors !== undefined) row.sponsors = c.sponsors
   return row
 }
 

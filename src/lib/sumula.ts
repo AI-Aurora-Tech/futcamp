@@ -100,6 +100,7 @@ export function buildSumulaHtml(params: {
   const score =
     match.homeScore != null && match.awayScore != null ? `${match.homeScore} x ${match.awayScore}` : '____ x ____'
   const phaseOrRound = match.phase === 'group' ? `Rodada ${match.round}` : PHASE_LABELS[match.phase]
+  const refereeName = (championship.referees ?? []).find((r) => r.id === match.refereeId)?.name ?? ''
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <title>Súmula — ${esc(home?.name ?? '')} x ${esc(away?.name ?? '')}</title>
@@ -148,6 +149,7 @@ export function buildSumulaHtml(params: {
   <div><b>Fase:</b> ${esc(phaseOrRound)}</div>
   <div><b>Data/hora:</b> ${fmtDate(match.scheduledAt)}</div>
   <div><b>Local:</b> ${esc(match.venue ?? '__________________')}</div>
+  <div><b>Árbitro:</b> ${esc(refereeName || '__________________')}</div>
   <div><b>Situação:</b> ${match.status === 'finished' ? 'Encerrada' : match.status === 'live' ? 'Ao vivo' : 'Agendada'}</div>
 </div>
 <div class="cols">
@@ -187,7 +189,7 @@ export function buildSumulaHtml(params: {
 <div class="incidents">${match.incidents ? esc(match.incidents).replace(/\n/g, '<br>') : '<span class="muted">Sem incidentes registrados (atrasos, segurança, conduta de torcidas).</span>'}</div>
 
 <div class="signs">
-  <div>Árbitro</div><div>Mandante</div><div>Visitante</div>
+  <div>Árbitro${refereeName ? `<br><span class="muted">${esc(refereeName)}</span>` : ''}</div><div>Mandante</div><div>Visitante</div>
 </div>
 </body></html>`
 }
