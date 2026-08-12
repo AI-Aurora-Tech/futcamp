@@ -185,6 +185,7 @@ export function mesaWriter(ctx: MesaContext): MatchWriter {
           p_home: patch.homeScore ?? null,
           p_away: patch.awayScore ?? null,
           p_status: patch.status ?? null,
+          p_incidents: patch.incidents ?? null,
         })
         if (error) throw error
       },
@@ -196,8 +197,10 @@ export function mesaWriter(ctx: MesaContext): MatchWriter {
           p_match: input.matchId,
           p_team: input.teamId,
           p_player: input.playerId ?? null,
+          p_player_in: input.playerInId ?? null,
           p_type: input.type,
           p_minute: input.minute ?? null,
+          p_detail: input.detail ?? null,
         })
         if (error) throw error
         return {
@@ -206,6 +209,8 @@ export function mesaWriter(ctx: MesaContext): MatchWriter {
           championshipId: input.championshipId,
           teamId: input.teamId,
           playerId: input.playerId,
+          playerInId: input.playerInId,
+          detail: input.detail,
           type: input.type,
           minute: input.minute,
           createdAt: new Date().toISOString(),

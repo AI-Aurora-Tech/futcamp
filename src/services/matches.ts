@@ -26,6 +26,7 @@ function fromRow(r: any): Match {
     scheduledAt: r.scheduled_at ?? undefined,
     venue: r.venue ?? undefined,
     officialId: r.official_id ?? undefined,
+    incidents: r.incidents ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -44,6 +45,7 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.scheduledAt !== undefined) row.scheduled_at = m.scheduledAt
   if (m.venue !== undefined) row.venue = m.venue
   if (m.officialId !== undefined) row.official_id = m.officialId
+  if (m.incidents !== undefined) row.incidents = m.incidents
   return row
 }
 
@@ -227,6 +229,8 @@ function eventFromRow(r: any): MatchEvent {
     championshipId: r.championship_id,
     teamId: r.team_id,
     playerId: r.player_id ?? undefined,
+    playerInId: r.player_in_id ?? undefined,
+    detail: r.detail ?? undefined,
     type: r.type,
     minute: r.minute ?? undefined,
     createdAt: r.created_at,
@@ -239,6 +243,8 @@ function eventToRow(e: Partial<MatchEvent>): Record<string, unknown> {
   if (e.championshipId !== undefined) row.championship_id = e.championshipId
   if (e.teamId !== undefined) row.team_id = e.teamId
   if (e.playerId !== undefined) row.player_id = e.playerId
+  if (e.playerInId !== undefined) row.player_in_id = e.playerInId
+  if (e.detail !== undefined) row.detail = e.detail
   if (e.type !== undefined) row.type = e.type
   if (e.minute !== undefined) row.minute = e.minute
   return row

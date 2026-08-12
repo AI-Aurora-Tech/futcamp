@@ -157,6 +157,8 @@ export interface Match {
   venue?: string
   /** Mesário responsável por lançar os dados desta partida. */
   officialId?: string
+  /** Relato de incidentes (atrasos, segurança, conduta de torcidas). */
+  incidents?: string
   createdAt: string
 }
 
@@ -171,7 +173,13 @@ export interface Official {
   createdAt: string
 }
 
-export type EventType = 'goal' | 'own_goal' | 'assist' | 'yellow_card' | 'red_card'
+export type EventType =
+  | 'goal'
+  | 'own_goal'
+  | 'assist'
+  | 'yellow_card'
+  | 'red_card'
+  | 'substitution'
 
 export const EVENT_LABELS: Record<EventType, string> = {
   goal: 'Gol',
@@ -179,6 +187,7 @@ export const EVENT_LABELS: Record<EventType, string> = {
   assist: 'Assistência',
   yellow_card: 'Cartão amarelo',
   red_card: 'Cartão vermelho',
+  substitution: 'Substituição',
 }
 
 export interface MatchEvent {
@@ -186,7 +195,12 @@ export interface MatchEvent {
   matchId: string
   championshipId: string
   teamId: string
+  /** Autor do gol/cartão; na substituição é quem SAIU. */
   playerId?: string
+  /** Substituição: quem ENTROU. */
+  playerInId?: string
+  /** Detalhe (ex.: motivo do cartão vermelho / expulsão). */
+  detail?: string
   type: EventType
   minute?: number
   createdAt: string

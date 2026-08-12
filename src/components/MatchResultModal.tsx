@@ -21,6 +21,7 @@ const EVENT_ICONS: Record<EventType, string> = {
   assist: '🅰️',
   yellow_card: '🟨',
   red_card: '🟥',
+  substitution: '🔁',
 }
 
 /** ISO → valor para <input type="datetime-local"> (horário local). */
@@ -65,6 +66,7 @@ export function MatchResultModal({
   const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
   const [venue, setVenue] = useState<string>(match.venue ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
+  const [incidents, setIncidents] = useState<string>(match.incidents ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [busy, setBusy] = useState(false)
 
@@ -72,6 +74,8 @@ export function MatchResultModal({
   const [evTeam, setEvTeam] = useState<string>(match.homeTeamId ?? '')
   const [evType, setEvType] = useState<EventType>('goal')
   const [evPlayer, setEvPlayer] = useState<string>('')
+  const [evPlayerIn, setEvPlayerIn] = useState<string>('')
+  const [evDetail, setEvDetail] = useState<string>('')
   const [evMinute, setEvMinute] = useState<string>('')
 
   useEffect(() => {
@@ -99,6 +103,8 @@ export function MatchResultModal({
       championshipId: match.championshipId,
       teamId: evTeam,
       playerId: evPlayer || undefined,
+      playerInId: evType === 'substitution' ? evPlayerIn || undefined : undefined,
+      detail: evType === 'red_card' ? evDetail.trim() || undefined : undefined,
       type: evType,
       minute: evMinute ? Number(evMinute) : undefined,
     }
@@ -106,6 +112,8 @@ export function MatchResultModal({
     setEvents((prev) => [...prev, created])
     if (evType === 'goal' || evType === 'own_goal') bumpScore(evTeam, evType)
     setEvPlayer('')
+    setEvPlayerIn('')
+    setEvDetail('')
     setEvMinute('')
   }
 
@@ -128,6 +136,7 @@ export function MatchResultModal({
       patch.venue = venue.trim() || undefined
     }
     if (officials) patch.officialId = officialId || undefined
+    patch.incidents = incidents.trim() || undefined
     setBusy(true)
     await w.updateMatch(match.id, patch)
     setBusy(false)
@@ -138,7 +147,13 @@ export function MatchResultModal({
     const category = championship.categories.length === 1 ? championship.categories[0] : undefined
     const html = buildSumulaHtml({
       championship,
-      match: { ...match, homeScore: homeScore === '' ? null : Number(homeScore), awayScore: awayScore === '' ? null : Number(awayScore), status },
+      match: {
+        ...match,
+        homeScore: homeScore === '' ? null : Number(homeScore),
+        awayScore: awayScore === '' ? null : Number(awayScore),
+        status,
+        incidents: incidents.trim() || undefined,
+      },
       teams,
       players,
       events,
@@ -215,7 +230,7 @@ export function MatchResultModal({
         <div className="events-box">
           <h4>Eventos da partida {status === 'live' && <span className="live-dot">ao vivo</span>}</h4>
           <div className="event-form">
-            <select value={evTeam} onChange={(e) => { setEvTeam(e.target.value); setEvPlayer('') }}>
+            <select value={evTeam} onChange={(e) => { setEvTeam(e.target.value); setEvPlayer(''); setEvPlayerIn('') }}>
               {match.homeTeamId && <option value={match.homeTeamId}>{home?.name}</option>}
               {match.awayTeamId && <option value={match.awayTeamId}>{away?.name}</option>}
             </select>
@@ -224,13 +239,33 @@ export function MatchResultModal({
                 <option key={t} value={t}>{EVENT_ICONS[t]} {EVENT_LABELS[t]}</option>
               ))}
             </select>
-            <select value={evPlayer} onChange={(e) => setEvPlayer(e.target.value)}>
-              <option value="">Jogador (opcional)</option>
-              {teamPlayers.map((p) => (
-                <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
-              ))}
-            </select>
+            {evType === 'substitution' ? (
+              <>
+                <select value={evPlayer} onChange={(e) => setEvPlayer(e.target.value)}>
+                  <option value="">▼ Saiu</option>
+                  {teamPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
+                  ))}
+                </select>
+                <select value={evPlayerIn} onChange={(e) => setEvPlayerIn(e.target.value)}>
+                  <option value="">▲ Entrou</option>
+                  {teamPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <select value={evPlayer} onChange={(e) => setEvPlayer(e.target.value)}>
+                <option value="">Jogador (opcional)</option>
+                {teamPlayers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
+                ))}
+              </select>
+            )}
             <input type="number" min={1} max={130} placeholder="min" value={evMinute} onChange={(e) => setEvMinute(e.target.value)} className="minute-input" />
+            {evType === 'red_card' && (
+              <input className="event-detail" value={evDetail} onChange={(e) => setEvDetail(e.target.value)} placeholder="Motivo da expulsão" />
+            )}
             <Button variant="soft" type="button" onClick={() => void addNewEvent()}>Adicionar</Button>
           </div>
 
@@ -244,7 +279,11 @@ export function MatchResultModal({
                     <span className="event-list__icon">{EVENT_ICONS[e.type]}</span>
                     <span className="event-list__min">{e.minute != null ? `${e.minute}'` : '—'}</span>
                     <span className="event-list__txt">
-                      {EVENT_LABELS[e.type]} · {playerName(e.playerId) ?? teamShort(e.teamId)}
+                      {EVENT_LABELS[e.type]} ·{' '}
+                      {e.type === 'substitution'
+                        ? `${playerName(e.playerId) ?? '—'} ▼  ▲ ${playerName(e.playerInId) ?? '—'}`
+                        : playerName(e.playerId) ?? teamShort(e.teamId)}
+                      {e.type === 'red_card' && e.detail ? ` — ${e.detail}` : ''}
                     </span>
                     <button className="icon-btn icon-btn--danger" onClick={() => void removeEvent(e.id)} title="Remover">✕</button>
                   </li>
@@ -256,6 +295,17 @@ export function MatchResultModal({
           </p>
         </div>
       )}
+
+      <label className="field incidents-field">
+        <span className="field__label">📝 Relato de incidentes</span>
+        <textarea
+          rows={3}
+          value={incidents}
+          onChange={(e) => setIncidents(e.target.value)}
+          placeholder="Atrasos, problemas de segurança, conduta de torcidas, etc."
+        />
+        <span className="field__hint">Salvo ao clicar em salvar/encerrar; aparece na súmula.</span>
+      </label>
 
       <div className="sumula-row">
         <span className="muted small">

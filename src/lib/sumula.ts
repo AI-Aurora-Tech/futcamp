@@ -1,5 +1,4 @@
 import {
-  EVENT_LABELS,
   PHASE_LABELS,
   POSITIONS,
   type Category,
@@ -34,17 +33,31 @@ function rosterRows(players: Player[]): string {
   return html || `<tr><td colspan="5" class="empty">Sem atletas inscritos.</td></tr>`
 }
 
-function eventsRows(events: MatchEvent[], players: Player[], teams: Team[]): string {
-  if (!events.length) return `<tr><td colspan="4" class="empty">Sem eventos registrados.</td></tr>`
-  const pName = new Map(players.map((p) => [p.id, p.name] as const))
-  const tName = new Map(teams.map((t) => [t.id, t.shortName || t.name] as const))
+interface Lookups {
+  pName: Map<string, string>
+  pNum: Map<string, number | undefined>
+  tName: Map<string, string>
+}
+
+function withNum(id: string | undefined, l: Lookups): string {
+  if (!id) return ''
+  const num = l.pNum.get(id)
+  const name = l.pName.get(id) ?? ''
+  return num != null ? `#${num} ${name}` : name
+}
+
+const min = (e: MatchEvent) => (e.minute != null ? `${e.minute}'` : '')
+
+function sectionRows(
+  events: MatchEvent[],
+  cols: number,
+  render: (e: MatchEvent) => string,
+): string {
+  if (!events.length) return `<tr><td colspan="${cols}" class="empty">—</td></tr>`
   return events
     .slice()
     .sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999))
-    .map(
-      (e) =>
-        `<tr><td class="num">${e.minute != null ? esc(e.minute) + "'" : ''}</td><td>${esc(EVENT_LABELS[e.type])}</td><td>${esc(pName.get(e.playerId ?? '') ?? '')}</td><td>${esc(tName.get(e.teamId) ?? '')}</td></tr>`,
-    )
+    .map(render)
     .join('')
 }
 
@@ -64,8 +77,26 @@ export function buildSumulaHtml(params: {
     players.filter((p) => p.teamId === teamId && (!category || p.categoryId === category.id))
   const homePlayers = home ? inCat(home.id) : []
   const awayPlayers = away ? inCat(away.id) : []
-  const homeEvents = events.filter((e) => e.matchId === match.id && e.teamId === match.homeTeamId)
-  const awayEvents = events.filter((e) => e.matchId === match.id && e.teamId === match.awayTeamId)
+  const ev = events.filter((e) => e.matchId === match.id)
+  const l: Lookups = {
+    pName: new Map(players.map((p) => [p.id, p.name] as const)),
+    pNum: new Map(players.map((p) => [p.id, p.number] as const)),
+    tName: new Map(teams.map((t) => [t.id, t.shortName || t.name] as const)),
+  }
+  const goals = ev.filter((e) => e.type === 'goal' || e.type === 'own_goal')
+  const subs = ev.filter((e) => e.type === 'substitution')
+  const yellows = ev.filter((e) => e.type === 'yellow_card')
+  const reds = ev.filter((e) => e.type === 'red_card')
+
+  const goalsHtml = sectionRows(goals, 3, (e) =>
+    `<tr><td class="num">${esc(min(e))}</td><td>${withNum(e.playerId, l) ? esc(withNum(e.playerId, l)) : '<span class="muted">(não informado)</span>'}${e.type === 'own_goal' ? ' <b>(contra)</b>' : ''}</td><td>${esc(l.tName.get(e.teamId) ?? '')}</td></tr>`)
+  const subsHtml = sectionRows(subs, 3, (e) =>
+    `<tr><td class="num">${esc(min(e))}</td><td><span class="out">▼ ${esc(withNum(e.playerId, l) || '—')}</span><br><span class="in">▲ ${esc(withNum(e.playerInId, l) || '—')}</span></td><td>${esc(l.tName.get(e.teamId) ?? '')}</td></tr>`)
+  const yellowsHtml = sectionRows(yellows, 3, (e) =>
+    `<tr><td class="num">${esc(min(e))}</td><td>${esc(withNum(e.playerId, l) || '(não informado)')}</td><td>${esc(l.tName.get(e.teamId) ?? '')}</td></tr>`)
+  const redsHtml = sectionRows(reds, 4, (e) =>
+    `<tr><td class="num">${esc(min(e))}</td><td>${esc(l.pName.get(e.playerId ?? '') || '(não informado)')}</td><td>${esc(e.detail || '—')}</td><td>${esc(l.tName.get(e.teamId) ?? '')}</td></tr>`)
+
   const score =
     match.homeScore != null && match.awayScore != null ? `${match.homeScore} x ${match.awayScore}` : '____ x ____'
   const phaseOrRound = match.phase === 'group' ? `Rodada ${match.round}` : PHASE_LABELS[match.phase]
@@ -93,6 +124,9 @@ export function buildSumulaHtml(params: {
   td.sign { width: 90px; }
   tr.sec td { background: #ddd; font-weight: bold; }
   td.empty { text-align: center; color: #777; font-style: italic; }
+  .out { color: #b91c1c; font-weight: bold; }
+  .in { color: #166534; font-weight: bold; }
+  .incidents { border: 1px solid #999; min-height: 56px; padding: 8px; white-space: pre-wrap; }
   .signs { display: flex; gap: 24px; margin-top: 28px; }
   .signs div { flex: 1; border-top: 1px solid #111; padding-top: 4px; text-align: center; }
   @media print { body { margin: 10mm; } .noprint { display: none; } }
@@ -128,16 +162,30 @@ export function buildSumulaHtml(params: {
     <tbody>${rosterRows(awayPlayers)}</tbody></table>
   </div>
 </div>
+<h2>⚽ Gols marcados</h2>
+<table><thead><tr><th>Min</th><th>Autor (nº e nome)</th><th>Time</th></tr></thead>
+<tbody>${goalsHtml}</tbody></table>
+
+<h2>🔁 Substituições</h2>
+<table><thead><tr><th>Min</th><th>Saiu / Entrou</th><th>Time</th></tr></thead>
+<tbody>${subsHtml}</tbody></table>
+
 <div class="cols">
-  <div class="col"><h2>Eventos — ${esc(home?.shortName ?? home?.name ?? '')}</h2>
-    <table><thead><tr><th>Min</th><th>Evento</th><th>Atleta</th><th>Time</th></tr></thead>
-    <tbody>${eventsRows(homeEvents, players, teams)}</tbody></table>
+  <div class="col">
+    <h2>🟨 Cartões amarelos</h2>
+    <table><thead><tr><th>Min</th><th>Atleta (nº e nome)</th><th>Time</th></tr></thead>
+    <tbody>${yellowsHtml}</tbody></table>
   </div>
-  <div class="col"><h2>Eventos — ${esc(away?.shortName ?? away?.name ?? '')}</h2>
-    <table><thead><tr><th>Min</th><th>Evento</th><th>Atleta</th><th>Time</th></tr></thead>
-    <tbody>${eventsRows(awayEvents, players, teams)}</tbody></table>
+  <div class="col">
+    <h2>🟥 Cartões vermelhos / expulsões</h2>
+    <table><thead><tr><th>Min</th><th>Infrator</th><th>Motivo</th><th>Time</th></tr></thead>
+    <tbody>${redsHtml}</tbody></table>
   </div>
 </div>
+
+<h2>📝 Relato de incidentes</h2>
+<div class="incidents">${match.incidents ? esc(match.incidents).replace(/\n/g, '<br>') : '<span class="muted">Sem incidentes registrados (atrasos, segurança, conduta de torcidas).</span>'}</div>
+
 <div class="signs">
   <div>Árbitro</div><div>Mandante</div><div>Visitante</div>
 </div>
