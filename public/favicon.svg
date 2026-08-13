@@ -1,5 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="14" fill="#16a34a"/>
-  <circle cx="32" cy="32" r="17" fill="#ffffff"/>
-  <path fill="#0f172a" d="M32 17l4.5 3.3-1.7 5.3h-5.6l-1.7-5.3L32 17zm-11.9 8.7l5.3.1 1.7 5.3-4.6 3.3-4.3-3.2 1.9-5.5zm23.8 0l1.9 5.5-4.3 3.2-4.6-3.3 1.7-5.3 5.3-.1zM24 40.6l4.3-3.2 4.6 3.3-.1 5.6-5.6 1.5-3.1-4.6zm16 0l-3.1 4.6-5.6-1.5-.1-5.6 4.6-3.3 4.3 3.2z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs><linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#26d366"/><stop offset="1" stop-color="#128a42"/></linearGradient></defs>
+  <rect width="512" height="512" rx="115" fill="url(#gA)"/>
+<g transform="translate(24 0) skewX(-9)">
+    <rect x="60" y="118" width="212" height="54" rx="18" fill="#ffffff"/>
+    <rect x="139" y="118" width="54" height="152" rx="18" fill="#ffffff"/>
+  </g>
+  <g stroke="#ffffff" stroke-width="16" stroke-linecap="round" opacity="0.72">
+    <line x1="212" y1="252" x2="300" y2="252"/>
+    <line x1="196" y1="290" x2="306" y2="290"/>
+    <line x1="220" y1="328" x2="300" y2="328"/>
+  </g>
+  <g transform="translate(374 292) scale(0.34375)">
+    <circle cx="0" cy="0" r="150" fill="#ffffff"/>
+    <g stroke="#0f172a" stroke-width="16" stroke-linecap="round" fill="none">
+      <line x1="0" y1="-62" x2="0" y2="-150"/>
+      <line x1="58.97" y1="-19.16" x2="142" y2="-46"/>
+      <line x1="36.44" y1="50.16" x2="88" y2="121"/>
+      <line x1="-36.44" y1="50.16" x2="-88" y2="121"/>
+      <line x1="-58.97" y1="-19.16" x2="-142" y2="-46"/>
+    </g>
+    <path d="M0 -62 L58.97 -19.16 L36.44 50.16 L-36.44 50.16 L-58.97 -19.16 Z" fill="#0f172a"/>
+  </g>
 </svg>
