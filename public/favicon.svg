@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs><linearGradient id="gA" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#26d366"/><stop offset="1" stop-color="#128a42"/></linearGradient></defs>
   <rect width="512" height="512" rx="115" fill="url(#gA)"/>
-<g transform="translate(24 0) skewX(-9)">
-    <rect x="60" y="118" width="212" height="54" rx="18" fill="#ffffff"/>
-    <rect x="139" y="118" width="54" height="152" rx="18" fill="#ffffff"/>
+<g transform="translate(30 0) skewX(-9)">
+    <rect x="66" y="150" width="250" height="62" rx="20" fill="#ffffff"/>
+    <rect x="161" y="150" width="62" height="182" rx="20" fill="#ffffff"/>
   </g>
-  <g stroke="#ffffff" stroke-width="16" stroke-linecap="round" opacity="0.72">
-    <line x1="212" y1="252" x2="300" y2="252"/>
-    <line x1="196" y1="290" x2="306" y2="290"/>
-    <line x1="220" y1="328" x2="300" y2="328"/>
+  <g stroke="#ffffff" stroke-width="20" stroke-linecap="round" opacity="0.72">
+    <line x1="214" y1="300" x2="316" y2="300"/>
+    <line x1="196" y1="342" x2="324" y2="342"/>
+    <line x1="222" y1="384" x2="316" y2="384"/>
   </g>
-  <g transform="translate(374 292) scale(0.34375)">
+  <g transform="translate(392 342) scale(0.42)">
     <circle cx="0" cy="0" r="150" fill="#ffffff"/>
     <g stroke="#0f172a" stroke-width="16" stroke-linecap="round" fill="none">
       <line x1="0" y1="-62" x2="0" y2="-150"/>
