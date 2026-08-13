@@ -8,7 +8,13 @@ import { PublicChampionship } from './components/PublicChampionship'
 import { TeamRegistration } from './components/TeamRegistration'
 import { CreateTeamViaLink } from './components/CreateTeamViaLink'
 import { MesaPortal } from './components/MesaPortal'
+import { Plans } from './components/Plans'
 import { Spinner } from './components/ui'
+
+/** Verdadeiro na rota pública de planos `#/planos`. */
+function readPlanos(): boolean {
+  return /^#\/planos\/?$/.test(window.location.hash)
+}
 
 /** Extrai o ID de campeonato público de um hash `#/c/<id>`, se houver. */
 function readPublicId(): string | null {
@@ -44,6 +50,7 @@ export default function App() {
   const [teamRoute, setTeamRoute] = useState(readTeamRoute())
   const [createTeamRoute, setCreateTeamRoute] = useState(readCreateTeamRoute())
   const [mesaId, setMesaId] = useState<string | null>(readMesaId())
+  const [planos, setPlanos] = useState(readPlanos())
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,6 +59,7 @@ export default function App() {
       setTeamRoute(readTeamRoute())
       setCreateTeamRoute(readCreateTeamRoute())
       setMesaId(readMesaId())
+      setPlanos(readPlanos())
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
@@ -65,7 +73,13 @@ export default function App() {
     setTeamRoute(null)
     setCreateTeamRoute(null)
     setMesaId(null)
+    setPlanos(false)
     setSelected(null)
+  }
+
+  // Página pública de planos (não exige login).
+  if (planos) {
+    return <Plans onHome={goHome} />
   }
 
   // Portal do mesário (login próprio).

@@ -80,6 +80,7 @@ export function Landing() {
             </li>
           ))}
         </ul>
+        <a className="landing__plans" href="#/planos">Ver planos e preços →</a>
       </div>
 
       <div className="landing__panel">
@@ -142,6 +143,7 @@ export function Landing() {
               ? 'Modo demo ativo: os dados ficam salvos apenas neste navegador.'
               : 'Conectado ao Supabase: seus campeonatos ficam salvos na nuvem.'}
           </p>
+          <a className="auth-plans-link" href="#/planos">💳 Ver planos e preços</a>
         </div>
       </div>
     </div>
