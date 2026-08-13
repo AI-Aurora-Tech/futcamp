@@ -6,7 +6,7 @@ export function Header({ onHome }: { onHome: () => void }) {
     <header className="topbar">
       <button className="topbar__brand" onClick={onHome} aria-label="Início">
         <span className="logo-mark">⚽</span>
-        <span className="logo-word">Fut<b>Camp</b></span>
+        <span className="logo-word">Tabela<b>ço</b></span>
       </button>
       <div className="topbar__right">
         {mode === 'demo' && <span className="mode-tag" title="Dados salvos apenas neste navegador">modo demo</span>}

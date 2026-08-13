@@ -1,6 +1,6 @@
-# Supabase — FutCamp
+# Supabase — Tabelaço
 
-Backend do FutCamp: autenticação de organizadores + banco Postgres com RLS.
+Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 
 ## Estrutura
 
@@ -68,6 +68,6 @@ aplicou uma versão anterior e viu esse erro, basta **re-executar** os arquivos
 
 ## Modo demo (sem Supabase)
 
-Se o `.env` não estiver preenchido, o FutCamp roda em **modo demo**: os dados
+Se o `.env` não estiver preenchido, o Tabelaço roda em **modo demo**: os dados
 ficam no `localStorage` do navegador e o login é simulado. Ideal para testar a
 interface sem configurar backend.

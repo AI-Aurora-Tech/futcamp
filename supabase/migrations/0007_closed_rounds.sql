@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — encerramento manual de inscrições por rodada
+-- Tabelaço — encerramento manual de inscrições por rodada
 --
 -- O organizador pode fechar/reabrir as inscrições de uma rodada. Enquanto a
 -- rodada estiver fechada (e ainda não finalizada), os times daquela rodada não

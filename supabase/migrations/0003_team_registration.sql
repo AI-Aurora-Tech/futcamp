@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — inscrição de times via link (sem login)
+-- Tabelaço — inscrição de times via link (sem login)
 --
 -- O organizador gera um link `#/t/<teamId>?k=<token>` e o envia ao time. Com o
 -- token, o representante inclui escudo e atletas — sem conta e sem acesso ao

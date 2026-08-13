@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — mesários (table officials) e lançamento em tempo real
+-- Tabelaço — mesários (table officials) e lançamento em tempo real
 --
 --  • O administrador cria mesários (usuário + senha bcrypt via pgcrypto) e
 --    atribui jogos (matches.official_id).

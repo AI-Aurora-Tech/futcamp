@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — Row Level Security (RLS)
+-- Tabelaço — Row Level Security (RLS)
 --
 -- Modelo de acesso:
 --   • Leitura pública: qualquer visitante pode consultar campeonatos, times,

@@ -5,7 +5,7 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
 /**
  * Verdadeiro quando as credenciais do Supabase estão configuradas.
- * Quando falso, o FutCamp opera em "modo demo" (dados locais no navegador +
+ * Quando falso, o Tabelaço opera em "modo demo" (dados locais no navegador +
  * login mock), permitindo experimentar o app sem backend.
  */
 export const isSupabaseConfigured = Boolean(url && anonKey)

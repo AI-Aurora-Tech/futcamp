@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// FutCamp — modelos de domínio
+// Tabelaço — modelos de domínio
 // Plataforma de gestão de campeonatos esportivos.
 // ---------------------------------------------------------------------------
 

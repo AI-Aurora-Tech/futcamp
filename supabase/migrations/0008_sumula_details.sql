@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — súmula detalhada
+-- Tabelaço — súmula detalhada
 --
 --  • Eventos: substituição (quem saiu / quem entrou) e detalhe (motivo da
 --    expulsão) → colunas player_in_id e detail em match_events.

@@ -72,7 +72,7 @@ export default function App() {
   }
 
   if (loading) {
-    return <div className="app-loading"><Spinner label="Carregando FutCamp…" /></div>
+    return <div className="app-loading"><Spinner label="Carregando Tabelaço…" /></div>
   }
 
   if (!organizer) {

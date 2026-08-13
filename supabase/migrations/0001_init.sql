@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — esquema inicial
+-- Tabelaço — esquema inicial
 -- Campeonatos esportivos: organizadores, times, jogadores, partidas e eventos.
 -- ===========================================================================
 

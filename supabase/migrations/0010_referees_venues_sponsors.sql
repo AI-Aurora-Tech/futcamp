@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — árbitros, campos e patrocinadores/parceiros
+-- Tabelaço — árbitros, campos e patrocinadores/parceiros
 --
 --  • Árbitros, campos (locais) e patrocinadores/parceiros ficam embutidos como
 --    JSON no próprio campeonato (como as categorias) — evita novas tabelas.

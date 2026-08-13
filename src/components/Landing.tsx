@@ -60,7 +60,7 @@ export function Landing() {
       <div className="landing__hero">
         <div className="landing__brand">
           <span className="logo-mark">⚽</span>
-          <span className="logo-word">Fut<b>Camp</b></span>
+          <span className="logo-word">Tabela<b>ço</b></span>
         </div>
         <h1>
           Organize seu campeonato como um <span className="hl">profissional</span>.

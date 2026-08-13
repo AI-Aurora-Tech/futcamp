@@ -77,7 +77,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
 }
 
 /** Entra imediatamente no modo demo (sem senha), semeando dados de exemplo. */
-export function signInDemo(name = 'Organizador Demo', email = 'demo@futcamp.app'): AuthResult {
+export function signInDemo(name = 'Organizador Demo', email = 'demo@tabelaco.app'): AuthResult {
   const org: Organizer = { id: DEMO_ID, email, name }
   try {
     localStorage.setItem(DEMO_KEY, JSON.stringify(org))

@@ -1,4 +1,4 @@
-# ⚽ FutCamp
+# ⚽ Tabelaço
 
 **Plataforma completa de gestão de campeonatos esportivos amadores.**
 
@@ -124,4 +124,4 @@ vercel --prod # produção
 
 ---
 
-_FutCamp — gestão de campeonatos esportivos amadores._
+_Tabelaço — gestão de campeonatos esportivos amadores._

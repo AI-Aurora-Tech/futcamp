@@ -1,7 +1,7 @@
 -- ===========================================================================
--- FutCamp — seed de exemplo (opcional)
+-- Tabelaço — seed de exemplo (opcional)
 --
--- Cria um campeonato de demonstração ("Copa FutCamp") com 4 times e alguns
+-- Cria um campeonato de demonstração ("Copa Tabelaço") com 4 times e alguns
 -- jogadores. Como as tabelas exigem um dono (owner_id → auth.users), defina
 -- abaixo o UUID de um usuário já cadastrado no seu projeto Supabase
 -- (Authentication → Users → copie o "User UID").
@@ -24,7 +24,7 @@ begin
   insert into public.championships
     (id, owner_id, name, sport, format, season, status, description, logo, primary_color, double_round)
   values
-    (v_champ, v_owner, 'Copa FutCamp 2026', 'futebol', 'league', '2026', 'active',
+    (v_champ, v_owner, 'Copa Tabelaço 2026', 'futebol', 'league', '2026', 'active',
      'Campeonato de demonstração gerado pelo seed.', '🏆', '#16a34a', true);
 
   insert into public.teams (id, championship_id, name, short_name, logo, color, coach) values

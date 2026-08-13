@@ -59,6 +59,8 @@ export interface PlayerInput {
 /** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
 function demoHash(password: string): string {
   let h = 5381
+  // Prefixo legado mantido de propósito: alterá-lo invalidaria as senhas
+  // de times já cadastrados no modo demo.
   const s = `futcamp:${password}`
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
   return h.toString(16)

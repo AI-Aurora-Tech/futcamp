@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — prazo de inscrição, comissão técnica e ajustes de inscrição
+-- Tabelaço — prazo de inscrição, comissão técnica e ajustes de inscrição
 --
 --  • Campeonato: prazo de inscrição (horas antes do jogo).
 --  • Atleta: papel (atleta | comissao).

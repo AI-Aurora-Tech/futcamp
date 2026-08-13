@@ -78,7 +78,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
     <div className="manage public" style={{ '--accent': champ.primaryColor ?? '#16a34a' } as React.CSSProperties}>
       <div className="manage__hero">
         <div className="container manage__hero-inner">
-          <button className="back-link" onClick={onHome}>← FutCamp</button>
+          <button className="back-link" onClick={onHome}>← Tabelaço</button>
           <div className="manage__title">
             <span className="manage__logo"><ChampLogo logo={champ.logo} /></span>
             <div>
@@ -103,6 +103,8 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
         </div>
       </div>
 
+      <SponsorsStrip sponsors={champ.sponsors ?? []} />
+
       <div className="container manage__content">
         {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} />}
         {tab === 'matches' && <MatchesReadOnly championship={champ} teams={teams} matches={matches} />}
@@ -110,10 +112,8 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
         {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} />}
       </div>
 
-      <SponsorsStrip sponsors={champ.sponsors ?? []} />
-
       <footer className="public__footer">
-        <span className="logo-word">Fut<b>Camp</b></span> · Gerencie seu campeonato em futcamp
+        <span className="logo-word">Tabela<b>ço</b></span> · Gerencie seu campeonato em tabelaço
       </footer>
     </div>
   )

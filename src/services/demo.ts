@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Armazenamento local do MODO DEMO (sem Supabase).
-// Guarda todas as coleções do FutCamp no localStorage, permitindo usar o app
+// Guarda todas as coleções do Tabelaço no localStorage, permitindo usar o app
 // por completo sem backend. Os serviços em src/services caem aqui quando o
 // Supabase não está configurado.
 // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ export function ensureSeed(ownerId: string): void {
   data.championships.push({
     id: champId,
     ownerId,
-    name: 'Copa FutCamp 2026',
+    name: 'Copa Tabelaço 2026',
     sport: 'futebol',
     audience: 'adulto',
     categories: [{ id: 'cat-livre', name: 'Adulto Livre', exceptions: 0, maxAthletes: 25, maxStaff: 5 }],

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://futcamp.app/sitemap.xml
+Sitemap: https://tabelaco.app/sitemap.xml

@@ -1,6 +1,6 @@
-# Configuração local do Supabase CLI para o FutCamp.
+# Configuração local do Supabase CLI para o Tabelaço.
 # Ajuste "project_id" para o ref do seu projeto ao usar `supabase link`.
-project_id = "futcamp"
+project_id = "tabelaco"
 
 [api]
 enabled = true

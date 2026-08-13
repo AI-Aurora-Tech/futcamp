@@ -1,5 +1,5 @@
 -- ===========================================================================
--- FutCamp — categorias, dados de atleta e acesso do time
+-- Tabelaço — categorias, dados de atleta e acesso do time
 --
 --  • Campeonato: público-alvo (infantil/adulto) + categorias (JSON).
 --  • Atleta: CPF e categoria.
