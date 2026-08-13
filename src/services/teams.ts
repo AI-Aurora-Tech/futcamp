@@ -86,6 +86,81 @@ export async function ensureTeamToken(teamId: string): Promise<string> {
   })
 }
 
+/**
+ * Garante (e retorna) o token do link público de CRIAÇÃO de time do campeonato.
+ * O organizador envia `#/novo-time/<championshipId>?k=<token>`.
+ */
+export async function ensureChampTeamToken(championshipId: string): Promise<string> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('ensure_champ_team_invite', { p_champ: championshipId })
+    if (error) throw error
+    return data as string
+  }
+  return mutate((d) => {
+    const c = d.championships.find((x) => x.id === championshipId)
+    if (!c) throw new Error('Campeonato não encontrado.')
+    if (!c.teamCreateToken) c.teamCreateToken = accessToken()
+    return c.teamCreateToken
+  })
+}
+
+export interface CreateTeamViaLinkInput {
+  name: string
+  shortName?: string
+  logo?: string
+  color?: string
+  coach?: string
+  group?: string
+}
+
+/**
+ * Cria um time a partir do link público de criação (valida o token do campeonato)
+ * e devolve o `teamId` e o `token` de inscrição, para o responsável seguir
+ * inscrevendo os atletas em `#/t/<teamId>?k=<token>`.
+ */
+export async function createTeamViaLink(
+  championshipId: string,
+  token: string,
+  input: CreateTeamViaLinkInput,
+): Promise<{ teamId: string; token: string }> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('create_team_via_invite', {
+      p_champ: championshipId,
+      p_token: token,
+      p_name: input.name.trim(),
+      p_short: input.shortName?.trim() || null,
+      p_logo: input.logo || null,
+      p_color: input.color || null,
+      p_coach: input.coach?.trim() || null,
+      p_group: input.group || null,
+    })
+    if (error) throw error
+    const row = data as { team_id: string; token: string }
+    return { teamId: row.team_id, token: row.token }
+  }
+  return mutate((d) => {
+    const c = d.championships.find((x) => x.id === championshipId)
+    if (!c || !c.teamCreateToken || c.teamCreateToken !== token) {
+      throw new Error('Link de criação inválido ou expirado.')
+    }
+    const tok = accessToken()
+    const team: Team = {
+      id: uid('team'),
+      championshipId,
+      name: input.name.trim(),
+      shortName: input.shortName?.trim() || undefined,
+      logo: input.logo || undefined,
+      color: input.color || undefined,
+      coach: input.coach?.trim() || undefined,
+      group: input.group || undefined,
+      accessToken: tok,
+      createdAt: new Date().toISOString(),
+    }
+    d.teams.push(team)
+    return { teamId: team.id, token: tok }
+  })
+}
+
 export async function updateTeam(id: string, patch: Partial<Team>): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.from('teams').update(toRow(patch)).eq('id', id)

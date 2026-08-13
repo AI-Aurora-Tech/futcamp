@@ -29,6 +29,8 @@ export interface RegistrationData {
   categories: Category[]
   players: Player[]
   hasAccount: boolean
+  /** Usuários dos gestores do time já cadastrados (até 2). */
+  managers: string[]
   /** Prazo de inscrição (horas antes da partida). 0 = sem prazo. */
   registrationCutoffHours: number
   /** Rodadas com inscrições encerradas manualmente pelo organizador. */
@@ -59,8 +61,6 @@ export interface PlayerInput {
 /** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
 function demoHash(password: string): string {
   let h = 5381
-  // Prefixo legado mantido de propósito: alterá-lo invalidaria as senhas
-  // de times já cadastrados no modo demo.
   const s = `futcamp:${password}`
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
   return h.toString(16)
@@ -113,6 +113,7 @@ export async function loadRegistration(
       categories: Array.isArray(data.categories) ? data.categories : [],
       players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
       hasAccount: Boolean(data.has_account),
+      managers: Array.isArray(data.managers) ? (data.managers as string[]) : [],
       registrationCutoffHours: data.registration_cutoff_hours ?? 0,
       closedRounds: Array.isArray(data.closed_rounds) ? data.closed_rounds : [],
       matches: Array.isArray(data.matches) ? data.matches.map(matchFromRow) : [],
@@ -134,6 +135,7 @@ export async function loadRegistration(
         .filter((p) => p.teamId === teamId)
         .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
       hasAccount: Boolean(team.username && team.passwordHash),
+      managers: [team.username, team.username2].filter((u): u is string => Boolean(u)),
       registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
       closedRounds: champ?.closedRounds ?? [],
       matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
@@ -195,9 +197,18 @@ export async function createTeamAccount(
   return mutate((d) => {
     const t = d.teams.find((x) => x.id === teamId)
     if (!t) return { ok: false, error: 'Time não encontrado.' }
-    if (t.username && t.passwordHash) return { ok: false, error: 'Este time já possui acesso. Faça login.' }
-    t.username = username.trim()
-    t.passwordHash = demoHash(password)
+    const u = username.trim()
+    const slot1 = Boolean(t.username && t.passwordHash)
+    const slot2 = Boolean(t.username2 && t.passwordHash2)
+    if (slot1 && slot2) return { ok: false, error: 'Este time já possui 2 gestores.' }
+    if (t.username === u || t.username2 === u) return { ok: false, error: 'Este usuário já existe neste time.' }
+    if (!slot1) {
+      t.username = u
+      t.passwordHash = demoHash(password)
+    } else {
+      t.username2 = u
+      t.passwordHash2 = demoHash(password)
+    }
     return { ok: true }
   })
 }
@@ -222,7 +233,10 @@ export async function teamLogin(
   return query((d) => {
     const t = d.teams.find((x) => x.id === teamId)
     if (!t || t.accessToken !== token) return { ok: false, error: 'Link inválido.' }
-    if (t.username === username.trim() && t.passwordHash === demoHash(password)) return { ok: true }
+    const u = username.trim()
+    const hash = demoHash(password)
+    if (t.username === u && t.passwordHash === hash) return { ok: true }
+    if (t.username2 === u && t.passwordHash2 === hash) return { ok: true }
     return { ok: false, error: 'Usuário ou senha inválidos.' }
   })
 }

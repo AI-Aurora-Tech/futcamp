@@ -171,6 +171,9 @@ input, select, textarea { font-family: inherit; font-size: 1rem; }
   background: var(--surface-2); font-size: 1.3rem; display: grid; place-items: center; transition: all 0.15s;
 }
 .emoji-picker__item.is-active { border-color: var(--brand); background: rgba(22, 163, 74, 0.12); transform: scale(1.05); }
+.team-logo-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.manager-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.manager-list__item { display: flex; align-items: center; gap: 0.4rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.35rem 0.8rem; font-weight: 600; font-size: 0.88rem; }
 
 /* ---------- Dashboard ---------- */
 .dashboard { padding: 2rem 1.25rem 4rem; }

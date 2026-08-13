@@ -1,9 +1,8 @@
-import { useState } from 'react'
-import { createTeam, deleteTeam, ensureTeamToken, updateTeam, type NewTeam } from '../services/teams'
+import { useRef, useState } from 'react'
+import { createTeam, deleteTeam, ensureChampTeamToken, ensureTeamToken, updateTeam, type NewTeam } from '../services/teams'
 import type { Championship, Team } from '../types'
+import { fileToDataUrl } from '../lib/image'
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
-
-const LOGO_CHOICES = ['🦁', '🦅', '🐯', '🐺', '🐉', '🦈', '🐂', '🦉', '🐆', '⚡', '🔥', '⭐', '🛡️', '⚽']
 
 export function TeamsPanel({
   championship,
@@ -67,6 +66,20 @@ export function TeamsPanel({
     }
   }
 
+  async function copyCreateTeamLink() {
+    try {
+      const token = await ensureChampTeamToken(championship.id)
+      const url = `${location.origin}${location.pathname}#/novo-time/${championship.id}?k=${token}`
+      await navigator.clipboard?.writeText(url).catch(() => {})
+      window.prompt(
+        'Link para CRIAÇÃO de time\n\nEnvie ao responsável — ele cria o próprio time, define o escudo, os gestores e inscreve os atletas:',
+        url,
+      )
+    } catch {
+      alert('Não foi possível gerar o link agora.')
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel__head">
@@ -80,6 +93,7 @@ export function TeamsPanel({
               {drawing ? 'Sorteando…' : '🎲 Sortear grupos'}
             </Button>
           )}
+          <Button variant="soft" onClick={() => void copyCreateTeamLink()}>🔗 Link para criar time</Button>
           <Button onClick={() => setAdding(true)}>＋ Adicionar time</Button>
         </div>
       </div>
@@ -145,17 +159,32 @@ function TeamForm({
 }) {
   const [name, setName] = useState(initial?.name ?? '')
   const [shortName, setShortName] = useState(initial?.shortName ?? '')
-  const [logo, setLogo] = useState(initial?.logo ?? '🛡️')
+  const [logo, setLogo] = useState(initial?.logo ?? '')
   const [color, setColor] = useState(initial?.color ?? '#2563eb')
   const [coach, setCoach] = useState(initial?.coach ?? '')
   const [group, setGroup] = useState(initial?.group ?? 'A')
   const [busy, setBusy] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const grouped = championship.format === 'groups_knockout'
   const target = championship.teamsPerGroup
   const groupOptions = Array.from({ length: championship.numGroups ?? 2 }, (_, i) =>
     String.fromCharCode(65 + i),
   )
   const countIn = (g: string) => teams.filter((t) => t.group === g && t.id !== initial?.id).length
+
+  async function onLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setLogo(await fileToDataUrl(file, 256))
+      setLogoError(null)
+    } catch {
+      setLogoError('Não foi possível carregar a imagem.')
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -195,14 +224,15 @@ function TeamForm({
             <input value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={4} placeholder="LEO" />
           </Field>
         </div>
-        <Field label="Escudo (emoji)">
-          <div className="emoji-picker">
-            {LOGO_CHOICES.map((e) => (
-              <button type="button" key={e} className={`emoji-picker__item ${logo === e ? 'is-active' : ''}`} onClick={() => setLogo(e)}>
-                {e}
-              </button>
-            ))}
+        <Field label="Escudo do time" hint="Envie a imagem do brasão (PNG/JPG/SVG). Sem imagem, usamos a sigla e a cor.">
+          <div className="team-logo-actions">
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onLogoUpload} />
+            <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar escudo</Button>
+            {logo?.startsWith('data:') && (
+              <button type="button" className="link-btn" onClick={() => setLogo('')}>remover imagem</button>
+            )}
           </div>
+          {logoError && <p className="hint" style={{ color: 'var(--danger)' }}>{logoError}</p>}
         </Field>
         <div className="form-row">
           <Field label="Cor">

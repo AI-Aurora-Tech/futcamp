@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Tabelaço — plataforma de gestão de campeonatos esportivos amadores.",
+  "description": "Tabelaço — plataforma de gestão de campeonatos esportivos (inspirada no iFut).",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

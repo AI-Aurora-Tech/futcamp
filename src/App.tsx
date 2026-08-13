@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard'
 import { ManageChampionship } from './components/ManageChampionship'
 import { PublicChampionship } from './components/PublicChampionship'
 import { TeamRegistration } from './components/TeamRegistration'
+import { CreateTeamViaLink } from './components/CreateTeamViaLink'
 import { MesaPortal } from './components/MesaPortal'
 import { Spinner } from './components/ui'
 
@@ -23,6 +24,14 @@ function readTeamRoute(): { teamId: string; token: string } | null {
   return { teamId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
 }
 
+/** Extrai `#/novo-time/<championshipId>?k=<token>` (link de criação de time). */
+function readCreateTeamRoute(): { championshipId: string; token: string } | null {
+  const m = window.location.hash.match(/^#\/novo-time\/([^?]+)(?:\?(.*))?$/)
+  if (!m) return null
+  const params = new URLSearchParams(m[2] ?? '')
+  return { championshipId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
+}
+
 /** Extrai `#/mesa/<championshipId>` (portal do mesário), se houver. */
 function readMesaId(): string | null {
   const m = window.location.hash.match(/^#\/mesa\/([^?]+)$/)
@@ -33,6 +42,7 @@ export default function App() {
   const { organizer, loading } = useAuth()
   const [publicId, setPublicId] = useState<string | null>(readPublicId())
   const [teamRoute, setTeamRoute] = useState(readTeamRoute())
+  const [createTeamRoute, setCreateTeamRoute] = useState(readCreateTeamRoute())
   const [mesaId, setMesaId] = useState<string | null>(readMesaId())
   const [selected, setSelected] = useState<string | null>(null)
 
@@ -40,6 +50,7 @@ export default function App() {
     const onHash = () => {
       setPublicId(readPublicId())
       setTeamRoute(readTeamRoute())
+      setCreateTeamRoute(readCreateTeamRoute())
       setMesaId(readMesaId())
     }
     window.addEventListener('hashchange', onHash)
@@ -52,6 +63,7 @@ export default function App() {
     }
     setPublicId(null)
     setTeamRoute(null)
+    setCreateTeamRoute(null)
     setMesaId(null)
     setSelected(null)
   }
@@ -59,6 +71,11 @@ export default function App() {
   // Portal do mesário (login próprio).
   if (mesaId) {
     return <MesaPortal championshipId={mesaId} onHome={goHome} />
+  }
+
+  // Link de criação de time pelo responsável (não exige login).
+  if (createTeamRoute) {
+    return <CreateTeamViaLink championshipId={createTeamRoute.championshipId} token={createTeamRoute.token} onHome={goHome} />
   }
 
   // Link de inscrição do time (não exige login).

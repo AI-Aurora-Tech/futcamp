@@ -18,8 +18,6 @@ import { POSITIONS, type Category, type Player, type Position } from '../types'
 import { Button, ChampLogo, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 
-const LOGO_CHOICES = ['🦁', '🦅', '🐯', '🐺', '🐉', '🦈', '🐂', '🦉', '🐆', '⚡', '🔥', '⭐', '🛡️', '⚽']
-
 const authKey = (teamId: string) => `futcamp:teamauth:${teamId}`
 
 export function TeamRegistration({
@@ -97,6 +95,7 @@ export function TeamRegistration({
         ) : (
           <>
             <TeamCard teamId={teamId} token={token} data={data} onSaved={reload} />
+            <ManagersCard teamId={teamId} token={token} data={data} onChanged={reload} />
             <RosterCard teamId={teamId} token={token} data={data} onChanged={reload} />
             <p className="reg__foot">Suas alterações são salvas para o organizador do campeonato.</p>
           </>
@@ -199,7 +198,7 @@ function TeamCard({
   const [shortName, setShortName] = useState(t.shortName ?? '')
   const [coach, setCoach] = useState(t.coach ?? '')
   const [color, setColor] = useState(t.color ?? '#2563eb')
-  const [logo, setLogo] = useState(t.logo ?? '🛡️')
+  const [logo, setLogo] = useState(t.logo ?? '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -239,17 +238,11 @@ function TeamCard({
           <TeamBadge team={{ name, shortName, logo, color }} size={96} />
           <div className="reg__logo-actions">
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onUpload} />
-            <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar imagem</Button>
+            <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar escudo</Button>
             {logo?.startsWith('data:') && (
-              <button type="button" className="link-btn" onClick={() => setLogo('🛡️')}>remover imagem</button>
+              <button type="button" className="link-btn" onClick={() => setLogo('')}>remover imagem</button>
             )}
-          </div>
-          <div className="emoji-picker reg__emoji">
-            {LOGO_CHOICES.map((e) => (
-              <button type="button" key={e} className={`emoji-picker__item ${logo === e ? 'is-active' : ''}`} onClick={() => setLogo(e)}>
-                {e}
-              </button>
-            ))}
+            <p className="field__hint">Envie a imagem do brasão (PNG/JPG/SVG). Sem imagem, usamos a sigla e a cor.</p>
           </div>
         </div>
 
@@ -276,6 +269,91 @@ function TeamCard({
           </div>
         </div>
       </form>
+    </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gestores do time (até 2 pessoas)                                            */
+/* -------------------------------------------------------------------------- */
+function ManagersCard({
+  teamId,
+  token,
+  data,
+  onChanged,
+}: {
+  teamId: string
+  token: string
+  data: RegistrationData
+  onChanged: () => Promise<void>
+}) {
+  const managers = data.managers
+  const [adding, setAdding] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const canAdd = managers.length < 2
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (password !== confirm) {
+      setError('As senhas não conferem.')
+      return
+    }
+    setBusy(true)
+    const res = await createTeamAccount(teamId, token, username, password)
+    setBusy(false)
+    if (res.ok) {
+      setUsername(''); setPassword(''); setConfirm(''); setAdding(false)
+      await onChanged()
+    } else {
+      setError(res.error ?? 'Não foi possível adicionar o gestor.')
+    }
+  }
+
+  return (
+    <section className="panel reg__panel">
+      <div className="panel__head">
+        <div>
+          <h2>Gestores do time ({managers.length}/2)</h2>
+          <p className="muted">Até 2 pessoas podem acessar e gerir este time.</p>
+        </div>
+        {canAdd && !adding && (
+          <div className="panel__head-actions">
+            <Button variant="soft" onClick={() => setAdding(true)}>＋ Adicionar 2º gestor</Button>
+          </div>
+        )}
+      </div>
+
+      <ul className="manager-list">
+        {managers.map((u) => (
+          <li key={u} className="manager-list__item"><span>👤</span> {u}</li>
+        ))}
+      </ul>
+
+      {canAdd && adding && (
+        <form onSubmit={submit} className="form-grid">
+          <div className="form-row">
+            <Field label="Usuário do 2º gestor">
+              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex.: leoes.auxiliar" autoComplete="off" required />
+            </Field>
+            <Field label="Senha">
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete="new-password" required />
+            </Field>
+            <Field label="Confirmar senha">
+              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={4} required />
+            </Field>
+          </div>
+          {error && <p className="auth-error">{error}</p>}
+          <div className="form-actions">
+            <Button variant="ghost" type="button" onClick={() => { setAdding(false); setError(null) }}>Cancelar</Button>
+            <Button type="submit" disabled={busy || !username.trim() || !password}>{busy ? 'Adicionando…' : 'Adicionar gestor'}</Button>
+          </div>
+        </form>
+      )}
     </section>
   )
 }

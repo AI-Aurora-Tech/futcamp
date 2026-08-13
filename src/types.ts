@@ -105,6 +105,11 @@ export interface Championship {
   venues?: Venue[]
   /** Patrocinadores e parceiros exibidos na página pública. */
   sponsors?: Sponsor[]
+  /**
+   * Token do link público de CRIAÇÃO de time. O organizador envia o link
+   * `#/novo-time/<championshipId>?k=<token>` e o responsável cria o próprio time.
+   */
+  teamCreateToken?: string
   createdAt: string
 }
 
@@ -121,10 +126,14 @@ export interface Team {
   coach?: string
   /** Token do link de inscrição (o responsável cria o acesso do time). */
   accessToken?: string
-  /** Usuário do responsável pelo time (definido via link de inscrição). */
+  /** Usuário do 1º responsável pelo time (definido via link de inscrição). */
   username?: string
-  /** Hash da senha do responsável (modo demo). */
+  /** Hash da senha do 1º responsável (modo demo). */
   passwordHash?: string
+  /** Usuário do 2º gestor do time (opcional — até 2 gestores). */
+  username2?: string
+  /** Hash da senha do 2º gestor (modo demo). */
+  passwordHash2?: string
   createdAt: string
 }
 
