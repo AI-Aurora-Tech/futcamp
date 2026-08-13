@@ -1,0 +1,396 @@
+<title>Planos Tabelaço</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    /* Light — ground with a faint green bias, brand green, metallic tier accents */
+    --bg: #f4f7f3;
+    --surface: #ffffff;
+    --surface-2: #eef2ec;
+    --ink: #0e1a12;
+    --ink-soft: #45514a;
+    --muted: #6d7a71;
+    --line: #dde5dd;
+    --line-strong: #c6d1c6;
+    --brand: #16a34a;
+    --brand-ink: #0f7a37;
+    --brand-wash: rgba(22, 163, 74, 0.10);
+    --shadow: 0 1px 2px rgba(14, 26, 18, 0.05), 0 12px 32px rgba(14, 26, 18, 0.07);
+    --shadow-hi: 0 2px 4px rgba(14, 26, 18, 0.08), 0 22px 50px rgba(14, 26, 18, 0.14);
+
+    --bronze: #b06a37;
+    --prata: #7f8a99;
+    --ouro: #c08a1e;
+    --diamante: #2a97b8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b1220;
+      --surface: #111a2b;
+      --surface-2: #0e1626;
+      --ink: #eaf1ea;
+      --ink-soft: #b6c2bb;
+      --muted: #8a978f;
+      --line: #1e2b3f;
+      --line-strong: #2a3a52;
+      --brand: #34d27f;
+      --brand-ink: #4ade80;
+      --brand-wash: rgba(52, 210, 127, 0.14);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px rgba(0, 0, 0, 0.45);
+      --shadow-hi: 0 2px 6px rgba(0, 0, 0, 0.5), 0 26px 60px rgba(0, 0, 0, 0.6);
+
+      --bronze: #d08a54;
+      --prata: #aab6c6;
+      --ouro: #e6b23c;
+      --diamante: #56c2d9;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b1220;
+    --surface: #111a2b;
+    --surface-2: #0e1626;
+    --ink: #eaf1ea;
+    --ink-soft: #b6c2bb;
+    --muted: #8a978f;
+    --line: #1e2b3f;
+    --line-strong: #2a3a52;
+    --brand: #34d27f;
+    --brand-ink: #4ade80;
+    --brand-wash: rgba(52, 210, 127, 0.14);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px rgba(0, 0, 0, 0.45);
+    --shadow-hi: 0 2px 6px rgba(0, 0, 0, 0.5), 0 26px 60px rgba(0, 0, 0, 0.6);
+
+    --bronze: #d08a54;
+    --prata: #aab6c6;
+    --ouro: #e6b23c;
+    --diamante: #56c2d9;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 620px at 88% -8%, var(--brand-wash), transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: clamp(1.4rem, 4vw, 3rem) clamp(1.1rem, 4vw, 2rem) 3rem; }
+
+  /* ---- Header ---- */
+  .brand { display: flex; align-items: center; gap: 0.55rem; }
+  .brand__mark { font-size: 1.5rem; line-height: 1; }
+  .brand__word { font-weight: 800; letter-spacing: -0.02em; font-size: 1.4rem; color: var(--ink); }
+  .brand__word b { color: var(--brand); font-weight: 800; }
+  .brand__tag { margin-left: auto; color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+
+  .hero { margin: clamp(1.8rem, 5vw, 3rem) 0 clamp(1.2rem, 3vw, 1.8rem); max-width: 40ch; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.7rem; font-weight: 800;
+    color: var(--brand-ink); background: var(--brand-wash);
+    padding: 0.32rem 0.7rem; border-radius: 999px; margin-bottom: 0.9rem;
+  }
+  h1 { font-size: clamp(2rem, 5.4vw, 3rem); line-height: 1.04; letter-spacing: -0.03em; margin: 0 0 0.7rem; text-wrap: balance; }
+  .lede { color: var(--ink-soft); font-size: clamp(1rem, 2.4vw, 1.12rem); margin: 0; }
+  .lede b { color: var(--ink); font-weight: 700; }
+
+  /* ---- Plan grid ---- */
+  .plans { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; align-items: stretch; }
+  @media (max-width: 1040px) { .plans { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 720px) { .plans { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 460px) { .plans { grid-template-columns: 1fr; } }
+
+  .card {
+    --accent: var(--brand);
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1.35rem 1.25rem 1.4rem;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 0.4rem;
+    overflow: hidden;
+  }
+  .card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--accent); }
+  .card--gratis { --accent: var(--brand); }
+  .card--bronze { --accent: var(--bronze); }
+  .card--prata { --accent: var(--prata); }
+  .card--ouro { --accent: var(--ouro); }
+  .card--diamante { --accent: var(--diamante); }
+
+  .card--featured {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+    box-shadow: var(--shadow-hi);
+  }
+  @media (min-width: 1041px) { .card--featured { transform: translateY(-10px); } }
+
+  .card__badge {
+    position: absolute; top: 0.9rem; right: 0.9rem;
+    font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+    color: #06210f; background: var(--accent);
+    padding: 0.22rem 0.55rem; border-radius: 999px;
+  }
+  .card__tier { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; font-size: 1.06rem; letter-spacing: -0.01em; }
+  .card__gem { color: var(--accent); font-size: 1.15rem; line-height: 1; }
+  .card__cap { color: var(--muted); font-size: 0.86rem; min-height: 2.4em; }
+
+  .price { display: flex; align-items: baseline; gap: 0.28rem; margin: 0.35rem 0 0; font-variant-numeric: tabular-nums; }
+  .price__cur { font-size: 1rem; font-weight: 700; color: var(--ink-soft); }
+  .price__val { font-size: 2.35rem; font-weight: 850; letter-spacing: -0.03em; line-height: 1; }
+  .price__val--consult { font-size: 1.5rem; letter-spacing: -0.02em; }
+  .price__unit { color: var(--muted); font-size: 0.82rem; font-weight: 600; margin-top: 0.35rem; }
+  .price__unit b { color: var(--ink-soft); font-weight: 700; }
+
+  .addon {
+    margin-top: 0.15rem; font-size: 0.8rem; color: var(--ink-soft);
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 0.5rem 0.65rem;
+  }
+  .addon b { color: var(--ink); font-weight: 750; font-variant-numeric: tabular-nums; }
+
+  .feats { list-style: none; margin: 0.7rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+  .feats li { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.88rem; color: var(--ink-soft); }
+  .feats svg { flex: none; width: 16px; height: 16px; margin-top: 0.15rem; color: var(--accent); }
+
+  .cta {
+    margin-top: auto; padding-top: 1rem;
+  }
+  .btn {
+    display: block; width: 100%; text-align: center; text-decoration: none;
+    font-weight: 800; font-size: 0.92rem; padding: 0.72rem 1rem; border-radius: 11px;
+    border: 1.5px solid var(--line-strong); color: var(--ink); background: var(--surface);
+    transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn:active { transform: translateY(1px); }
+  .btn--solid { background: var(--accent); border-color: var(--accent); color: #06210f; }
+  .btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
+
+  /* ---- How billing works ---- */
+  .how { margin-top: clamp(2rem, 5vw, 3rem); }
+  .how h2 { font-size: 1.3rem; letter-spacing: -0.02em; margin: 0 0 1rem; }
+  .how__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.9rem; }
+  @media (max-width: 760px) { .how__grid { grid-template-columns: 1fr; } }
+  .note {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--brand);
+    border-radius: 12px; padding: 0.95rem 1.05rem;
+  }
+  .note h3 { margin: 0 0 0.3rem; font-size: 0.98rem; }
+  .note p { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+  .note b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---- Comparison table ---- */
+  .compare { margin-top: clamp(2rem, 5vw, 3rem); }
+  .compare h2 { font-size: 1.3rem; letter-spacing: -0.02em; margin: 0 0 1rem; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 0.9rem; }
+  caption { text-align: left; padding: 0.75rem 1rem 0; color: var(--muted); font-size: 0.8rem; }
+  th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--line); }
+  thead th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 800; }
+  tbody th { font-weight: 650; color: var(--ink-soft); }
+  td { color: var(--ink); font-variant-numeric: tabular-nums; }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: none; }
+  .col-ouro { background: var(--brand-wash); }
+  .yes { color: var(--brand-ink); font-weight: 800; }
+
+  footer { margin-top: 2.4rem; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--line); padding-top: 1.1rem; }
+</style>
+
+<div class="wrap">
+  <header class="brand">
+    <span class="brand__mark">⚽</span>
+    <span class="brand__word">Tabela<b>ço</b></span>
+    <span class="brand__tag">Gestão de campeonatos de futebol amador</span>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow">Cobrança por campeonato</span>
+    <h1>Planos e preços</h1>
+    <p class="lede">Cada <b>categoria é um campeonato à parte</b>. Você escolhe o plano pela quantidade de equipes e paga por campeonato — sem mensalidade surpresa.</p>
+  </section>
+
+  <section class="plans" aria-label="Planos">
+    <!-- Grátis -->
+    <article class="card card--gratis">
+      <div class="card__tier"><span class="card__gem">●</span> Grátis</div>
+      <p class="card__cap">Para experimentar e organizar uma copa pequena.</p>
+      <div class="price">
+        <span class="price__cur">R$</span>
+        <span class="price__val">0</span>
+      </div>
+      <div class="price__unit">para sempre · <b>1 campeonato</b></div>
+      <div class="addon">Com a marca <b>Tabelaço</b> na página pública</div>
+      <ul class="feats">
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Apenas <strong>1 campeonato</strong> com 1 categoria</li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Até <strong>8 equipes</strong></li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Todas as funcionalidades</li>
+      </ul>
+      <div class="cta"><a class="btn" href="#">Começar grátis</a></div>
+    </article>
+
+    <!-- Bronze -->
+    <article class="card card--bronze">
+      <div class="card__tier"><span class="card__gem">●</span> Bronze</div>
+      <p class="card__cap">Para copas menores, com poucas equipes por categoria.</p>
+      <div class="price">
+        <span class="price__cur">R$</span>
+        <span class="price__val">49,90</span>
+      </div>
+      <div class="price__unit">por campeonato · <b>1 categoria</b></div>
+      <div class="addon">+ <b>R$ 29,90</b> por categoria adicional</div>
+      <ul class="feats">
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Até <strong>16 equipes</strong> por categoria</li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Todas as funcionalidades</li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Com a marca <strong>Tabelaço</strong> na página pública</li>
+      </ul>
+      <div class="cta"><a class="btn" href="#">Escolher Bronze</a></div>
+    </article>
+
+    <!-- Prata -->
+    <article class="card card--prata">
+      <div class="card__tier"><span class="card__gem">●</span> Prata</div>
+      <p class="card__cap">Para campeonatos de porte médio, com mais times.</p>
+      <div class="price">
+        <span class="price__cur">R$</span>
+        <span class="price__val">59,90</span>
+      </div>
+      <div class="price__unit">por campeonato · <b>1 categoria</b></div>
+      <div class="addon">+ <b>R$ 29,90</b> por categoria adicional</div>
+      <ul class="feats">
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Até <strong>32 equipes</strong> por categoria</li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Todas as funcionalidades</li>
+      </ul>
+      <div class="cta"><a class="btn" href="#">Escolher Prata</a></div>
+    </article>
+
+    <!-- Ouro (featured) -->
+    <article class="card card--ouro card--featured">
+      <span class="card__badge">Mais popular</span>
+      <div class="card__tier"><span class="card__gem">●</span> Ouro</div>
+      <p class="card__cap">Para ligas e copas grandes, sem se preocupar com limite.</p>
+      <div class="price">
+        <span class="price__cur">R$</span>
+        <span class="price__val">99,90</span>
+      </div>
+      <div class="price__unit">por campeonato · <b>1 categoria</b></div>
+      <div class="addon">+ <b>R$ 29,90</b> por categoria adicional</div>
+      <ul class="feats">
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> <strong>Equipes ilimitadas</strong> por categoria</li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Todas as funcionalidades</li>
+      </ul>
+      <div class="cta"><a class="btn btn--solid" href="#">Escolher Ouro</a></div>
+    </article>
+
+    <!-- Diamante -->
+    <article class="card card--diamante">
+      <span class="card__badge">Anual</span>
+      <div class="card__tier"><span class="card__gem">◆</span> Diamante</div>
+      <p class="card__cap">Para organizações que rodam vários campeonatos o ano todo.</p>
+      <div class="price">
+        <span class="price__val price__val--consult">Preço a consultar</span>
+      </div>
+      <div class="price__unit">plano <b>anual</b></div>
+      <div class="addon"><b>Categorias ilimitadas</b> — sem cobrança por adicional</div>
+      <ul class="feats">
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> <strong>Equipes ilimitadas</strong></li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> <strong>Categorias ilimitadas</strong></li>
+        <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg> Todas as funcionalidades</li>
+      </ul>
+      <div class="cta"><a class="btn" href="#">Falar com a gente</a></div>
+    </article>
+  </section>
+
+  <section class="how">
+    <h2>Como funciona a cobrança</h2>
+    <div class="how__grid">
+      <div class="note">
+        <h3>Categoria = campeonato</h3>
+        <p>Cada categoria (Sub-15, Adulto, Veterano…) roda como um campeonato independente, com sua própria tabela e classificação.</p>
+      </div>
+      <div class="note">
+        <h3>O plano cobre 1 categoria</h3>
+        <p>O valor do plano já inclui o <b>primeiro</b> campeonato. O plano define o limite de equipes de cada categoria.</p>
+      </div>
+      <div class="note">
+        <h3>Categorias a mais</h3>
+        <p>A partir da 2ª categoria, some <b>+ R$ 29,90</b> por categoria adicional (Bronze, Prata e Ouro). No Diamante, são ilimitadas.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="compare">
+    <h2>Comparativo</h2>
+    <div class="tablewrap">
+      <table>
+        <caption>Valores por campeonato. Diamante é anual, com preço sob consulta.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Recurso</th>
+            <th scope="col">Grátis</th>
+            <th scope="col">Bronze</th>
+            <th scope="col">Prata</th>
+            <th scope="col" class="col-ouro">Ouro</th>
+            <th scope="col">Diamante</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Preço</th>
+            <td>R$ 0</td>
+            <td>R$ 49,90</td>
+            <td>R$ 59,90</td>
+            <td class="col-ouro">R$ 99,90</td>
+            <td>Sob consulta</td>
+          </tr>
+          <tr>
+            <th scope="row">Equipes por categoria</th>
+            <td>8</td>
+            <td>16</td>
+            <td>32</td>
+            <td class="col-ouro">Ilimitado</td>
+            <td>Ilimitado</td>
+          </tr>
+          <tr>
+            <th scope="row">Categoria adicional</th>
+            <td>—</td>
+            <td>+ R$ 29,90</td>
+            <td>+ R$ 29,90</td>
+            <td class="col-ouro">+ R$ 29,90</td>
+            <td>Ilimitadas</td>
+          </tr>
+          <tr>
+            <th scope="row">Período</th>
+            <td>Grátis</td>
+            <td>Por campeonato</td>
+            <td>Por campeonato</td>
+            <td class="col-ouro">Por campeonato</td>
+            <td>Anual</td>
+          </tr>
+          <tr>
+            <th scope="row">Marca do app na página pública</th>
+            <td>Sim</td>
+            <td>Sim</td>
+            <td>—</td>
+            <td class="col-ouro">—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <th scope="row">Todas as funcionalidades</th>
+            <td class="yes">Sim</td>
+            <td class="yes">Sim</td>
+            <td class="yes">Sim</td>
+            <td class="col-ouro yes">Sim</td>
+            <td class="yes">Sim</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Tabelaço · Preços de referência para campeonatos de futebol amador. Valores por campeonato; o plano Diamante é anual, com preço sob consulta.
+  </footer>
+</div>
