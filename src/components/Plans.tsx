@@ -38,10 +38,10 @@ const PLANS: Plan[] = [
     gem: '●',
     tint: '#c0803f',
     cap: 'Para copas menores, com poucas equipes por categoria.',
-    price: '49,90',
+    price: '59,90',
     cur: 'R$',
     unit: 'por campeonato · 1 categoria',
-    addon: '+ R$ 29,90 por categoria adicional',
+    addon: '+ R$ 39,90 por categoria adicional',
     feats: ['Até 16 equipes por categoria', 'Todas as funcionalidades', 'Com a marca Tabelaço na página pública'],
     cta: 'Escolher Bronze',
   },
@@ -51,10 +51,10 @@ const PLANS: Plan[] = [
     gem: '●',
     tint: '#8f9bad',
     cap: 'Para campeonatos de porte médio, com mais times.',
-    price: '59,90',
+    price: '79,90',
     cur: 'R$',
     unit: 'por campeonato · 1 categoria',
-    addon: '+ R$ 29,90 por categoria adicional',
+    addon: '+ R$ 49,90 por categoria adicional',
     feats: ['Até 32 equipes por categoria', 'Todas as funcionalidades'],
     cta: 'Escolher Prata',
   },
@@ -64,10 +64,10 @@ const PLANS: Plan[] = [
     gem: '●',
     tint: '#d1a01e',
     cap: 'Para ligas e copas grandes, sem se preocupar com limite.',
-    price: '99,90',
+    price: '109,90',
     cur: 'R$',
     unit: 'por campeonato · 1 categoria',
-    addon: '+ R$ 29,90 por categoria adicional',
+    addon: '+ R$ 59,90 por categoria adicional',
     feats: ['Equipes ilimitadas por categoria', 'Todas as funcionalidades'],
     cta: 'Escolher Ouro',
     featured: true,
@@ -157,7 +157,7 @@ export function Plans({ onHome }: { onHome: () => void }) {
             </div>
             <div className="plan-note">
               <h3>Categorias a mais</h3>
-              <p>A partir da 2ª categoria, some <b>+ R$ 29,90</b> por categoria adicional (Bronze, Prata e Ouro). No Diamante, são ilimitadas.</p>
+              <p>A partir da 2ª categoria, o valor adicional varia por plano: <b>Bronze R$ 39,90</b> · <b>Prata R$ 49,90</b> · <b>Ouro R$ 59,90</b>. No Diamante, são ilimitadas.</p>
             </div>
           </div>
         </section>
