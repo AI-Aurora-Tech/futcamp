@@ -80,7 +80,10 @@ export function Landing() {
             </li>
           ))}
         </ul>
-        <a className="landing__plans" href="#/planos">Ver planos e preços →</a>
+        <div className="landing__links">
+          <a className="landing__plans" href="#/planos">Ver planos e preços →</a>
+          <a className="landing__plans" href="#/instalar">📲 Instalar o app</a>
+        </div>
       </div>
 
       <div className="landing__panel">
@@ -144,6 +147,7 @@ export function Landing() {
               : 'Conectado ao Supabase: seus campeonatos ficam salvos na nuvem.'}
           </p>
           <a className="auth-plans-link" href="#/planos">💳 Ver planos e preços</a>
+          <a className="auth-plans-link" href="#/instalar">📲 Como instalar o app</a>
         </div>
       </div>
     </div>
