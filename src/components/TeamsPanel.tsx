@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createTeam, deleteTeam, ensureTeamToken, updateTeam, type NewTeam } from '../services/teams'
 import type { Championship, Team } from '../types'
+import { fileToDataUrl } from '../lib/image'
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 
 const LOGO_CHOICES = ['🦁', '🦅', '🐯', '🐺', '🐉', '🦈', '🐂', '🦉', '🐆', '⚡', '🔥', '⭐', '🛡️', '⚽']
@@ -150,12 +151,27 @@ function TeamForm({
   const [coach, setCoach] = useState(initial?.coach ?? '')
   const [group, setGroup] = useState(initial?.group ?? 'A')
   const [busy, setBusy] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const grouped = championship.format === 'groups_knockout'
   const target = championship.teamsPerGroup
   const groupOptions = Array.from({ length: championship.numGroups ?? 2 }, (_, i) =>
     String.fromCharCode(65 + i),
   )
   const countIn = (g: string) => teams.filter((t) => t.group === g && t.id !== initial?.id).length
+
+  async function onLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setLogo(await fileToDataUrl(file, 256))
+      setLogoError(null)
+    } catch {
+      setLogoError('Não foi possível carregar a imagem.')
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -195,7 +211,14 @@ function TeamForm({
             <input value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={4} placeholder="LEO" />
           </Field>
         </div>
-        <Field label="Escudo (emoji)">
+        <Field label="Escudo do time" hint="Envie a imagem do brasão (PNG/JPG/SVG) ou escolha um emoji.">
+          <div className="team-logo-actions">
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onLogoUpload} />
+            <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar imagem</Button>
+            {logo?.startsWith('data:') && (
+              <button type="button" className="link-btn" onClick={() => setLogo('🛡️')}>remover imagem</button>
+            )}
+          </div>
           <div className="emoji-picker">
             {LOGO_CHOICES.map((e) => (
               <button type="button" key={e} className={`emoji-picker__item ${logo === e ? 'is-active' : ''}`} onClick={() => setLogo(e)}>
@@ -203,6 +226,7 @@ function TeamForm({
               </button>
             ))}
           </div>
+          {logoError && <p className="hint" style={{ color: 'var(--danger)' }}>{logoError}</p>}
         </Field>
         <div className="form-row">
           <Field label="Cor">
