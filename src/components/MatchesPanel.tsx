@@ -169,16 +169,19 @@ export function MatchRow({
   match,
   teams,
   onClick,
+  showSchedule,
 }: {
   match: Match
   teams: Team[]
   onClick?: () => void
+  showSchedule?: boolean
 }) {
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
   const live = match.status === 'live'
   const hasScore = match.homeScore != null && match.awayScore != null
   const showScore = match.status === 'finished' || live
+  const schedule = showSchedule ? matchScheduleText(match) : null
   return (
     <button className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''}`} onClick={onClick} disabled={!onClick}>
       <span className="match-row__side match-row__side--home">
@@ -193,8 +196,23 @@ export function MatchRow({
         <TeamBadge team={away} size={26} />
         <span className="match-row__name">{away?.name ?? 'A definir'}</span>
       </span>
+      {schedule && <span className="match-row__meta">{schedule}</span>}
     </button>
   )
+}
+
+/** Texto com data, hora e local da partida (usado em "Próximos jogos"). */
+function matchScheduleText(match: Match): string {
+  const parts: string[] = []
+  if (match.scheduledAt) {
+    const d = new Date(match.scheduledAt)
+    if (!Number.isNaN(d.getTime())) {
+      parts.push(`📅 ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
+      parts.push(`🕒 ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)
+    }
+  }
+  if (match.venue) parts.push(`📍 ${match.venue}`)
+  return parts.length ? parts.join(' · ') : 'Data, horário e local a definir'
 }
 
 interface Section {

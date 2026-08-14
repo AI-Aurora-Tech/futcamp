@@ -77,7 +77,7 @@ export function Overview({
               <p className="muted small">Sem jogos agendados.</p>
             ) : (
               <div className="mini-matches">
-                {upcoming.map((m) => <MatchRow key={m.id} match={m} teams={teams} />)}
+                {upcoming.map((m) => <MatchRow key={m.id} match={m} teams={teams} showSchedule />)}
               </div>
             )}
           </div>
