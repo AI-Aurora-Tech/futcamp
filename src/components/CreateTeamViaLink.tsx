@@ -28,6 +28,7 @@ export function CreateTeamViaLink({
   const [logo, setLogo] = useState('')
   const [color, setColor] = useState('#2563eb')
   const [coach, setCoach] = useState('')
+  const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -71,6 +72,7 @@ export function CreateTeamViaLink({
         logo,
         color,
         coach,
+        phone,
       })
       // Segue para o fluxo de inscrição do time recém-criado.
       window.location.hash = `#/t/${teamId}?k=${teamToken}`
@@ -133,13 +135,16 @@ export function CreateTeamViaLink({
                 </Field>
               </div>
               <div className="form-row">
-                <Field label="Técnico (opcional)">
-                  <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do técnico" />
+                <Field label="Responsável">
+                  <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do responsável" />
                 </Field>
-                <Field label="Cor">
-                  <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+                <Field label="Telefone">
+                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
                 </Field>
               </div>
+              <Field label="Cor">
+                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+              </Field>
               {error && <p className="auth-error">{error}</p>}
               <div className="reg__save">
                 <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Criando…' : 'Criar time e continuar'}</Button>

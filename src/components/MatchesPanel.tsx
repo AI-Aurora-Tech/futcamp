@@ -13,6 +13,7 @@ import {
   type Official,
   type Player,
   type Team,
+  type Venue,
 } from '../types'
 import { Button, EmptyState, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
@@ -106,6 +107,7 @@ export function MatchesPanel({
           teams={teams}
           matches={matches}
           isKnockout={isKnockout}
+          venues={championship.venues ?? []}
           onClose={() => setScheduling(false)}
           onSaved={() => {
             onChange()
@@ -170,18 +172,20 @@ export function MatchRow({
   teams,
   onClick,
   showSchedule,
+  venues,
 }: {
   match: Match
   teams: Team[]
   onClick?: () => void
   showSchedule?: boolean
+  venues?: Venue[]
 }) {
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
   const live = match.status === 'live'
   const hasScore = match.homeScore != null && match.awayScore != null
   const showScore = match.status === 'finished' || live
-  const schedule = showSchedule ? matchScheduleText(match) : null
+  const schedule = showSchedule ? matchScheduleText(match, venues) : null
   return (
     <button className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''}`} onClick={onClick} disabled={!onClick}>
       <span className="match-row__side match-row__side--home">
@@ -201,8 +205,8 @@ export function MatchRow({
   )
 }
 
-/** Texto com data, hora e local da partida (usado em "Próximos jogos"). */
-function matchScheduleText(match: Match): string {
+/** Texto com data, hora e local (nome + endereço) da partida — "Próximos jogos". */
+function matchScheduleText(match: Match, venues?: Venue[]): string {
   const parts: string[] = []
   if (match.scheduledAt) {
     const d = new Date(match.scheduledAt)
@@ -211,7 +215,10 @@ function matchScheduleText(match: Match): string {
       parts.push(`🕒 ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`)
     }
   }
-  if (match.venue) parts.push(`📍 ${match.venue}`)
+  if (match.venue) {
+    const v = venues?.find((x) => x.name === match.venue)
+    parts.push(`📍 ${v?.address ? `${match.venue} — ${v.address}` : match.venue}`)
+  }
   return parts.length ? parts.join(' · ') : 'Data, horário e local a definir'
 }
 

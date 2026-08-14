@@ -195,18 +195,17 @@ export function MatchResultModal({
           </label>
           <label className="field">
             <span className="field__label">Local</span>
-            <input
-              value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              placeholder="Estádio / quadra"
-              list={`venues-${match.id}`}
-            />
-            {(championship.venues?.length ?? 0) > 0 && (
-              <datalist id={`venues-${match.id}`}>
-                {championship.venues!.map((v) => (
-                  <option key={v.id} value={v.name} />
-                ))}
-              </datalist>
+            <select value={venue} onChange={(e) => setVenue(e.target.value)}>
+              <option value="">— selecione o campo —</option>
+              {(championship.venues ?? []).map((v) => (
+                <option key={v.id} value={v.name}>{v.name}</option>
+              ))}
+              {venue && !(championship.venues ?? []).some((v) => v.name === venue) && (
+                <option value={venue}>{venue}</option>
+              )}
+            </select>
+            {(championship.venues ?? []).find((v) => v.name === venue)?.address && (
+              <span className="field__hint">📍 {(championship.venues ?? []).find((v) => v.name === venue)!.address}</span>
             )}
           </label>
           <label className="field">

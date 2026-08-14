@@ -15,6 +15,11 @@ export function MatchCalendar({
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t] as const)), [teams])
   const refName = (id?: string) =>
     (championship.referees ?? []).find((r) => r.id === id)?.name
+  const venueLabel = (name?: string) => {
+    if (!name) return undefined
+    const v = (championship.venues ?? []).find((x) => x.name === name)
+    return v?.address ? `${name} — ${v.address}` : name
+  }
 
   const { days, undated } = useMemo(() => {
     const scheduled = matches.filter((m) => m.scheduledAt)
@@ -79,7 +84,7 @@ export function MatchCalendar({
           </span>
         </span>
         <span className="cal-match__meta">
-          {m.venue && <span>📍 {m.venue}</span>}
+          {m.venue && <span>📍 {venueLabel(m.venue)}</span>}
           {ref && <span>🧑‍⚖️ {ref}</span>}
         </span>
       </li>

@@ -110,7 +110,8 @@ export function TeamsPanel({
               <div className="team-item__info">
                 <strong>{t.name}</strong>
                 <span className="muted">
-                  {t.coach ? `Téc. ${t.coach}` : 'Sem técnico'}
+                  {t.coach ? `Resp. ${t.coach}` : 'Sem responsável'}
+                  {t.phone ? ` · ${t.phone}` : ''}
                   {grouped && t.group ? ` · Grupo ${t.group}` : ''}
                 </span>
               </div>
@@ -162,6 +163,7 @@ function TeamForm({
   const [logo, setLogo] = useState(initial?.logo ?? '')
   const [color, setColor] = useState(initial?.color ?? '#2563eb')
   const [coach, setCoach] = useState(initial?.coach ?? '')
+  const [phone, setPhone] = useState(initial?.phone ?? '')
   const [group, setGroup] = useState(initial?.group ?? 'A')
   const [busy, setBusy] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
@@ -201,6 +203,7 @@ function TeamForm({
       logo,
       color,
       coach: coach.trim() || undefined,
+      phone: phone.trim() || undefined,
       group: grouped ? group : undefined,
     }
     if (initial) await updateTeam(initial.id, payload)
@@ -235,13 +238,16 @@ function TeamForm({
           {logoError && <p className="hint" style={{ color: 'var(--danger)' }}>{logoError}</p>}
         </Field>
         <div className="form-row">
-          <Field label="Cor">
-            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+          <Field label="Responsável">
+            <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do responsável" />
           </Field>
-          <Field label="Técnico (opcional)">
-            <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do técnico" />
+          <Field label="Telefone">
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
           </Field>
         </div>
+        <Field label="Cor">
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+        </Field>
         {grouped && (
           <Field label="Grupo" hint={target ? `Meta: ${target} time(s) por grupo` : undefined}>
             <select value={group} onChange={(e) => setGroup(e.target.value)}>

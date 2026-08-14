@@ -1,21 +1,28 @@
 import { useMemo } from 'react'
 import { computeStandings, computeStandingsByGroup } from '../lib/standings'
-import type { Championship, Match, Team } from '../types'
+import { aggregateByPlayer } from '../lib/stats'
+import type { Championship, Match, MatchEvent, Player, Team } from '../types'
 import { StandingsTable } from './StandingsTable'
 import { MatchRow } from './MatchesPanel'
-import { EmptyState } from './ui'
+import { TeamBadge, EmptyState } from './ui'
 
 export function Overview({
   championship,
   teams,
   matches,
+  players = [],
+  events = [],
 }: {
   championship: Championship
   teams: Team[]
   matches: Match[]
+  players?: Player[]
+  events?: MatchEvent[]
 }) {
   const isGroups = championship.format === 'groups_knockout'
   const isKnockout = championship.format === 'knockout'
+
+  const topScorer = useMemo(() => aggregateByPlayer(events, 'goal', players, teams)[0], [events, players, teams])
 
   const standings = useMemo(
     () => (isGroups ? null : computeStandings(teams, matches, championship)),
@@ -61,6 +68,19 @@ export function Overview({
         </div>
 
         <aside className="overview__side">
+          {topScorer && (
+            <div className="top-scorer">
+              <span className="top-scorer__badge">⚽ Artilheiro</span>
+              <div className="top-scorer__body">
+                <span className="top-scorer__logo"><TeamBadge team={teams.find((t) => t.id === topScorer.teamId)} size={44} /></span>
+                <div className="top-scorer__info">
+                  <strong className="top-scorer__name">{topScorer.name}</strong>
+                  <span className="top-scorer__team">{teams.find((t) => t.id === topScorer.teamId)?.name ?? ''}</span>
+                </div>
+                <span className="top-scorer__goals">{topScorer.count}<small>{topScorer.count === 1 ? 'gol' : 'gols'}</small></span>
+              </div>
+            </div>
+          )}
           <div className="side-card">
             <h3>Últimos resultados</h3>
             {recent.length === 0 ? (
@@ -77,7 +97,7 @@ export function Overview({
               <p className="muted small">Sem jogos agendados.</p>
             ) : (
               <div className="mini-matches">
-                {upcoming.map((m) => <MatchRow key={m.id} match={m} teams={teams} showSchedule />)}
+                {upcoming.map((m) => <MatchRow key={m.id} match={m} teams={teams} showSchedule venues={championship.venues} />)}
               </div>
             )}
           </div>

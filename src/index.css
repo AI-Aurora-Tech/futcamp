@@ -366,6 +366,17 @@ table { border-collapse: collapse; width: 100%; }
 .match-row__score.is-played { color: var(--ink); background: var(--surface); border-radius: 6px; padding: 0.1rem 0.3rem; }
 .match-row__meta { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 0.25rem; line-height: 1.3; }
 
+/* ---------- Card do artilheiro (página pública) ---------- */
+.top-scorer { background: linear-gradient(135deg, var(--brand), var(--brand-dark)); color: #fff; border-radius: var(--radius); padding: 0.9rem 1rem; box-shadow: var(--shadow); }
+.top-scorer__badge { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.92; }
+.top-scorer__body { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
+.top-scorer__logo { flex: none; }
+.top-scorer__info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.top-scorer__name { font-size: 1.02rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-scorer__team { font-size: 0.8rem; opacity: 0.88; }
+.top-scorer__goals { display: flex; flex-direction: column; align-items: center; font-size: 1.9rem; font-weight: 800; line-height: 1; }
+.top-scorer__goals small { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.9; }
+
 /* ---------- Scoreboard (result modal) ---------- */
 .scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
 .scoreboard__team { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center; font-weight: 700; font-size: 0.9rem; }

@@ -16,6 +16,7 @@ function fromRow(r: any): Team {
     group: r.group ?? undefined,
     color: r.color ?? undefined,
     coach: r.coach ?? undefined,
+    phone: r.phone ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -29,6 +30,7 @@ function toRow(t: Partial<Team>): Record<string, unknown> {
   if (t.group !== undefined) row.group = t.group
   if (t.color !== undefined) row.color = t.color
   if (t.coach !== undefined) row.coach = t.coach
+  if (t.phone !== undefined) row.phone = t.phone
   return row
 }
 
@@ -110,6 +112,7 @@ export interface CreateTeamViaLinkInput {
   logo?: string
   color?: string
   coach?: string
+  phone?: string
   group?: string
 }
 
@@ -132,6 +135,7 @@ export async function createTeamViaLink(
       p_logo: input.logo || null,
       p_color: input.color || null,
       p_coach: input.coach?.trim() || null,
+      p_phone: input.phone?.trim() || null,
       p_group: input.group || null,
     })
     if (error) throw error
@@ -152,6 +156,7 @@ export async function createTeamViaLink(
       logo: input.logo || undefined,
       color: input.color || undefined,
       coach: input.coach?.trim() || undefined,
+      phone: input.phone?.trim() || undefined,
       group: input.group || undefined,
       accessToken: tok,
       createdAt: new Date().toISOString(),

@@ -197,6 +197,7 @@ function TeamCard({
   const [name, setName] = useState(t.name)
   const [shortName, setShortName] = useState(t.shortName ?? '')
   const [coach, setCoach] = useState(t.coach ?? '')
+  const [phone, setPhone] = useState(t.phone ?? '')
   const [color, setColor] = useState(t.color ?? '#2563eb')
   const [logo, setLogo] = useState(t.logo ?? '')
   const [busy, setBusy] = useState(false)
@@ -220,7 +221,7 @@ function TeamCard({
     setBusy(true)
     setMsg(null)
     try {
-      await saveTeamInfo(teamId, token, { name: name.trim(), shortName: shortName.trim(), coach: coach.trim(), color, logo })
+      await saveTeamInfo(teamId, token, { name: name.trim(), shortName: shortName.trim(), coach: coach.trim(), phone: phone.trim(), color, logo })
       await onSaved()
       setMsg('Dados do time salvos! ✅')
     } catch (err) {
@@ -256,13 +257,16 @@ function TeamCard({
             </Field>
           </div>
           <div className="form-row">
-            <Field label="Técnico (opcional)">
-              <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do técnico" />
+            <Field label="Responsável">
+              <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do responsável" />
             </Field>
-            <Field label="Cor">
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+            <Field label="Telefone">
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
             </Field>
           </div>
+          <Field label="Cor">
+            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+          </Field>
           <div className="reg__save">
             {msg && <span className="reg__msg">{msg}</span>}
             <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar dados do time'}</Button>

@@ -123,7 +123,10 @@ export interface Team {
   /** Grupo (ex.: "A", "B") no formato de grupos. */
   group?: string
   color?: string
+  /** Nome do responsável pelo time (antes rotulado como "técnico"). */
   coach?: string
+  /** Telefone do responsável pelo time. */
+  phone?: string
   /** Token do link de inscrição (o responsável cria o acesso do time). */
   accessToken?: string
   /** Usuário do 1º responsável pelo time (definido via link de inscrição). */

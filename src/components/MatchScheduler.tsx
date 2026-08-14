@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { updateMatch } from '../services/matches'
-import { PHASE_LABELS, type Match, type MatchPhase, type Team } from '../types'
+import { PHASE_LABELS, type Match, type MatchPhase, type Team, type Venue } from '../types'
 import { Button, TeamBadge } from './ui'
 
 interface Draft {
@@ -17,14 +17,6 @@ function toLocalInput(iso?: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function addMinutes(local: string, minutes: number): string {
-  const d = new Date(local)
-  if (Number.isNaN(d.getTime())) return local
-  d.setMinutes(d.getMinutes() + minutes)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 interface Group {
   key: string
   title: string
@@ -35,12 +27,14 @@ export function MatchScheduler({
   teams,
   matches,
   isKnockout,
+  venues = [],
   onClose,
   onSaved,
 }: {
   teams: Team[]
   matches: Match[]
   isKnockout: boolean
+  venues?: Venue[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -61,31 +55,12 @@ export function MatchScheduler({
     for (const m of matches) d[m.id] = { scheduledAt: toLocalInput(m.scheduledAt), venue: m.venue ?? '' }
     return d
   })
-  // Toolbar por rodada: data/hora do 1º jogo + intervalo (min).
-  const [base, setBase] = useState<Record<string, string>>({})
-  const [gap, setGap] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
   const teamName = (id: string | null) => teams.find((t) => t.id === id)?.name ?? 'A definir'
 
   function set(id: string, patch: Partial<Draft>) {
     setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
-  }
-
-  /** Preenche a rodada em sequência a partir do 1º jogo + intervalo. */
-  function fillGroup(g: Group) {
-    const start = base[g.key]
-    if (!start) return
-    const step = Number(gap[g.key]) || 0
-    setDrafts((prev) => {
-      const next = { ...prev }
-      let cur = start
-      g.matches.forEach((m, i) => {
-        cur = i === 0 ? start : addMinutes(cur, step)
-        next[m.id] = { ...next[m.id], scheduledAt: cur }
-      })
-      return next
-    })
   }
 
   async function saveAll() {
@@ -106,32 +81,12 @@ export function MatchScheduler({
 
   return (
     <div className="scheduler">
-      <p className="hint">Defina, em cada rodada, a data/hora do 1º jogo e o intervalo — o restante da rodada é preenchido em sequência. Ajuste manualmente se precisar.</p>
+      <p className="hint">Defina a data, a hora e o local de cada jogo. O local usa os campos cadastrados neste campeonato.</p>
 
       {groups.map((g) => (
         <div key={g.key} className="sched-group">
           <div className="sched-group__head">
             <h4 className="scheduler__round">{g.title}</h4>
-            {!isKnockout && (
-              <div className="sched-group__fill">
-                <input
-                  type="datetime-local"
-                  value={base[g.key] ?? ''}
-                  onChange={(e) => setBase((p) => ({ ...p, [g.key]: e.target.value }))}
-                  title="Data e hora do 1º jogo da rodada"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step={15}
-                  value={gap[g.key] ?? '60'}
-                  onChange={(e) => setGap((p) => ({ ...p, [g.key]: e.target.value }))}
-                  title="Intervalo entre jogos (min)"
-                  className="sched-group__gap"
-                />
-                <Button variant="soft" type="button" onClick={() => fillGroup(g)} disabled={!base[g.key]}>Preencher rodada</Button>
-              </div>
-            )}
           </div>
           <div className="scheduler__list">
             {g.matches.map((m) => (
@@ -148,12 +103,19 @@ export function MatchScheduler({
                   value={drafts[m.id]?.scheduledAt ?? ''}
                   onChange={(e) => set(m.id, { scheduledAt: e.target.value })}
                 />
-                <input
+                <select
                   className="sched-row__venue"
                   value={drafts[m.id]?.venue ?? ''}
                   onChange={(e) => set(m.id, { venue: e.target.value })}
-                  placeholder="Local"
-                />
+                >
+                  <option value="">— local —</option>
+                  {venues.map((v) => (
+                    <option key={v.id} value={v.name}>{v.name}{v.address ? ` — ${v.address}` : ''}</option>
+                  ))}
+                  {drafts[m.id]?.venue && !venues.some((v) => v.name === drafts[m.id]?.venue) && (
+                    <option value={drafts[m.id]!.venue}>{drafts[m.id]!.venue}</option>
+                  )}
+                </select>
               </div>
             ))}
           </div>

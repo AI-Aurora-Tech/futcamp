@@ -45,6 +45,7 @@ export interface TeamInfoPatch {
   logo?: string
   color?: string
   coach?: string
+  phone?: string
 }
 
 export interface PlayerInput {
@@ -92,6 +93,7 @@ function teamFromRow(r: any): Team {
     group: r.group ?? undefined,
     color: r.color ?? undefined,
     coach: r.coach ?? undefined,
+    phone: r.phone ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -254,6 +256,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
       p_logo: patch.logo ?? null,
       p_color: patch.color ?? null,
       p_coach: patch.coach ?? null,
+      p_phone: patch.phone ?? null,
     })
     if (error) throw error
     return
@@ -270,6 +273,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
         logo: patch.logo ?? t.logo,
         color: patch.color ?? t.color,
         coach: patch.coach ?? t.coach,
+        phone: patch.phone ?? t.phone,
       }
     }
   })
