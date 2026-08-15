@@ -145,6 +145,9 @@ export function StatusPill({ status }: { status: string }) {
     draft: { label: 'Rascunho', cls: 'pill--draft' },
     active: { label: 'Em andamento', cls: 'pill--active' },
     finished: { label: 'Encerrado', cls: 'pill--finished' },
+    // Status de partida (portal do mesário, calendário).
+    scheduled: { label: 'Agendada', cls: 'pill--draft' },
+    live: { label: '● Ao vivo', cls: 'pill--live' },
   }
   const info = map[status] ?? { label: status, cls: '' }
   return <span className={`pill ${info.cls}`}>{info.label}</span>

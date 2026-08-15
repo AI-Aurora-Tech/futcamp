@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 
 export function Header({ onHome }: { onHome: () => void }) {
-  const { organizer, signOut, mode } = useAuth()
+  const { organizer, signOut, mode, isMaster } = useAuth()
   return (
     <header className="topbar">
       <button className="topbar__brand" onClick={onHome} aria-label="Início">
@@ -10,6 +10,7 @@ export function Header({ onHome }: { onHome: () => void }) {
       </button>
       <div className="topbar__right">
         {mode === 'demo' && <span className="mode-tag" title="Dados salvos apenas neste navegador">modo demo</span>}
+        {isMaster && <span className="master-tag" title="Administrador master: administra e exclui qualquer campeonato">👑 master</span>}
         {organizer && (
           <>
             <span className="topbar__user" title={organizer.email}>

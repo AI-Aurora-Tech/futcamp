@@ -29,6 +29,10 @@ function fromRow(r: any): Championship {
     teamsPerGroup: r.teams_per_group ?? undefined,
     advancePerGroup: r.advance_per_group ?? undefined,
     leagueQualifiers: r.league_qualifiers ?? undefined,
+    tiebreakers: Array.isArray(r.tiebreakers) ? r.tiebreakers : undefined,
+    bracket: Array.isArray(r.bracket) ? r.bracket : undefined,
+    thirdPlace: r.third_place ?? undefined,
+    autoKnockout: r.auto_knockout ?? undefined,
     referees: Array.isArray(r.referees) ? r.referees : [],
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
@@ -58,6 +62,10 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.teamsPerGroup !== undefined) row.teams_per_group = c.teamsPerGroup
   if (c.advancePerGroup !== undefined) row.advance_per_group = c.advancePerGroup
   if (c.leagueQualifiers !== undefined) row.league_qualifiers = c.leagueQualifiers
+  if (c.tiebreakers !== undefined) row.tiebreakers = c.tiebreakers
+  if (c.bracket !== undefined) row.bracket = c.bracket
+  if (c.thirdPlace !== undefined) row.third_place = c.thirdPlace
+  if (c.autoKnockout !== undefined) row.auto_knockout = c.autoKnockout
   if (c.referees !== undefined) row.referees = c.referees
   if (c.venues !== undefined) row.venues = c.venues
   if (c.sponsors !== undefined) row.sponsors = c.sponsors
@@ -79,6 +87,24 @@ export async function listChampionships(ownerId: string): Promise<Championship[]
     d.championships
       .filter((c) => c.ownerId === ownerId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  )
+}
+
+/**
+ * TODOS os campeonatos da plataforma, de qualquer organizador.
+ * Uso exclusivo do administrador master.
+ */
+export async function listAllChampionships(): Promise<Championship[]> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase
+      .from('championships')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map(fromRow)
+  }
+  return query((d) =>
+    [...d.championships].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   )
 }
 

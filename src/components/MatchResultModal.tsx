@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
-import { matchRegistrationClosed } from '../lib/matchWindow'
 import {
   EVENT_LABELS,
   type Championship,
@@ -68,6 +67,7 @@ export function MatchResultModal({
   const [venue, setVenue] = useState<string>(match.venue ?? '')
   const [refereeId, setRefereeId] = useState<string>(match.refereeId ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
+  const [winnerTeamId, setWinnerTeamId] = useState<string>(match.winnerTeamId ?? '')
   const [incidents, setIncidents] = useState<string>(match.incidents ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [lineup, setLineup] = useState<LineupEntry[]>(match.lineup ?? [])
@@ -148,6 +148,7 @@ export function MatchResultModal({
       patch.refereeId = refereeId || undefined
     }
     if (officials) patch.officialId = officialId || undefined
+    if (isKnockoutMatch) patch.winnerTeamId = winnerTeamId || undefined
     patch.incidents = incidents.trim() || undefined
     setBusy(true)
     await w.updateMatch(match.id, patch)
@@ -177,10 +178,17 @@ export function MatchResultModal({
 
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
   const teamShort = (id: string) => teams.find((t) => t.id === id)?.shortName || teams.find((t) => t.id === id)?.name
-  const canSumula =
-    status === 'live' ||
-    status === 'finished' ||
-    matchRegistrationClosed(match, championship.registrationCutoffHours, championship.closedRounds ?? [])
+  const isKnockoutMatch = match.phase !== 'group'
+  const isTied = homeScore !== '' && awayScore !== '' && Number(homeScore) === Number(awayScore)
+  // A súmula sai ANTES do jogo (partida agendada) e, DEPOIS, somente quando a
+  // partida for ENCERRADA. Durante o jogo (ao vivo) fica bloqueada.
+  const canSumula = match.status === 'scheduled' || match.status === 'finished'
+  const sumulaHint =
+    match.status === 'live'
+      ? '— bloqueada durante o jogo; libera quando a partida for encerrada'
+      : match.status === 'finished'
+        ? 'disponível (partida encerrada)'
+        : 'disponível (antes do jogo)'
 
   return (
     <Modal title="Registrar resultado" onClose={onClose} wide>
@@ -257,6 +265,22 @@ export function MatchResultModal({
           <span>{away?.name ?? 'A definir'}</span>
         </div>
       </div>
+
+      {isKnockoutMatch && !readOnlySchedule && match.homeTeamId && match.awayTeamId && (
+        <label className={`field ko-winner ${isTied && !winnerTeamId ? 'ko-winner--warn' : ''}`}>
+          <span className="field__label">🏆 Classificado para a fase seguinte</span>
+          <select value={winnerTeamId} onChange={(e) => setWinnerTeamId(e.target.value)}>
+            <option value="">— pelo placar —</option>
+            <option value={match.homeTeamId}>{home?.name}</option>
+            <option value={match.awayTeamId}>{away?.name}</option>
+          </select>
+          <span className="field__hint">
+            {isTied
+              ? 'Empate: informe quem passou (pênaltis/W.O.) para o chaveamento avançar.'
+              : 'Deixe em “pelo placar” — use apenas em decisão por pênaltis ou W.O.'}
+          </span>
+        </label>
+      )}
 
       {match.homeTeamId && match.awayTeamId && (
         <PresencePanel
@@ -356,9 +380,7 @@ export function MatchResultModal({
       </label>
 
       <div className="sumula-row">
-        <span className="muted small">
-          Súmula {canSumula ? 'disponível' : '— liberada quando as inscrições da partida encerrarem'}
-        </span>
+        <span className="muted small">Súmula {sumulaHint}</span>
         <div className="sumula-row__actions">
           <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('print')}>🖨️ Imprimir</Button>
           <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('download')}>⬇ Baixar súmula</Button>
