@@ -1,5 +1,13 @@
 import { useMemo } from 'react'
-import { computeStandings, computeStandingsByGroup } from '../lib/standings'
+import { computeStandings } from '../lib/standings'
+import {
+  groupStagesOf,
+  matchStage,
+  qualifiersOfGroup,
+  stageExists,
+  stageName,
+  standingsOfStage,
+} from '../lib/groupStages'
 import { aggregateByPlayer } from '../lib/stats'
 import type { Championship, Match, MatchEvent, Player, Team } from '../types'
 import { StandingsTable } from './StandingsTable'
@@ -21,8 +29,8 @@ export function Overview({
 }) {
   const isGroups = championship.format === 'groups_knockout'
   const isKnockout = championship.format === 'knockout'
-  const advancePerGroup = isGroups ? (championship.advancePerGroup ?? 2) : 0
   const leagueQualifiers = championship.leagueQualifiers ?? 0
+  const stages = useMemo(() => (isGroups ? groupStagesOf(championship) : []), [isGroups, championship])
 
   const topScorer = useMemo(() => aggregateByPlayer(events, 'goal', players, teams)[0], [events, players, teams])
 
@@ -30,10 +38,19 @@ export function Overview({
     () => (isGroups ? null : computeStandings(teams, matches, championship, { events })),
     [teams, matches, championship, isGroups, events],
   )
-  const groupStandings = useMemo(
-    () => (isGroups ? computeStandingsByGroup(teams, matches, championship, { events }) : null),
-    [teams, matches, championship, isGroups, events],
-  )
+  /** Uma tabela por fase de grupos (só as que já têm jogos criados). */
+  const stageTables = useMemo(() => {
+    if (!isGroups) return []
+    const played = new Set(matches.filter((m) => m.phase === 'group').map(matchStage))
+    return stages
+      .map((cfg, i) => ({ cfg, stage: i + 1 }))
+      .filter(({ stage }) => stage === 1 || played.has(stage) || stageExists(matches, stage))
+      .map(({ cfg, stage }) => ({
+        cfg,
+        stage,
+        table: standingsOfStage(championship, teams, matches, stage, events),
+      }))
+  }, [isGroups, stages, championship, teams, matches, events])
 
   const finished = matches.filter((m) => m.status === 'finished')
   const recent = finished.slice(-5).reverse()
@@ -57,15 +74,26 @@ export function Overview({
             <EmptyState icon="🏆" title="Formato mata-mata">
               <p>Neste formato não há tabela de pontos. Acompanhe o chaveamento na aba Partidas.</p>
             </EmptyState>
-          ) : isGroups && groupStandings ? (
+          ) : isGroups ? (
             <>
-              {advancePerGroup > 0 && (
-                <p className="qualify-note">🟢 Os {advancePerGroup} primeiros de cada grupo se classificam para o mata-mata.</p>
-              )}
-              {Object.keys(groupStandings).sort().map((g) => (
-                <div key={g} className="group-block">
-                  <h3 className="group-block__title">Grupo {g}</h3>
-                  <StandingsTable rows={groupStandings[g]} teams={teams} highlightTop={advancePerGroup} />
+              {stageTables.map(({ cfg, stage, table }) => (
+                <div key={cfg.id ?? stage} className="stage-block">
+                  {stages.length > 1 && (
+                    <h3 className="stage-block__title">{stageName(cfg, stage - 1, stages.length)}</h3>
+                  )}
+                  <p className="qualify-note">
+                    🟢 Classificados {stage === stages.length ? 'para o mata-mata' : 'para a fase seguinte'}:{' '}
+                    {Object.keys(table)
+                      .sort()
+                      .map((g) => `${qualifiersOfGroup(cfg, g)} do grupo ${g}`)
+                      .join(' · ')}
+                  </p>
+                  {Object.keys(table).sort().map((g) => (
+                    <div key={g} className="group-block">
+                      <h4 className="group-block__title">Grupo {g}</h4>
+                      <StandingsTable rows={table[g]} teams={teams} highlightTop={qualifiersOfGroup(cfg, g)} />
+                    </div>
+                  ))}
                 </div>
               ))}
             </>

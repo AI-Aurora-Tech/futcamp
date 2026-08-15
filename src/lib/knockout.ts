@@ -21,7 +21,13 @@ import {
   type Team,
 } from '../types'
 import { uid } from './id'
-import { computeStandings, computeStandingsByGroup } from './standings'
+import { computeStandings } from './standings'
+import {
+  groupStagesOf,
+  qualifiersOfGroup,
+  stageGroupLetters,
+  standingsOfStage,
+} from './groupStages'
 
 /** Fases eliminatórias, da primeira à final (a disputa de 3º fica fora). */
 export const KNOCKOUT_ORDER: MatchPhase[] = [
@@ -71,33 +77,63 @@ export function slotLabel(s: QualifierSlot | null): string {
   return s.group === OVERALL_GROUP ? `${s.position}º colocado` : `${s.position}º do grupo ${s.group}`
 }
 
-/** Emparelha vagas pelo "seed": 1º × último, 2º × penúltimo… */
+/**
+ * Emparelha vagas pelo "seed": 1º × último, 2º × penúltimo… Depois troca os
+ * visitantes entre confrontos para evitar, quando possível, que dois times do
+ * MESMO grupo se enfrentem logo na estreia do mata-mata.
+ */
 function seedPairings(slots: QualifierSlot[]): BracketPairing[] {
   const size = nextPowerOfTwo(slots.length)
   const padded: (QualifierSlot | null)[] = [...slots]
   while (padded.length < size) padded.push(null)
   const out: BracketPairing[] = []
   for (let i = 0; i < size / 2; i++) out.push(pairing(padded[i], padded[size - 1 - i]))
+
+  const sameGroup = (p: BracketPairing) => !!p.home && !!p.away && p.home.group === p.away.group
+  for (let i = 0; i < out.length; i++) {
+    if (!sameGroup(out[i])) continue
+    for (let j = 0; j < out.length; j++) {
+      if (i === j) continue
+      const a = { ...out[i], away: out[j].away }
+      const b = { ...out[j], away: out[i].away }
+      if (!sameGroup(a) && !sameGroup(b)) {
+        out[i] = a
+        out[j] = b
+        break
+      }
+    }
+  }
   return out
 }
 
 /**
- * Sugere o chaveamento a partir do formato do campeonato. É apenas um ponto de
- * partida: o organizador pode editar confronto a confronto.
+ * Sugere o chaveamento a partir do formato do campeonato — usando a ÚLTIMA
+ * fase de grupos e o número de vagas de cada grupo (que pode variar de grupo
+ * para grupo). É apenas um ponto de partida: o organizador edita confronto a
+ * confronto.
  */
 export function suggestBracket(
   champ: Pick<
     Championship,
-    'format' | 'numGroups' | 'advancePerGroup' | 'leagueQualifiers'
+    | 'format'
+    | 'numGroups'
+    | 'advancePerGroup'
+    | 'advanceByGroup'
+    | 'groupStages'
+    | 'leagueQualifiers'
   >,
 ): BracketPairing[] {
   if (champ.format === 'groups_knockout') {
-    const groups = groupLetters(champ.numGroups ?? 2)
-    const advance = Math.max(1, champ.advancePerGroup ?? 2)
+    const stages = groupStagesOf(champ as Championship)
+    const last = stages[stages.length - 1]
+    if (!last) return []
+    const groups = stageGroupLetters(last.numGroups)
+    const vagas = (g: string) => qualifiersOfGroup(last, g)
+    const uniform = groups.every((g) => vagas(g) === vagas(groups[0])) ? vagas(groups[0]) : null
 
-    // Cruzamento clássico com 2 classificados por grupo e grupos aos pares:
+    // Cruzamento clássico: 2 classificados por grupo e grupos aos pares —
     // 1ºA × 2ºB, 1ºC × 2ºD, 1ºB × 2ºA, 1ºD × 2ºC…
-    if (advance === 2 && groups.length % 2 === 0) {
+    if (uniform === 2 && groups.length % 2 === 0) {
       const partner = (i: number) => (i % 2 === 0 ? i + 1 : i - 1)
       const all = groups.map((g, i) => pairing(slot(g, 1), slot(groups[partner(i)], 2)))
       const evens = all.filter((_, i) => i % 2 === 0)
@@ -105,10 +141,14 @@ export function suggestBracket(
       return [...evens, ...odds]
     }
 
-    // Geral: ordena as vagas por posição (todos os 1ºs, depois os 2ºs…) e
-    // emparelha o melhor com o pior.
+    // Geral (inclui grupos com números de vagas diferentes): ordena as vagas
+    // por colocação — todos os 1ºs, depois os 2ºs… — e emparelha o melhor com
+    // o pior.
+    const maxPos = Math.max(0, ...groups.map(vagas))
     const slots: QualifierSlot[] = []
-    for (let pos = 1; pos <= advance; pos++) for (const g of groups) slots.push(slot(g, pos))
+    for (let pos = 1; pos <= maxPos; pos++) {
+      for (const g of groups) if (vagas(g) >= pos) slots.push(slot(g, pos))
+    }
     return seedPairings(slots)
   }
 
@@ -188,9 +228,10 @@ export function resolveBracketTeams(
   events: MatchEvent[] = [],
 ): { home: string | null; away: string | null }[] {
   const bracket = champ.bracket?.length ? champ.bracket : suggestBracket(champ)
+  // As vagas do mata-mata vêm sempre da ÚLTIMA fase de grupos.
   const byGroup =
     champ.format === 'groups_knockout'
-      ? computeStandingsByGroup(teams, matches, champ, { events })
+      ? standingsOfStage(champ, teams, matches, groupStagesOf(champ).length, events)
       : null
   const overall = byGroup ? null : computeStandings(teams, matches, champ, { events })
 

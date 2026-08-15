@@ -11,6 +11,7 @@ import {
   type Category,
   type Championship,
   type ChampionshipFormat,
+  type GroupStage,
   type QualifierSlot,
   type Sport,
   type TiebreakerId,
@@ -18,7 +19,14 @@ import {
 import { Button, ChampLogo, Field, Modal } from './ui'
 import { uid } from '../lib/id'
 import { fileToDataUrl } from '../lib/image'
-import { groupLetters, phaseForPairs, slotLabel, suggestBracket } from '../lib/knockout'
+import { phaseForPairs, slotLabel, suggestBracket } from '../lib/knockout'
+import {
+  groupStagesOf,
+  qualifiersOfGroup,
+  stageGroupLetters,
+  stageName,
+  totalQualifiers,
+} from '../lib/groupStages'
 import { PHASE_LABELS } from '../types'
 import type { NewChampionship } from '../services/championships'
 
@@ -116,9 +124,13 @@ export function ChampionshipForm({
   const [pointsWin, setPointsWin] = useState(initial?.pointsWin ?? 3)
   const [pointsDraw, setPointsDraw] = useState(initial?.pointsDraw ?? 1)
   const [doubleRound, setDoubleRound] = useState(initial?.doubleRound ?? false)
-  const [numGroups, setNumGroups] = useState(initial?.numGroups ?? 2)
   const [teamsPerGroup, setTeamsPerGroup] = useState<string>(initial?.teamsPerGroup != null ? String(initial.teamsPerGroup) : '')
-  const [advancePerGroup, setAdvancePerGroup] = useState<string>(initial?.advancePerGroup != null ? String(initial.advancePerGroup) : '')
+  // Fases de grupos: a 1ª sempre existe; o organizador pode acrescentar outras
+  // (os classificados de uma fase formam os grupos da seguinte).
+  const [stages, setStages] = useState<GroupStage[]>(() => {
+    const existing = initial ? groupStagesOf(initial) : []
+    return existing.length ? existing : [{ id: uid('gs'), numGroups: 2, advancePerGroup: 2 }]
+  })
   const [leagueQualifiers, setLeagueQualifiers] = useState<string>(initial?.leagueQualifiers != null ? String(initial.leagueQualifiers) : '')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
   const [tiebreakers, setTiebreakers] = useState<TiebreakerId[]>(
@@ -174,28 +186,52 @@ export function ChampionshipForm({
   }
 
   /* ---------------------------------------------------------------------- */
-  /* Fase eliminatória: critérios de classificação e chaveamento             */
+  /* Fases de grupos, critérios de classificação e chaveamento               */
   /* ---------------------------------------------------------------------- */
-  const advanceNum = advancePerGroup ? Number(advancePerGroup) : 2
   const qualifiersNum = leagueQualifiers ? Number(leagueQualifiers) : 0
   const hasKnockout =
     format === 'groups_knockout' || (format === 'league' && qualifiersNum >= 2)
+  /** O mata-mata é montado com os classificados da ÚLTIMA fase de grupos. */
+  const lastStage = stages[stages.length - 1]
   const groups = useMemo(
-    () => (format === 'groups_knockout' ? groupLetters(Number(numGroups) || 1) : [OVERALL_GROUP]),
-    [format, numGroups],
+    () =>
+      format === 'groups_knockout' ? stageGroupLetters(lastStage?.numGroups ?? 2) : [OVERALL_GROUP],
+    [format, lastStage?.numGroups],
   )
-  const maxPosition = format === 'groups_knockout' ? Math.max(1, advanceNum) : Math.max(2, qualifiersNum)
+  const maxPosition =
+    format === 'groups_knockout'
+      ? Math.max(1, ...groups.map((g) => (lastStage ? qualifiersOfGroup(lastStage, g) : 2)))
+      : Math.max(2, qualifiersNum)
 
   const suggest = useMemo(
     () =>
       suggestBracket({
         format,
-        numGroups: Number(numGroups) || 1,
-        advancePerGroup: advanceNum,
+        groupStages: stages,
         leagueQualifiers: qualifiersNum,
       }),
-    [format, numGroups, advanceNum, qualifiersNum],
+    [format, stages, qualifiersNum],
   )
+
+  function updateStage(id: string, patch: Partial<GroupStage>) {
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
+  }
+
+  function setStageQualifiers(stage: GroupStage, group: string, value: string) {
+    const n = value === '' ? undefined : Math.max(0, Number(value))
+    const next = { ...(stage.advanceByGroup ?? {}) }
+    if (n == null) delete next[group]
+    else next[group] = n
+    updateStage(stage.id, { advanceByGroup: next })
+  }
+
+  function addStage() {
+    setStages((prev) => [...prev, { id: uid('gs'), numGroups: 1, advancePerGroup: 2 }])
+  }
+
+  function removeStage(id: string) {
+    setStages((prev) => (prev.length > 1 ? prev.filter((s) => s.id !== id) : prev))
+  }
 
   // Enquanto o organizador não mexer no chaveamento, ele acompanha o formato:
   // mudou o nº de grupos ou de classificados, a sugestão é refeita. A partir da
@@ -259,9 +295,15 @@ export function ChampionshipForm({
       pointsDraw: Number(pointsDraw),
       registrationCutoffHours: Number(cutoffHours),
       doubleRound,
-      numGroups: format === 'groups_knockout' ? Number(numGroups) : undefined,
+      // Campos "legados" espelham a 1ª fase (usados no cadastro/sorteio dos times).
+      numGroups: format === 'groups_knockout' ? stages[0].numGroups : undefined,
       teamsPerGroup: format === 'groups_knockout' && teamsPerGroup ? Number(teamsPerGroup) : undefined,
-      advancePerGroup: format === 'groups_knockout' && advancePerGroup ? Number(advancePerGroup) : undefined,
+      advancePerGroup: format === 'groups_knockout' ? stages[0].advancePerGroup ?? 2 : undefined,
+      advanceByGroup: format === 'groups_knockout' ? stages[0].advanceByGroup : undefined,
+      groupStages:
+        format === 'groups_knockout'
+          ? stages.map((s, i) => (i === 0 ? { ...s, doubleRound } : s))
+          : undefined,
       leagueQualifiers: format === 'league' && leagueQualifiers ? Number(leagueQualifiers) : undefined,
       tiebreakers,
       bracket: hasKnockout ? bracket : undefined,
@@ -324,7 +366,7 @@ export function ChampionshipForm({
                   <span className="cat-card__idx">Categoria {i + 1}</span>
                   <button
                     type="button"
-                    className="icon-btn icon-btn--danger"
+                    className="icon-btn icon-btn--danger icon-btn--label"
                     title="Remover categoria"
                     onClick={() => removeCat(c.id)}
                     disabled={cats.length <= 1}
@@ -428,16 +470,112 @@ export function ChampionshipForm({
         </Field>
 
         {format === 'groups_knockout' && (
-          <div className="form-row">
-            <Field label="Número de grupos" hint="Use 1 para uma fase única seguida de mata-mata.">
-              <input type="number" min={1} max={8} value={numGroups} onChange={(e) => setNumGroups(Number(e.target.value))} />
-            </Field>
-            <Field label="Times por grupo (opcional)" hint="Meta de times em cada grupo. Deixe em branco para não limitar.">
-              <input type="number" min={2} max={64} value={teamsPerGroup} onChange={(e) => setTeamsPerGroup(e.target.value)} placeholder="ex.: 4" />
-            </Field>
-            <Field label="Classificados por grupo" hint="Quantos avançam de cada grupo para o mata-mata.">
-              <input type="number" min={1} max={32} value={advancePerGroup} onChange={(e) => setAdvancePerGroup(e.target.value)} placeholder="ex.: 2" />
-            </Field>
+          <div className="phase-config">
+            <div className="phase-config__head">
+              <h4 className="phase-config__title">🔠 Fases de grupos</h4>
+              <button type="button" className="link-btn link-btn--add" onClick={addStage}>
+                ＋ adicionar fase de grupos
+              </button>
+            </div>
+            <p className="field__hint">
+              Os classificados de uma fase formam os grupos da fase seguinte; da última fase saem
+              as vagas do mata-mata. Cada grupo tem o <b>seu</b> número de classificados — útil
+              quando os grupos têm quantidades diferentes de times.
+            </p>
+
+            {stages.map((s, i) => {
+              const letters = stageGroupLetters(s.numGroups)
+              const entra = i === 0 ? null : totalQualifiers(stages[i - 1])
+              return (
+                <div key={s.id} className="stage-card">
+                  <div className="stage-card__head">
+                    <span className="stage-card__idx">{stageName(s, i, stages.length)}</span>
+                    {stages.length > 1 && (
+                      <button
+                        type="button"
+                        className="icon-btn icon-btn--danger icon-btn--label"
+                        title="Remover esta fase"
+                        onClick={() => removeStage(s.id)}
+                      >
+                        🗑 remover
+                      </button>
+                    )}
+                  </div>
+
+                  {entra != null && (
+                    <p className="stage-card__note">
+                      Recebe os <b>{entra}</b> classificados da fase anterior, distribuídos nos
+                      grupos abaixo.
+                    </p>
+                  )}
+
+                  <div className="stage-card__grid">
+                    <label className="mini-field">
+                      <span className="mini-field__label">Número de grupos</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={s.numGroups}
+                        onChange={(e) => updateStage(s.id, { numGroups: Math.max(1, Number(e.target.value) || 1) })}
+                      />
+                      <small className="mini-field__hint">{i === 0 ? 'grupos da primeira fase' : 'grupos desta fase'}</small>
+                    </label>
+
+                    {i === 0 && (
+                      <label className="mini-field">
+                        <span className="mini-field__label">Times por grupo</span>
+                        <input
+                          type="number"
+                          min={2}
+                          max={64}
+                          value={teamsPerGroup}
+                          onChange={(e) => setTeamsPerGroup(e.target.value)}
+                          placeholder="sem meta"
+                        />
+                        <small className="mini-field__hint">meta no cadastro dos times (opcional)</small>
+                      </label>
+                    )}
+
+                    {i > 0 && (
+                      <label className="mini-field mini-field--wide">
+                        <span className="mini-field__label">Turno e returno</span>
+                        <span className="checkbox checkbox--inline">
+                          <input
+                            type="checkbox"
+                            checked={s.doubleRound ?? false}
+                            onChange={(e) => updateStage(s.id, { doubleRound: e.target.checked })}
+                          />
+                          <span>jogam duas vezes</span>
+                        </span>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="stage-card__quotas">
+                    <span className="mini-field__label">Classificados por grupo</span>
+                    <div className="quota-grid">
+                      {letters.map((g) => (
+                        <label key={g} className="quota-item">
+                          <span className="quota-item__label">Grupo {g}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={32}
+                            value={String(qualifiersOfGroup(s, g))}
+                            onChange={(e) => setStageQualifiers(s, g, e.target.value)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <small className="mini-field__hint">
+                      Total: <b>{totalQualifiers(s)}</b> classificado(s)
+                      {i === stages.length - 1 ? ' para o mata-mata' : ' para a fase seguinte'}.
+                    </small>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 

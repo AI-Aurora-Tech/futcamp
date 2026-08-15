@@ -110,6 +110,29 @@ export const LEGACY_TIEBREAKERS: TiebreakerId[] = ['goal_diff', 'goals_for', 'wi
 export const OVERALL_GROUP = '*'
 
 /**
+ * Uma fase de grupos do campeonato. O formato "grupos + mata-mata" pode ter
+ * mais de uma: os classificados da 1ª fase são redistribuídos em novos grupos
+ * na 2ª fase, e assim por diante até o mata-mata.
+ */
+export interface GroupStage {
+  id: string
+  /** Nome exibido (ex.: "Segunda fase"). Vazio = nome automático. */
+  name?: string
+  /** Quantidade de grupos desta fase. */
+  numGroups: number
+  /**
+   * Classificados POR GRUPO. Permite grupos com tamanhos diferentes:
+   * `{ A: 2, B: 1 }` = dois do grupo A e um do grupo B.
+   * Grupo sem entrada usa `advancePerGroup`.
+   */
+  advanceByGroup?: Record<string, number>
+  /** Padrão de classificados por grupo desta fase. */
+  advancePerGroup?: number
+  /** Turno e returno dentro dos grupos desta fase. */
+  doubleRound?: boolean
+}
+
+/**
  * Vaga do mata-mata: "o Nº `position` do grupo `group`".
  * `group` é a letra do grupo ("A", "B"…) ou `OVERALL_GROUP` na classificação geral.
  */
@@ -160,6 +183,16 @@ export interface Championship {
   teamsPerGroup?: number
   /** Nº de classificados por grupo para o mata-mata (formato grupos + mata-mata). */
   advancePerGroup?: number
+  /**
+   * Classificados por grupo da 1ª fase, quando os grupos têm tamanhos
+   * diferentes: `{ A: 2, B: 1 }`. Grupo ausente cai em `advancePerGroup`.
+   */
+  advanceByGroup?: Record<string, number>
+  /**
+   * Fases de grupos do campeonato, na ordem. Ausente = uma única fase,
+   * descrita por `numGroups` / `advancePerGroup` / `advanceByGroup`.
+   */
+  groupStages?: GroupStage[]
   /** Nº de classificados no formato de pontos corridos (liga). */
   leagueQualifiers?: number
   /**
@@ -287,6 +320,11 @@ export interface Match {
   phase: MatchPhase
   /** Grupo do confronto (fase de grupos). */
   group?: string
+  /**
+   * Qual fase de grupos (1 = primeira). Só se aplica a `phase === 'group'`.
+   * Ausente = 1, para as partidas criadas antes das fases múltiplas.
+   */
+  stage?: number
   homeTeamId: string | null
   awayTeamId: string | null
   homeScore: number | null

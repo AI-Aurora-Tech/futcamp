@@ -7,12 +7,15 @@ import {
 } from '../services/matches'
 import { updateChampionship } from '../services/championships'
 import { useAuth } from '../context/AuthContext'
+import { hasKnockoutStage, isUnresolvedTie } from '../lib/knockout'
 import {
-  groupPhaseComplete,
-  groupPhaseRemaining,
-  hasKnockoutStage,
-  isUnresolvedTie,
-} from '../lib/knockout'
+  allGroupStagesComplete,
+  groupStagesOf,
+  matchStage,
+  matchesOfStage,
+  nextGroupStageToCreate,
+  stageName,
+} from '../lib/groupStages'
 import {
   PHASE_LABELS,
   type Championship,
@@ -57,12 +60,16 @@ export function MatchesPanel({
   const regenBlocked = finishedCount > 0 && !isMaster
   const groupMatchesOnly = matches.filter((m) => m.phase === 'group')
   const knockoutMatches = matches.filter((m) => m.phase !== 'group')
-  const remaining = groupPhaseRemaining(matches)
+  const stages = groupStagesOf(championship)
+  // Fase de grupos em curso: a última que já tem jogos criados.
+  const currentStage = Math.max(1, ...groupMatchesOnly.map(matchStage))
+  const remaining = matchesOfStage(matches, currentStage).filter((m) => m.status !== 'finished').length
+  const pendingStage = nextGroupStageToCreate(championship, matches)
   const canCreateKnockout =
     !isKnockout &&
     hasKnockoutStage(championship) &&
     knockoutMatches.length === 0 &&
-    groupPhaseComplete(matches)
+    allGroupStagesComplete(championship, matches)
   const pendingTies = matches.filter(isUnresolvedTie)
 
   async function createKnockout() {
@@ -189,8 +196,13 @@ export function MatchesPanel({
           {knockoutMatches.length
             ? '🏆 Mata-mata criado com os classificados. Ao encerrar cada confronto, o vencedor avança sozinho para a fase seguinte.'
             : remaining > 0
-              ? `🏁 Faltam ${remaining} jogo(s) da primeira fase. Quando o último for encerrado, o mata-mata é criado automaticamente com os classificados.`
-              : '🏆 Primeira fase encerrada — montando o mata-mata com os classificados…'}
+              ? `🏁 Faltam ${remaining} jogo(s) da ${stageName(stages[currentStage - 1] ?? stages[0], currentStage - 1, stages.length)}.` +
+                (pendingStage != null || currentStage < stages.length
+                  ? ' Quando o último for encerrado, a fase seguinte é criada automaticamente com os classificados.'
+                  : ' Quando o último for encerrado, o mata-mata é criado automaticamente com os classificados.')
+              : pendingStage != null
+                ? `✅ ${stageName(stages[pendingStage - 2] ?? stages[0], pendingStage - 2, stages.length)} encerrada — montando a ${stageName(stages[pendingStage - 1], pendingStage - 1, stages.length)} com os classificados…`
+                : '🏆 Fase de grupos encerrada — montando o mata-mata com os classificados…'}
         </p>
       )}
 
@@ -337,6 +349,13 @@ export interface Section {
   isKnockout: boolean
 }
 
+/** "2ª fase · Rodada 4" quando há mais de uma fase de grupos. */
+function roundTitle(matches: Match[], round: number, multiStage: boolean): string {
+  if (!multiStage) return `Rodada ${round}`
+  const stage = matchStage(matches[0])
+  return `${stage}ª fase · Rodada ${round}`
+}
+
 const PHASE_ORDER: MatchPhase[] = [
   'round_of_32',
   'round_of_16',
@@ -363,9 +382,15 @@ export function matchSections(matches: Match[]): Section[] {
     }
   }
 
+  const multiStage = new Set(matches.filter((m) => m.phase === 'group').map(matchStage)).size > 1
   const rounds: Section[] = [...byRound.keys()]
     .sort((a, b) => a - b)
-    .map((r) => ({ key: `r${r}`, title: `Rodada ${r}`, matches: byRound.get(r)!, isKnockout: false }))
+    .map((r) => ({
+      key: `r${r}`,
+      title: roundTitle(byRound.get(r)!, r, multiStage),
+      matches: byRound.get(r)!,
+      isKnockout: false,
+    }))
 
   const phases: Section[] = PHASE_ORDER.filter((p) => byPhase.has(p)).map((p) => ({
     key: p,
