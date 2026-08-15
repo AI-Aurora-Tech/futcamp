@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createOfficial, deleteOfficial } from '../services/officials'
+import { createOfficial, deleteOfficial, resetOfficialPassword } from '../services/officials'
 import type { Championship, Match, Official } from '../types'
 import { Button, EmptyState, Field, Modal } from './ui'
 
@@ -31,6 +31,17 @@ export function OfficialsPanel({
     onChange()
   }
 
+  async function resetPassword(o: Official) {
+    if (!confirm(`Zerar a senha de "${o.name}"?\n\nNo próximo acesso ao portal, ele entrará com o e-mail (${o.username}) e criará uma nova senha.`)) return
+    try {
+      await resetOfficialPassword(o.id)
+      alert('Senha zerada. Avise o mesário para entrar no portal e criar uma nova senha.')
+    } catch {
+      alert('Não foi possível zerar a senha agora.')
+    }
+    onChange()
+  }
+
   return (
     <section className="panel">
       <div className="panel__head">
@@ -54,7 +65,7 @@ export function OfficialsPanel({
             <thead>
               <tr>
                 <th>Mesário</th>
-                <th>Usuário</th>
+                <th>E-mail (usuário)</th>
                 <th>Jogos atribuídos</th>
                 <th className="col-actions"></th>
               </tr>
@@ -66,6 +77,7 @@ export function OfficialsPanel({
                   <td>{o.username}</td>
                   <td>{assignedCount(o.id)}</td>
                   <td className="col-actions">
+                    <button className="icon-btn" title="Zerar senha" onClick={() => void resetPassword(o)}>🔑</button>
                     <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(o)}>🗑</button>
                   </td>
                 </tr>
@@ -76,7 +88,8 @@ export function OfficialsPanel({
       )}
 
       <p className="hint">
-        Portal do mesário: <code>#/mesa/{championship.id}</code> — cada um entra com o próprio usuário e senha.
+        Portal do mesário: <code>#/mesa/{championship.id}</code> — cada um entra com o próprio e-mail e senha.
+        Use 🔑 para <b>zerar a senha</b>: o mesário criará uma nova ao entrar com o e-mail.
       </p>
 
       {adding && (
@@ -124,8 +137,8 @@ function OfficialForm({
         <Field label="Nome do mesário">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" required />
         </Field>
-        <Field label="Usuário">
-          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex.: mesa1" required />
+        <Field label="E-mail (usuário)" hint="O mesário usa o e-mail para entrar no portal.">
+          <input type="email" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="mesa@exemplo.com" autoComplete="off" required />
         </Field>
         <Field label="Senha">
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} required />

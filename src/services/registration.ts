@@ -221,7 +221,7 @@ export async function teamLogin(
   token: string,
   username: string,
   password: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; needsPassword?: boolean; error?: string }> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.rpc('team_login', {
       p_team: teamId,
@@ -230,16 +230,68 @@ export async function teamLogin(
       p_password: password,
     })
     if (error) return { ok: false, error: error.message }
-    return data ? { ok: true } : { ok: false, error: 'Usuário ou senha inválidos.' }
+    if (data) return { ok: true }
+    // Sem sessão: pode ser senha errada OU senha zerada pelo administrador.
+    const { data: needs } = await supabase.rpc('team_needs_password', {
+      p_team: teamId,
+      p_token: token,
+      p_username: username.trim(),
+    })
+    if (needs) return { ok: false, needsPassword: true }
+    return { ok: false, error: 'Usuário ou senha inválidos.' }
   }
   return query((d) => {
     const t = d.teams.find((x) => x.id === teamId)
     if (!t || t.accessToken !== token) return { ok: false, error: 'Link inválido.' }
     const u = username.trim()
     const hash = demoHash(password)
-    if (t.username === u && t.passwordHash === hash) return { ok: true }
-    if (t.username2 === u && t.passwordHash2 === hash) return { ok: true }
+    // Slot 1
+    if (t.username === u) {
+      if (!t.passwordHash) return { ok: false, needsPassword: true } // '' = senha zerada
+      return t.passwordHash === hash ? { ok: true } : { ok: false, error: 'Usuário ou senha inválidos.' }
+    }
+    // Slot 2
+    if (t.username2 === u) {
+      if (!t.passwordHash2) return { ok: false, needsPassword: true }
+      return t.passwordHash2 === hash ? { ok: true } : { ok: false, error: 'Usuário ou senha inválidos.' }
+    }
     return { ok: false, error: 'Usuário ou senha inválidos.' }
+  })
+}
+
+/**
+ * Define uma nova senha do gestor quando a conta está com a senha zerada
+ * (recuperação iniciada pelo administrador). Não exige a senha antiga.
+ */
+export async function setTeamPassword(
+  teamId: string,
+  token: string,
+  username: string,
+  newPassword: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('team_set_password', {
+      p_team: teamId,
+      p_token: token,
+      p_username: username.trim(),
+      p_new: newPassword,
+    })
+    if (error) return { ok: false, error: error.message }
+    return data ? { ok: true } : { ok: false, error: 'Não foi possível redefinir a senha.' }
+  }
+  return mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t || t.accessToken !== token) return { ok: false, error: 'Link inválido.' }
+    const u = username.trim()
+    if (t.username === u && !t.passwordHash) {
+      t.passwordHash = demoHash(newPassword)
+      return { ok: true }
+    }
+    if (t.username2 === u && !t.passwordHash2) {
+      t.passwordHash2 = demoHash(newPassword)
+      return { ok: true }
+    }
+    return { ok: false, error: 'Esta conta não está com a senha zerada.' }
   })
 }
 

@@ -178,6 +178,58 @@ export async function updateTeam(id: string, patch: Partial<Team>): Promise<void
   })
 }
 
+export interface TeamManager {
+  username: string
+  /** Senha zerada pelo administrador (aguardando o gestor criar nova senha). */
+  reset: boolean
+}
+
+/** Lista os gestores (até 2) do time e se cada um está com a senha zerada. */
+export async function listTeamManagers(teamId: string): Promise<TeamManager[]> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('team_managers', { p_team: teamId })
+    if (error) throw error
+    const r = (data ?? {}) as {
+      username?: string | null
+      reset1?: boolean
+      username2?: string | null
+      reset2?: boolean
+    }
+    const out: TeamManager[] = []
+    if (r.username) out.push({ username: r.username, reset: Boolean(r.reset1) })
+    if (r.username2) out.push({ username: r.username2, reset: Boolean(r.reset2) })
+    return out
+  }
+  return query((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    const out: TeamManager[] = []
+    if (t?.username) out.push({ username: t.username, reset: !t.passwordHash })
+    if (t?.username2) out.push({ username: t.username2, reset: !t.passwordHash2 })
+    return out
+  })
+}
+
+/**
+ * Administrador ZERA (recupera) a senha de um gestor do time. No próximo login
+ * pelo link de inscrição, o gestor deverá criar uma nova senha.
+ */
+export async function resetTeamManagerPassword(teamId: string, username: string): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('reset_team_manager_password', {
+      p_team: teamId,
+      p_username: username,
+    })
+    if (error) throw error
+    return
+  }
+  mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) return
+    if (t.username === username) t.passwordHash = '' // '' = senha zerada
+    if (t.username2 === username) t.passwordHash2 = ''
+  })
+}
+
 export async function deleteTeam(id: string): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.from('teams').delete().eq('id', id)

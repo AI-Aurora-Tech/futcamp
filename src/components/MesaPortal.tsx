@@ -6,6 +6,7 @@ import {
   listAssignedMatches,
   mesaLogin,
   mesaWriter,
+  setOfficialPassword,
   type MesaContext,
 } from '../services/officials'
 import type { Championship, Match, Player, Team } from '../types'
@@ -170,6 +171,11 @@ function MesaLogin({
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Recuperação de senha: quando o administrador zera a senha, o mesário
+  // entra com o e-mail e cria uma nova senha.
+  const [resetting, setResetting] = useState(false)
+  const [newPass, setNewPass] = useState('')
+  const [confirm, setConfirm] = useState('')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -179,25 +185,78 @@ function MesaLogin({
     setBusy(false)
     if (res.ok && res.official) {
       onLoggedIn({ championshipId, officialId: res.official.id, name: res.official.name, username: username.trim(), password })
+    } else if (res.needsPassword) {
+      setResetting(true)
     } else {
       setError(res.error ?? 'Não foi possível entrar.')
     }
   }
 
+  async function submitNewPassword(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (newPass !== confirm) {
+      setError('As senhas não conferem.')
+      return
+    }
+    setBusy(true)
+    const res = await setOfficialPassword(championshipId, username, newPass)
+    if (!res.ok) {
+      setBusy(false)
+      setError(res.error ?? 'Não foi possível redefinir a senha.')
+      return
+    }
+    // Já entra com a senha recém-criada.
+    const login = await mesaLogin(championshipId, username, newPass)
+    setBusy(false)
+    if (login.ok && login.official) {
+      onLoggedIn({ championshipId, officialId: login.official.id, name: login.official.name, username: username.trim(), password: newPass })
+    } else {
+      setResetting(false)
+      setPassword('')
+      setError('Senha criada! Entre novamente com a nova senha.')
+    }
+  }
+
+  if (resetting) {
+    return (
+      <section className="panel reg__panel reg__gate">
+        <h2>Criar nova senha</h2>
+        <p className="muted">
+          O administrador zerou a senha de <b>{username.trim()}</b>. Defina uma nova senha para acessar o portal.
+        </p>
+        <form onSubmit={submitNewPassword} className="form-grid reg__gate-form">
+          <Field label="Nova senha">
+            <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} minLength={4} autoComplete="new-password" required />
+          </Field>
+          <Field label="Confirmar nova senha">
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={4} autoComplete="new-password" required />
+          </Field>
+          {error && <p className="auth-error">{error}</p>}
+          <Button type="submit" disabled={busy || !newPass || !confirm}>{busy ? 'Salvando…' : 'Criar senha e entrar'}</Button>
+        </form>
+        <div className="reg__gate-switch">
+          <button className="link-btn" onClick={() => { setResetting(false); setError(null); setNewPass(''); setConfirm('') }}>Voltar</button>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="panel reg__panel reg__gate">
       <h2>Entrar como mesário</h2>
-      <p className="muted">Use o usuário e a senha fornecidos pelo organizador.</p>
+      <p className="muted">Use o e-mail e a senha fornecidos pelo organizador.</p>
       <form onSubmit={submit} className="form-grid reg__gate-form">
-        <Field label="Usuário">
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
+        <Field label="E-mail">
+          <input type="email" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="mesa@exemplo.com" required />
         </Field>
         <Field label="Senha">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
         </Field>
         {error && <p className="auth-error">{error}</p>}
-        <Button type="submit" disabled={busy || !username.trim() || !password}>{busy ? 'Entrando…' : 'Entrar'}</Button>
+        <Button type="submit" disabled={busy || !username.trim()}>{busy ? 'Entrando…' : 'Entrar'}</Button>
       </form>
+      <p className="hint">Sua senha foi zerada pelo organizador? Informe o e-mail e clique em Entrar para criar uma nova senha.</p>
     </section>
   )
 }

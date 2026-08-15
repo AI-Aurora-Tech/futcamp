@@ -99,6 +99,22 @@ export async function deleteOfficial(id: string): Promise<void> {
   })
 }
 
+/**
+ * Administrador ZERA (recupera) a senha do mesário. No próximo login com o
+ * e-mail, o portal pedirá para criar uma nova senha.
+ */
+export async function resetOfficialPassword(id: string): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('reset_official_password', { p_official: id })
+    if (error) throw error
+    return
+  }
+  mutate((d) => {
+    const o = d.officials.find((x) => x.id === id)
+    if (o) o.passwordHash = '' // '' = senha zerada
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Mesário (portal)
 // ---------------------------------------------------------------------------
@@ -106,7 +122,7 @@ export async function mesaLogin(
   championshipId: string,
   username: string,
   password: string,
-): Promise<{ ok: boolean; official?: Official; error?: string }> {
+): Promise<{ ok: boolean; official?: Official; needsPassword?: boolean; error?: string }> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.rpc('mesa_login', {
       p_champ: championshipId,
@@ -114,16 +130,54 @@ export async function mesaLogin(
       p_password: password,
     })
     if (error) return { ok: false, error: error.message }
-    if (!data) return { ok: false, error: 'Usuário ou senha inválidos.' }
-    return { ok: true, official: fromRow(data) }
+    if (data) return { ok: true, official: fromRow(data) }
+    // Sem sessão: pode ser senha errada OU senha zerada pelo administrador.
+    const { data: needs } = await supabase.rpc('mesa_needs_password', {
+      p_champ: championshipId,
+      p_username: username.trim(),
+    })
+    if (needs) return { ok: false, needsPassword: true }
+    return { ok: false, error: 'E-mail ou senha inválidos.' }
   }
   return query((d) => {
     const uname = username.trim().toLowerCase()
     const o = d.officials.find(
       (x) => x.championshipId === championshipId && x.username.toLowerCase() === uname,
     )
-    if (!o || o.passwordHash !== hash(password)) return { ok: false, error: 'Usuário ou senha inválidos.' }
+    if (!o) return { ok: false, error: 'E-mail ou senha inválidos.' }
+    if (!o.passwordHash) return { ok: false, needsPassword: true } // '' = senha zerada
+    if (o.passwordHash !== hash(password)) return { ok: false, error: 'E-mail ou senha inválidos.' }
     return { ok: true, official: o }
+  })
+}
+
+/**
+ * Define uma nova senha do mesário quando a conta está com a senha zerada
+ * (recuperação iniciada pelo administrador). Não exige a senha antiga.
+ */
+export async function setOfficialPassword(
+  championshipId: string,
+  username: string,
+  newPassword: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('mesa_set_password', {
+      p_champ: championshipId,
+      p_username: username.trim(),
+      p_new: newPassword,
+    })
+    if (error) return { ok: false, error: error.message }
+    return data ? { ok: true } : { ok: false, error: 'Não foi possível redefinir a senha.' }
+  }
+  return mutate((d) => {
+    const uname = username.trim().toLowerCase()
+    const o = d.officials.find(
+      (x) => x.championshipId === championshipId && x.username.toLowerCase() === uname,
+    )
+    if (!o) return { ok: false, error: 'Mesário não encontrado.' }
+    if (o.passwordHash) return { ok: false, error: 'Esta conta não está com a senha zerada.' }
+    o.passwordHash = hash(newPassword)
+    return { ok: true }
   })
 }
 

@@ -1,8 +1,18 @@
-import { useRef, useState } from 'react'
-import { createTeam, deleteTeam, ensureChampTeamToken, ensureTeamToken, updateTeam, type NewTeam } from '../services/teams'
+import { useEffect, useRef, useState } from 'react'
+import {
+  createTeam,
+  deleteTeam,
+  ensureChampTeamToken,
+  ensureTeamToken,
+  listTeamManagers,
+  resetTeamManagerPassword,
+  updateTeam,
+  type NewTeam,
+  type TeamManager,
+} from '../services/teams'
 import type { Championship, Team } from '../types'
 import { fileToDataUrl } from '../lib/image'
-import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
+import { Button, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
 
 export function TeamsPanel({
   championship,
@@ -15,6 +25,7 @@ export function TeamsPanel({
 }) {
   const [editing, setEditing] = useState<Team | null>(null)
   const [adding, setAdding] = useState(false)
+  const [managing, setManaging] = useState<Team | null>(null)
   const [drawing, setDrawing] = useState(false)
   const grouped = championship.format === 'groups_knockout'
   const numGroups = Math.max(1, championship.numGroups ?? 2)
@@ -117,6 +128,7 @@ export function TeamsPanel({
               </div>
               <div className="team-item__actions">
                 <button className="icon-btn" title="Copiar link de inscrição" onClick={() => void copyInviteLink(t)}>🔗</button>
+                <button className="icon-btn" title="Gestores e senhas" onClick={() => setManaging(t)}>🔑</button>
                 <button className="icon-btn" title="Editar" onClick={() => setEditing(t)}>✎</button>
                 <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(t)}>🗑</button>
               </div>
@@ -141,7 +153,79 @@ export function TeamsPanel({
           }}
         />
       )}
+
+      {managing && (
+        <ManagersModal team={managing} onClose={() => setManaging(null)} />
+      )}
     </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Gestores do time (senhas) — visão do administrador                          */
+/* -------------------------------------------------------------------------- */
+function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
+  const [managers, setManagers] = useState<TeamManager[] | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function load() {
+    try {
+      setManagers(await listTeamManagers(team.id))
+    } catch {
+      setError('Não foi possível carregar os gestores.')
+      setManagers([])
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team.id])
+
+  async function reset(m: TeamManager) {
+    if (!confirm(`Zerar a senha de "${m.username}"?\n\nNo próximo acesso pelo link de inscrição, o gestor criará uma nova senha.`)) return
+    setBusy(m.username)
+    setError(null)
+    try {
+      await resetTeamManagerPassword(team.id, m.username)
+      await load()
+    } catch {
+      setError('Não foi possível zerar a senha agora.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Modal title={`Gestores — ${team.name}`} onClose={onClose}>
+      <p className="muted">
+        Zere a senha de um gestor que a esqueceu. Ele entrará pelo link de inscrição com o mesmo usuário
+        e criará uma nova senha.
+      </p>
+      {managers === null ? (
+        <div className="pad-lg center"><Spinner /></div>
+      ) : managers.length === 0 ? (
+        <EmptyState icon="👤" title="Nenhum gestor cadastrado">
+          <p>Este time ainda não tem acesso criado. Envie o link de inscrição para o responsável criar o acesso.</p>
+        </EmptyState>
+      ) : (
+        <ul className="manager-list">
+          {managers.map((m) => (
+            <li key={m.username} className="manager-list__item" style={{ justifyContent: 'space-between' }}>
+              <span>👤 {m.username} {m.reset && <span className="muted small">· senha zerada</span>}</span>
+              <Button variant="soft" type="button" disabled={busy === m.username || m.reset} onClick={() => void reset(m)}>
+                {busy === m.username ? 'Zerando…' : m.reset ? 'Aguardando nova senha' : '🔑 Zerar senha'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="auth-error">{error}</p>}
+      <div className="form-actions">
+        <Button variant="ghost" type="button" onClick={onClose}>Fechar</Button>
+      </div>
+    </Modal>
   )
 }
 

@@ -5,6 +5,7 @@ import {
   loadRegistration,
   removeRegPlayer,
   saveTeamInfo,
+  setTeamPassword,
   teamLogin,
   updateRegPlayer,
   type PlayerInput,
@@ -119,7 +120,8 @@ function AccessGate({
   hasAccount: boolean
   onDone: () => void
 }) {
-  const [mode, setMode] = useState<'login' | 'create'>(hasAccount ? 'login' : 'create')
+  // 'reset' = a senha foi zerada pelo administrador; o gestor cria uma nova.
+  const [mode, setMode] = useState<'login' | 'create' | 'reset'>(hasAccount ? 'login' : 'create')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -129,6 +131,29 @@ function AccessGate({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (mode === 'reset') {
+      if (password !== confirm) {
+        setError('As senhas não conferem.')
+        return
+      }
+      setBusy(true)
+      const set = await setTeamPassword(teamId, token, username, password)
+      if (!set.ok) {
+        setBusy(false)
+        setError(set.error ?? 'Não foi possível redefinir a senha.')
+        return
+      }
+      const login = await teamLogin(teamId, token, username, password)
+      setBusy(false)
+      if (login.ok) onDone()
+      else {
+        setMode('login'); setPassword(''); setConfirm('')
+        setError('Senha criada! Entre novamente com a nova senha.')
+      }
+      return
+    }
+
     if (mode === 'create' && password !== confirm) {
       setError('As senhas não conferem.')
       return
@@ -140,7 +165,34 @@ function AccessGate({
         : await teamLogin(teamId, token, username, password)
     setBusy(false)
     if (res.ok) onDone()
-    else setError(res.error ?? 'Não foi possível continuar.')
+    else if ('needsPassword' in res && res.needsPassword) {
+      // O administrador zerou a senha deste gestor: criar uma nova.
+      setPassword(''); setConfirm(''); setError(null); setMode('reset')
+    } else setError(res.error ?? 'Não foi possível continuar.')
+  }
+
+  if (mode === 'reset') {
+    return (
+      <section className="panel reg__panel reg__gate">
+        <h2>Criar nova senha</h2>
+        <p className="muted">
+          O administrador zerou a senha de <b>{username.trim()}</b>. Defina uma nova senha para gerir o time.
+        </p>
+        <form onSubmit={submit} className="form-grid reg__gate-form">
+          <Field label="Nova senha">
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete="new-password" required />
+          </Field>
+          <Field label="Confirmar nova senha">
+            <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} minLength={4} autoComplete="new-password" required />
+          </Field>
+          {error && <p className="auth-error">{error}</p>}
+          <Button type="submit" disabled={busy || !password || !confirm}>{busy ? 'Salvando…' : 'Criar senha e entrar'}</Button>
+        </form>
+        <div className="reg__gate-switch">
+          <button className="link-btn" onClick={() => { setMode('login'); setError(null); setPassword(''); setConfirm('') }}>Voltar</button>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -156,7 +208,7 @@ function AccessGate({
           <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex.: leoes.fc" autoComplete="username" required />
         </Field>
         <Field label="Senha">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete={mode === 'create' ? 'new-password' : 'current-password'} required />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete={mode === 'create' ? 'new-password' : 'current-password'} required={mode === 'create'} />
         </Field>
         {mode === 'create' && (
           <Field label="Confirmar senha">
@@ -164,10 +216,13 @@ function AccessGate({
           </Field>
         )}
         {error && <p className="auth-error">{error}</p>}
-        <Button type="submit" disabled={busy || !username.trim() || !password}>
+        <Button type="submit" disabled={busy || !username.trim() || (mode === 'create' && !password)}>
           {busy ? 'Aguarde…' : mode === 'create' ? 'Criar acesso e entrar' : 'Entrar'}
         </Button>
       </form>
+      {mode === 'login' && (
+        <p className="hint">Sua senha foi zerada pelo organizador? Informe o usuário e clique em Entrar para criar uma nova senha.</p>
+      )}
       <div className="reg__gate-switch">
         {mode === 'create' ? (
           <button className="link-btn" onClick={() => { setMode('login'); setError(null) }}>Já tenho acesso — entrar</button>
