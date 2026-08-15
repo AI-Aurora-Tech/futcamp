@@ -250,7 +250,6 @@ function TeamCard({
 }) {
   const t = data.team
   const [name, setName] = useState(t.name)
-  const [shortName, setShortName] = useState(t.shortName ?? '')
   const [coach, setCoach] = useState(t.coach ?? '')
   const [phone, setPhone] = useState(t.phone ?? '')
   const [color, setColor] = useState(t.color ?? '#2563eb')
@@ -276,7 +275,7 @@ function TeamCard({
     setBusy(true)
     setMsg(null)
     try {
-      await saveTeamInfo(teamId, token, { name: name.trim(), shortName: shortName.trim(), coach: coach.trim(), phone: phone.trim(), color, logo })
+      await saveTeamInfo(teamId, token, { name: name.trim(), coach: coach.trim(), phone: phone.trim(), color, logo })
       await onSaved()
       setMsg('Dados do time salvos! ✅')
     } catch (err) {
@@ -291,7 +290,7 @@ function TeamCard({
       <h2>Escudo e dados do time</h2>
       <form onSubmit={save} className="reg__team">
         <div className="reg__badge">
-          <TeamBadge team={{ name, shortName, logo, color }} size={96} />
+          <TeamBadge team={{ name, logo, color }} size={96} />
           <div className="reg__logo-actions">
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onUpload} />
             <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar escudo</Button>
@@ -303,14 +302,9 @@ function TeamCard({
         </div>
 
         <div className="reg__fields">
-          <div className="form-row">
-            <Field label="Nome do time">
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
-            </Field>
-            <Field label="Sigla" hint="3 letras (ex.: LEO)">
-              <input value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={4} placeholder="LEO" />
-            </Field>
-          </div>
+          <Field label="Nome do time">
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </Field>
           <div className="form-row">
             <Field label="Responsável">
               <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do responsável" />

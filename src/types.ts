@@ -231,6 +231,11 @@ export interface Team {
   id: string
   championshipId: string
   name: string
+  /**
+   * @deprecated A sigla saiu do cadastro do time. O campo continua no modelo
+   * apenas para não perder o valor dos times antigos; onde ela ainda aparece
+   * (escudo sem imagem, súmula), o nome do time é o padrão.
+   */
   shortName?: string
   /** Emoji ou data URL usado como escudo. */
   logo?: string

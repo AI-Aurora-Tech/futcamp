@@ -307,7 +307,7 @@ export function MatchRow({
       title={finished ? 'Partida encerrada' : undefined}
     >
       <span className="match-row__side match-row__side--home">
-        <span className="match-row__name">{home?.name ?? 'A definir'}</span>
+        <span className="match-row__name" title={home?.name}>{home?.name ?? 'A definir'}</span>
         <TeamBadge team={home} size={26} />
       </span>
       <span className={`match-row__score ${showScore && hasScore ? 'is-played' : ''}`}>
@@ -317,7 +317,7 @@ export function MatchRow({
       </span>
       <span className="match-row__side match-row__side--away">
         <TeamBadge team={away} size={26} />
-        <span className="match-row__name">{away?.name ?? 'A definir'}</span>
+        <span className="match-row__name" title={away?.name}>{away?.name ?? 'A definir'}</span>
       </span>
       {schedule && <span className="match-row__meta">{schedule}</span>}
     </button>

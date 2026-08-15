@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createTeam,
   deleteTeam,
@@ -12,7 +12,7 @@ import {
 } from '../services/teams'
 import type { Championship, Team } from '../types'
 import { fileToDataUrl } from '../lib/image'
-import { Button, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
+import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
 
 export function TeamsPanel({
   championship,
@@ -27,8 +27,20 @@ export function TeamsPanel({
   const [adding, setAdding] = useState(false)
   const [managing, setManaging] = useState<Team | null>(null)
   const [drawing, setDrawing] = useState(false)
+  const [search, setSearch] = useState('')
   const grouped = championship.format === 'groups_knockout'
   const numGroups = Math.max(1, championship.numGroups ?? 2)
+
+  // Busca por nome do time, responsável ou grupo ("grupo b" / "b").
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return teams
+    return teams.filter((t) =>
+      [t.name, t.coach, t.phone, t.group, t.group ? `grupo ${t.group}` : '']
+        .filter(Boolean)
+        .some((v) => (v as string).toLowerCase().includes(q)),
+    )
+  }, [teams, search])
 
   async function drawGroups() {
     if (teams.length < 2) {
@@ -109,22 +121,38 @@ export function TeamsPanel({
         </div>
       </div>
 
+      {teams.length > 0 && (
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar time por nome, responsável ou grupo…"
+          count={visible.length}
+          total={teams.length}
+          noun="time"
+        />
+      )}
+
       {teams.length === 0 ? (
         <EmptyState icon="🛡️" title="Nenhum time cadastrado">
           <p>Adicione os times para depois gerar a tabela de jogos.</p>
         </EmptyState>
+      ) : visible.length === 0 ? (
+        <EmptyState icon="🔎" title="Nenhum time encontrado">
+          <p>Nenhum time corresponde a “{search}”.</p>
+          <Button variant="soft" onClick={() => setSearch('')}>Limpar busca</Button>
+        </EmptyState>
       ) : (
         <div className="team-grid">
-          {teams.map((t) => (
+          {visible.map((t) => (
             <div key={t.id} className="team-item">
-              <TeamBadge team={t} size={44} />
+              <span className="team-item__badge"><TeamBadge team={t} size={44} /></span>
               <div className="team-item__info">
-                <strong>{t.name}</strong>
-                <span className="muted">
+                <strong title={t.name}>{t.name}</strong>
+                <span className="team-item__meta">
                   {t.coach ? `Resp. ${t.coach}` : 'Sem responsável'}
                   {t.phone ? ` · ${t.phone}` : ''}
-                  {grouped && t.group ? ` · Grupo ${t.group}` : ''}
                 </span>
+                {grouped && t.group && <span className="team-item__group">Grupo {t.group}</span>}
               </div>
               <div className="team-item__actions">
                 <button className="icon-btn" title="Copiar link de inscrição" onClick={() => void copyInviteLink(t)}>🔗</button>
@@ -243,7 +271,6 @@ function TeamForm({
   onSaved: () => void
 }) {
   const [name, setName] = useState(initial?.name ?? '')
-  const [shortName, setShortName] = useState(initial?.shortName ?? '')
   const [logo, setLogo] = useState(initial?.logo ?? '')
   const [color, setColor] = useState(initial?.color ?? '#2563eb')
   const [coach, setCoach] = useState(initial?.coach ?? '')
@@ -283,7 +310,6 @@ function TeamForm({
     const payload: NewTeam = {
       championshipId: championship.id,
       name: name.trim(),
-      shortName: shortName.trim() || undefined,
       logo,
       color,
       coach: coach.trim() || undefined,
@@ -300,18 +326,13 @@ function TeamForm({
     <Modal title={initial ? 'Editar time' : 'Adicionar time'} onClose={onClose}>
       <form onSubmit={submit} className="form-grid">
         <div className="team-form__preview">
-          <TeamBadge team={{ name, shortName, logo, color }} size={56} />
+          <TeamBadge team={{ name, logo, color }} size={56} />
           <span>{name || 'Prévia do escudo'}</span>
         </div>
-        <div className="form-row">
-          <Field label="Nome do time">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Leões FC" required />
-          </Field>
-          <Field label="Sigla" hint="3 letras (ex.: LEO)">
-            <input value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={4} placeholder="LEO" />
-          </Field>
-        </div>
-        <Field label="Escudo do time" hint="Envie a imagem do brasão (PNG/JPG/SVG). Sem imagem, usamos a sigla e a cor.">
+        <Field label="Nome do time">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Leões FC" required />
+        </Field>
+        <Field label="Escudo do time" hint="Envie a imagem do brasão (PNG/JPG/SVG). Sem imagem, usamos as iniciais do nome e a cor.">
           <div className="team-logo-actions">
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onLogoUpload} />
             <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar escudo</Button>
