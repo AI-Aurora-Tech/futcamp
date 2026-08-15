@@ -450,7 +450,10 @@ function PresencePanel({
     }
   }
 
-  function TeamColumn({ team }: { team?: Team }) {
+  // IMPORTANTE: função que RETORNA os elementos (não um componente aninhado).
+  // Definir um componente dentro do render faria o React remontar os inputs a
+  // cada tecla — foco perdido ao digitar o 2º dígito da camisa.
+  const renderTeamColumn = (team?: Team) => {
     const list = athletes.filter((p) => p.teamId === team?.id)
     return (
       <div className="presence-col">
@@ -498,8 +501,8 @@ function PresencePanel({
             Chegou atrasado? Marque e salve novamente.
           </p>
           <div className="presence-grid">
-            <TeamColumn team={home} />
-            <TeamColumn team={away} />
+            {renderTeamColumn(home)}
+            {renderTeamColumn(away)}
           </div>
           <div className="presence-box__actions">
             {msg && <span className="reg__msg">{msg}</span>}
