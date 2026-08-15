@@ -809,6 +809,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .ko-note--done { border-style: solid; border-color: #bbf7d0; background: #f0fdf4; color: var(--brand-dark); }
 .ko-note--warn { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+.ko-note--lock { border-style: solid; border-color: #e2e8f0; background: #f8fafc; color: #475569; }
 
 .phase-config {
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2);
