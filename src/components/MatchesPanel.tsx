@@ -1,14 +1,22 @@
 import { useMemo, useState } from 'react'
 import {
+  createKnockoutStage,
   generateGroups,
   generateKnockout,
   generateLeague,
 } from '../services/matches'
 import { updateChampionship } from '../services/championships'
 import {
+  groupPhaseComplete,
+  groupPhaseRemaining,
+  hasKnockoutStage,
+  isUnresolvedTie,
+} from '../lib/knockout'
+import {
   PHASE_LABELS,
   type Championship,
   type Match,
+  type MatchEvent,
   type MatchPhase,
   type Official,
   type Player,
@@ -24,6 +32,7 @@ export function MatchesPanel({
   teams,
   players,
   matches,
+  events = [],
   officials,
   onChange,
 }: {
@@ -31,6 +40,7 @@ export function MatchesPanel({
   teams: Team[]
   players: Player[]
   matches: Match[]
+  events?: MatchEvent[]
   officials: Official[]
   onChange: () => void
 }) {
@@ -39,6 +49,28 @@ export function MatchesPanel({
   const [scheduling, setScheduling] = useState(false)
   const isKnockout = championship.format === 'knockout'
   const isGroups = championship.format === 'groups_knockout'
+  const groupMatchesOnly = matches.filter((m) => m.phase === 'group')
+  const knockoutMatches = matches.filter((m) => m.phase !== 'group')
+  const remaining = groupPhaseRemaining(matches)
+  const canCreateKnockout =
+    !isKnockout &&
+    hasKnockoutStage(championship) &&
+    knockoutMatches.length === 0 &&
+    groupPhaseComplete(matches)
+  const pendingTies = matches.filter(isUnresolvedTie)
+
+  async function createKnockout() {
+    setGenerating(true)
+    try {
+      const ok = await createKnockoutStage(championship, teams, matches, events)
+      if (!ok) {
+        alert('Não foi possível montar o mata-mata: confira o chaveamento e a classificação em Ajustes.')
+      }
+      onChange()
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   async function generate() {
     if (teams.length < 2) {
@@ -49,7 +81,7 @@ export function MatchesPanel({
     setGenerating(true)
     try {
       if (isKnockout) {
-        await generateKnockout(championship.id, teams.map((t) => t.id))
+        await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace)
       } else if (isGroups) {
         const groups: Record<string, string[]> = {}
         for (const t of teams) {
@@ -67,8 +99,8 @@ export function MatchesPanel({
     }
   }
 
-  // Agrupa por fase (mata-mata) ou por rodada (liga/grupos).
-  const sections = useMemo(() => groupMatches(matches, isKnockout), [matches, isKnockout])
+  // Agrupa por rodada (primeira fase) e por fase (mata-mata).
+  const sections = useMemo(() => matchSections(matches), [matches])
   const closedRounds = new Set(championship.closedRounds ?? [])
 
   async function toggleRound(round: number) {
@@ -96,11 +128,33 @@ export function MatchesPanel({
           {matches.length > 0 && (
             <Button variant="soft" onClick={() => setScheduling((s) => !s)}>🗓️ Datas e horários</Button>
           )}
+          {canCreateKnockout && (
+            <Button onClick={() => void createKnockout()} disabled={generating}>
+              {generating ? 'Montando…' : '🏆 Criar mata-mata'}
+            </Button>
+          )}
           <Button onClick={() => void generate()} disabled={generating}>
             {generating ? 'Gerando…' : matches.length ? '↻ Regerar tabela' : '⚙ Gerar tabela de jogos'}
           </Button>
         </div>
       </div>
+
+      {!isKnockout && hasKnockoutStage(championship) && groupMatchesOnly.length > 0 && (
+        <p className={`ko-note ${knockoutMatches.length ? 'ko-note--done' : ''}`}>
+          {knockoutMatches.length
+            ? '🏆 Mata-mata criado com os classificados. Ao encerrar cada confronto, o vencedor avança sozinho para a fase seguinte.'
+            : remaining > 0
+              ? `🏁 Faltam ${remaining} jogo(s) da primeira fase. Quando o último for encerrado, o mata-mata é criado automaticamente com os classificados.`
+              : '🏆 Primeira fase encerrada — montando o mata-mata com os classificados…'}
+        </p>
+      )}
+
+      {pendingTies.length > 0 && (
+        <p className="ko-note ko-note--warn">
+          ⚠️ {pendingTies.length} confronto(s) de mata-mata terminaram empatados. Abra a partida e
+          informe quem se classificou (pênaltis/W.O.) para liberar a fase seguinte.
+        </p>
+      )}
 
       {scheduling && matches.length > 0 ? (
         <MatchScheduler
@@ -122,12 +176,12 @@ export function MatchesPanel({
         <div className="rounds">
           {sections.map((sec) => {
             const roundNo = sec.matches[0]?.round
-            const isClosed = !isKnockout && roundNo != null && closedRounds.has(roundNo)
+            const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
             return (
               <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
                 <div className="round__head">
                   <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
-                  {!isKnockout && roundNo != null && (
+                  {!sec.isKnockout && roundNo != null && (
                     <button
                       type="button"
                       className="round__toggle"
@@ -183,17 +237,25 @@ export function MatchRow({
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
   const live = match.status === 'live'
+  // Jogo encerrado ganha cor própria na lista do administrador e do mesário.
+  const finished = match.status === 'finished'
   const hasScore = match.homeScore != null && match.awayScore != null
-  const showScore = match.status === 'finished' || live
+  const showScore = finished || live
   const schedule = showSchedule ? matchScheduleText(match, venues) : null
   return (
-    <button className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''}`} onClick={onClick} disabled={!onClick}>
+    <button
+      className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''} ${finished ? 'is-finished' : ''}`}
+      onClick={onClick}
+      disabled={!onClick}
+      title={finished ? 'Partida encerrada' : undefined}
+    >
       <span className="match-row__side match-row__side--home">
         <span className="match-row__name">{home?.name ?? 'A definir'}</span>
         <TeamBadge team={home} size={26} />
       </span>
       <span className={`match-row__score ${showScore && hasScore ? 'is-played' : ''}`}>
         {live && <span className="live-dot live-dot--sm">ao vivo</span>}
+        {finished && <span className="finished-tag">encerrado</span>}
         {showScore && hasScore ? `${match.homeScore} × ${match.awayScore}` : 'vs'}
       </span>
       <span className="match-row__side match-row__side--away">
@@ -222,31 +284,50 @@ function matchScheduleText(match: Match, venues?: Venue[]): string {
   return parts.length ? parts.join(' · ') : 'Data, horário e local a definir'
 }
 
-interface Section {
+export interface Section {
   key: string
   title: string
   matches: Match[]
+  /** Seção de mata-mata (sem fechamento de inscrições por rodada). */
+  isKnockout: boolean
 }
 
-function groupMatches(matches: Match[], isKnockout: boolean): Section[] {
-  if (isKnockout) {
-    const byPhase = new Map<MatchPhase, Match[]>()
-    for (const m of matches) {
+const PHASE_ORDER: MatchPhase[] = [
+  'round_of_32',
+  'round_of_16',
+  'quarter',
+  'semi',
+  'final',
+  'third_place',
+]
+
+/**
+ * Seções da lista de jogos: as rodadas da primeira fase e, na sequência, as
+ * fases do mata-mata (que podem coexistir no formato grupos + mata-mata).
+ */
+export function matchSections(matches: Match[]): Section[] {
+  const byRound = new Map<number, Match[]>()
+  const byPhase = new Map<MatchPhase, Match[]>()
+  for (const m of matches) {
+    if (m.phase === 'group') {
+      if (!byRound.has(m.round)) byRound.set(m.round, [])
+      byRound.get(m.round)!.push(m)
+    } else {
       if (!byPhase.has(m.phase)) byPhase.set(m.phase, [])
       byPhase.get(m.phase)!.push(m)
     }
-    const order: MatchPhase[] = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final', 'third_place']
-    return order
-      .filter((p) => byPhase.has(p))
-      .map((p) => ({ key: p, title: PHASE_LABELS[p], matches: byPhase.get(p)! }))
   }
 
-  const byRound = new Map<number, Match[]>()
-  for (const m of matches) {
-    if (!byRound.has(m.round)) byRound.set(m.round, [])
-    byRound.get(m.round)!.push(m)
-  }
-  return [...byRound.keys()]
+  const rounds: Section[] = [...byRound.keys()]
     .sort((a, b) => a - b)
-    .map((r) => ({ key: `r${r}`, title: `Rodada ${r}`, matches: byRound.get(r)! }))
+    .map((r) => ({ key: `r${r}`, title: `Rodada ${r}`, matches: byRound.get(r)!, isKnockout: false }))
+
+  const phases: Section[] = PHASE_ORDER.filter((p) => byPhase.has(p)).map((p) => ({
+    key: p,
+    title: PHASE_LABELS[p],
+    matches: byPhase.get(p)!.sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0)),
+    isKnockout: true,
+  }))
+
+  return [...rounds, ...phases]
 }

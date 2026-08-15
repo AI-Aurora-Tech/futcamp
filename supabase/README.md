@@ -15,6 +15,12 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0007_closed_rounds.sql` | Encerramento manual de inscrições por rodada (`championships.closed_rounds`) + RPC atualizada. |
 | `migrations/0008_sumula_details.sql` | Súmula detalhada: substituição/motivo nos eventos (`player_in_id`, `detail`) e `matches.incidents` + RPCs do mesário. |
 | `migrations/0009_teams_per_group.sql` | Meta opcional de times por grupo (`championships.teams_per_group`). |
+| `migrations/0010_referees_venues_sponsors.sql` | Árbitros, campos e patrocinadores do campeonato. |
+| `migrations/0011_team_managers_and_create_link.sql` | 2º gestor do time e link público de criação de time. |
+| `migrations/0012_team_responsavel_phone.sql` | Telefone do responsável pelo time. |
+| `migrations/0013_password_reset.sql` | Recuperação de senha de times e mesários. |
+| `migrations/0014_qualifiers_and_lineup.sql` | Classificados por grupo/liga e presença (escalação) da partida. |
+| `migrations/0015_master_admin_and_bracket.sql` | **Administrador master** (`master_admins`, `is_master()`, exclusão de campeonato só para o master) + **mata-mata automático**: critérios de desempate, chaveamento, disputa de 3º lugar e as funções `ensure_knockout_stage` / `advance_bracket`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
 | `config.toml` | Configuração do Supabase CLI (dev local). |
@@ -34,6 +40,16 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0007_closed_rounds.sql`
    - `migrations/0008_sumula_details.sql`
    - `migrations/0009_teams_per_group.sql`
+   - `migrations/0010_referees_venues_sponsors.sql`
+   - `migrations/0011_team_managers_and_create_link.sql`
+   - `migrations/0012_team_responsavel_phone.sql`
+   - `migrations/0013_password_reset.sql`
+   - `migrations/0014_qualifiers_and_lineup.sql`
+   - `migrations/0015_master_admin_and_bracket.sql`
+   Depois da `0015`, cadastre o administrador master:
+   ```sql
+   insert into public.master_admins (email) values ('master@exemplo.com');
+   ```
 3. Em **Project Settings → API**, copie a `Project URL` e a `anon public key`.
 4. Preencha o arquivo `.env` na raiz do projeto:
    ```

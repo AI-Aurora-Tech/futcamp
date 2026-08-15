@@ -40,6 +40,9 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
 - 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
+- 👑 **Administrador master**: perfil único que administra **qualquer** campeonato e é o **único que pode excluir** um campeonato — nem mesmo o dono pode.
+- 🟩 **Jogo encerrado muda de cor** na lista do administrador e no portal do mesário.
+- 🏆 **Mata-mata automático**: definidos na criação do campeonato os **critérios de desempate**, os **classificados por grupo** e o **chaveamento** (quem pega quem até a final), o sistema **cria a fase eliminatória e insere as equipes** assim que o último jogo da primeira fase é encerrado — e leva o vencedor de cada confronto para a fase seguinte.
 
 ## 🚀 Começando
 
@@ -66,6 +69,49 @@ campeonato de exemplo já criado. Os dados ficam salvos no `localStorage`.
 
 Detalhes do banco e do modelo de segurança em [`supabase/README.md`](supabase/README.md).
 
+## 👑 Administrador master
+
+O **master** é o único perfil que enxerga e administra **todos** os campeonatos
+da plataforma — e o **único que pode excluir um campeonato**. O dono do
+campeonato continua administrando o que é dele (times, elencos, jogos,
+mesários), mas **não consegue excluí-lo**: o botão fica bloqueado e a regra é
+garantida também no banco, pela RLS.
+
+Como definir quem é master:
+
+1. **No app** — variável de ambiente com os e-mails, separados por vírgula:
+   ```bash
+   VITE_MASTER_ADMINS=fulano@exemplo.com,outro@exemplo.com
+   ```
+2. **No banco** (obrigatório com Supabase, é o que trava a exclusão de verdade)
+   — rode a migration `0015_master_admin_and_bracket.sql` e cadastre o e-mail:
+   ```sql
+   insert into public.master_admins (email) values ('fulano@exemplo.com');
+   ```
+
+No **modo demo** basta entrar com um e-mail da lista `VITE_MASTER_ADMINS`
+(padrão: `master@tabelaco.app`) para navegar como master.
+
+## 🏆 Da fase de grupos ao mata-mata (automático)
+
+Na criação do campeonato (formato **grupos + mata-mata**, ou **pontos corridos**
+com classificados) você define:
+
+- **Critérios de desempate**, na ordem — a pontuação é sempre o 1º critério e
+  os demais (vitórias, saldo, gols pró, confronto direto, cartões, sorteio) são
+  ordenados por você;
+- **Quantos se classificam por grupo**;
+- O **chaveamento**: quem pega quem na primeira fase eliminatória
+  (ex.: `1º do grupo A × 2º do grupo B`). As fases seguintes saem daí — o
+  vencedor do **Jogo 1** enfrenta o do **Jogo 2**, e assim por diante **até a
+  final** —, com opção de **disputa de 3º lugar**.
+
+Quando o **último jogo da primeira fase é encerrado**, o sistema monta a fase de
+mata-mata **já com as equipes classificadas** e, a cada confronto encerrado,
+leva o vencedor para a fase seguinte. Empate em jogo eliminatório? Abra a
+partida e informe o **classificado** (pênaltis/W.O.) — o chaveamento segue
+sozinho a partir daí.
+
 ## 📁 Estrutura
 
 ```
@@ -91,6 +137,7 @@ build `npm run build`, saída `dist`, e *rewrite* de SPA para o `index.html`).
    Supabase para usar o backend real (sem elas o app sobe em **modo demo**):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_MASTER_ADMINS` (e-mails do administrador master, separados por vírgula)
 
    > ⚠️ Variáveis `VITE_*` são lidas **no build** — após alterá-las, faça um
    > *redeploy* para que passem a valer.
@@ -120,7 +167,14 @@ vercel --prod # produção
 3. **Monte os elencos** de cada time.
 4. Em **Partidas**, clique em **“Gerar tabela de jogos”** — as rodadas são criadas automaticamente.
 5. Clique em uma partida para **lançar o placar** e os **eventos** (gols/cartões).
+   Ao **encerrar**, o jogo muda de cor na lista (para o administrador e o mesário).
 6. Acompanhe **classificação** e **estatísticas** — e compartilhe o **link público**.
+7. Encerrada a **primeira fase**, o **mata-mata** aparece pronto na aba Partidas,
+   com as equipes classificadas pelo chaveamento que você configurou.
+
+> 📄 **Súmula**: pode ser baixada/impressa **antes do jogo** (partida agendada)
+> e, depois, **somente quando a partida for encerrada** — durante o jogo ao vivo
+> ela fica bloqueada.
 
 ---
 

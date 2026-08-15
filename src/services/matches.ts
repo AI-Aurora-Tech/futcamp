@@ -2,12 +2,22 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
+import { generateGroupFixtures, generateRoundRobin } from '../lib/fixtures'
 import {
-  generateGroupFixtures,
-  generateRoundRobin,
-  seedKnockoutPairings,
-} from '../lib/fixtures'
-import type { LineupEntry, Match, MatchEvent, MatchPhase } from '../types'
+  groupPhaseComplete,
+  hasKnockoutStage,
+  pendingAdvances,
+  planKnockout,
+  resolveBracketTeams,
+} from '../lib/knockout'
+import type {
+  Championship,
+  LineupEntry,
+  Match,
+  MatchEvent,
+  MatchPhase,
+  Team,
+} from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -29,6 +39,8 @@ function fromRow(r: any): Match {
     officialId: r.official_id ?? undefined,
     incidents: r.incidents ?? undefined,
     lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
+    bracketPos: r.bracket_pos ?? undefined,
+    winnerTeamId: r.winner_team_id ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -50,6 +62,8 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.officialId !== undefined) row.official_id = m.officialId
   if (m.incidents !== undefined) row.incidents = m.incidents
   if (m.lineup !== undefined) row.lineup = m.lineup
+  if (m.bracketPos !== undefined) row.bracket_pos = m.bracketPos
+  if (m.winnerTeamId !== undefined) row.winner_team_id = m.winnerTeamId
   return row
 }
 
@@ -184,26 +198,167 @@ export async function generateGroups(
 }
 
 /**
- * Gera a fase inicial de mata-mata a partir de uma lista de times já ordenada
- * por "seed" (1º vs último). Substitui as partidas existentes.
+ * Gera o mata-mata completo (da fase inicial até a final) a partir de uma lista
+ * de times já ordenada por "seed" (1º vs último). Substitui as partidas
+ * existentes.
  */
 export async function generateKnockout(
   championshipId: string,
   seededTeamIds: string[],
+  thirdPlace = false,
 ): Promise<void> {
-  const pairings = seedKnockoutPairings(seededTeamIds)
+  const size = Math.max(2, nextPowerOfTwo(seededTeamIds.length))
+  const padded: (string | null)[] = [...seededTeamIds]
+  while (padded.length < size) padded.push(null)
+  const pairs = Array.from({ length: size / 2 }, (_, i) => ({
+    home: padded[i],
+    away: padded[size - 1 - i],
+  }))
   await deleteMatchesOf(championshipId)
-  const toInsert: NewMatch[] = pairings.map((p, i) => ({
+  await bulkInsert(championshipId, plannedToMatches(championshipId, planKnockout(pairs, thirdPlace)))
+}
+
+function nextPowerOfTwo(n: number): number {
+  let p = 1
+  while (p < n) p *= 2
+  return p
+}
+
+function plannedToMatches(
+  championshipId: string,
+  planned: ReturnType<typeof planKnockout>,
+): NewMatch[] {
+  return planned.map((p) => ({
     championshipId,
-    round: i + 1,
-    phase: (p.group as MatchPhase) ?? 'final',
+    round: p.round,
+    phase: p.phase,
     homeTeamId: p.homeTeamId,
     awayTeamId: p.awayTeamId,
     homeScore: null,
     awayScore: null,
-    status: 'scheduled',
+    status: p.status,
+    bracketPos: p.bracketPos,
   }))
-  await bulkInsert(championshipId, toInsert)
+}
+
+/**
+ * Cria a fase de mata-mata do campeonato com as equipes classificadas na
+ * primeira fase, respeitando o chaveamento configurado ("quem pega quem").
+ * Não mexe nos jogos da primeira fase.
+ */
+export async function createKnockoutStage(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  events: MatchEvent[] = [],
+): Promise<boolean> {
+  const pairs = resolveBracketTeams(champ, teams, matches, events)
+  if (pairs.length === 0 || pairs.every((p) => !p.home && !p.away)) return false
+  // Relê as partidas imediatamente antes de inserir: evita criar a fase duas
+  // vezes quando duas telas (ou dois efeitos) disparam a criação juntas.
+  const fresh = await listMatches(champ.id)
+  if (fresh.some((m) => m.phase !== 'group')) return false
+  await bulkInsert(champ.id, plannedToMatches(champ.id, planKnockout(pairs, champ.thirdPlace)))
+  return true
+}
+
+/**
+ * Mantém o mata-mata em dia:
+ *  1. cria a fase eliminatória assim que TODOS os jogos da primeira fase são
+ *     encerrados (se o campeonato prevê mata-mata e a criação automática está
+ *     ligada);
+ *  2. leva os vencedores (e os perdedores das semis, na disputa de 3º) para os
+ *     confrontos da fase seguinte.
+ *
+ * Devolve `true` quando algo mudou — o chamador deve recarregar os dados.
+ */
+export function syncKnockout(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  events: MatchEvent[] = [],
+): Promise<boolean> {
+  // Uma sincronização por campeonato de cada vez: duas chamadas simultâneas
+  // (React StrictMode, duas abas do app) não podem criar o mata-mata em dobro.
+  const running = inFlightSync.get(champ.id)
+  if (running) return running
+  const p = runSync(champ, teams, matches, events).finally(() => inFlightSync.delete(champ.id))
+  inFlightSync.set(champ.id, p)
+  return p
+}
+
+const inFlightSync = new Map<string, Promise<boolean>>()
+
+async function runSync(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  events: MatchEvent[],
+): Promise<boolean> {
+  let changed = false
+  let current = matches
+
+  const hasKnockoutMatches = current.some((m) => m.phase !== 'group')
+  if (
+    !hasKnockoutMatches &&
+    champ.autoKnockout !== false &&
+    hasKnockoutStage(champ) &&
+    groupPhaseComplete(current)
+  ) {
+    if (await createKnockoutStage(champ, teams, current, events)) {
+      changed = true
+      current = await listMatches(champ.id)
+    }
+  }
+
+  for (const { id, patch } of pendingAdvances(current)) {
+    await updateMatch(id, patch)
+    changed = true
+  }
+
+  return changed
+}
+
+/**
+ * Mesma sincronização, porém acionável por quem NÃO tem escrita direta nas
+ * partidas (o mesário). No Supabase passa pelas funções `ensure_knockout_stage`
+ * e `advance_bracket` (migration 0015), que validam as regras no banco; no modo
+ * demo cai no fluxo normal.
+ */
+export async function requestKnockoutSync(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  events: MatchEvent[] = [],
+): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    // As funções do banco revalidam as regras e serializam a criação.
+    const hasKnockoutMatches = matches.some((m) => m.phase !== 'group')
+    if (
+      !hasKnockoutMatches &&
+      champ.autoKnockout !== false &&
+      hasKnockoutStage(champ) &&
+      groupPhaseComplete(matches)
+    ) {
+      const pairs = resolveBracketTeams(champ, teams, matches, events)
+      const plan = planKnockout(pairs, champ.thirdPlace).map((p) => ({
+        round: p.round,
+        phase: p.phase,
+        home_team_id: p.homeTeamId,
+        away_team_id: p.awayTeamId,
+        bracket_pos: p.bracketPos,
+      }))
+      const { error } = await supabase.rpc('ensure_knockout_stage', {
+        p_champ: champ.id,
+        p_matches: plan,
+      })
+      if (error) console.warn('ensure_knockout_stage:', error.message)
+    }
+    const { error } = await supabase.rpc('advance_bracket', { p_champ: champ.id })
+    if (error) console.warn('advance_bracket:', error.message)
+    return
+  }
+  await syncKnockout(champ, teams, matches, events)
 }
 
 async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<void> {

@@ -27,12 +27,12 @@ export function Overview({
   const topScorer = useMemo(() => aggregateByPlayer(events, 'goal', players, teams)[0], [events, players, teams])
 
   const standings = useMemo(
-    () => (isGroups ? null : computeStandings(teams, matches, championship)),
-    [teams, matches, championship, isGroups],
+    () => (isGroups ? null : computeStandings(teams, matches, championship, { events })),
+    [teams, matches, championship, isGroups, events],
   )
   const groupStandings = useMemo(
-    () => (isGroups ? computeStandingsByGroup(teams, matches, championship) : null),
-    [teams, matches, championship, isGroups],
+    () => (isGroups ? computeStandingsByGroup(teams, matches, championship, { events }) : null),
+    [teams, matches, championship, isGroups, events],
   )
 
   const finished = matches.filter((m) => m.status === 'finished')

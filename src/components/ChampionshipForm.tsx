@@ -1,17 +1,25 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AUDIENCE_LABELS,
+  DEFAULT_TIEBREAKERS,
   FORMAT_LABELS,
+  OVERALL_GROUP,
   SPORT_LABELS,
+  TIEBREAKER_LABELS,
   type Audience,
+  type BracketPairing,
   type Category,
   type Championship,
   type ChampionshipFormat,
+  type QualifierSlot,
   type Sport,
+  type TiebreakerId,
 } from '../types'
 import { Button, ChampLogo, Field, Modal } from './ui'
 import { uid } from '../lib/id'
 import { fileToDataUrl } from '../lib/image'
+import { groupLetters, phaseForPairs, slotLabel, suggestBracket } from '../lib/knockout'
+import { PHASE_LABELS } from '../types'
 import type { NewChampionship } from '../services/championships'
 
 const LOGO_CHOICES = ['🏆', '⚽', '🥇', '🔥', '⭐', '🦁', '🦅', '🐯', '🐺', '🛡️']
@@ -42,6 +50,49 @@ function emptyDraft(): CatDraft {
   return { id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '', maxAthletes: '', maxStaff: '' }
 }
 
+/** Seleciona uma vaga do chaveamento: "Nº X do grupo Y" (ou vaga livre/bye). */
+function SlotPicker({
+  slot,
+  side,
+  groups,
+  maxPosition,
+  onChange,
+}: {
+  slot: QualifierSlot | null
+  side: 'home' | 'away'
+  groups: string[]
+  maxPosition: number
+  onChange: (patch: Partial<QualifierSlot> | null) => void
+}) {
+  const positions = Array.from({ length: Math.max(maxPosition, slot?.position ?? 1) }, (_, i) => i + 1)
+  return (
+    <span className={`slot-picker slot-picker--${side}`}>
+      <select
+        value={slot ? String(slot.position) : ''}
+        onChange={(e) => (e.target.value ? onChange({ position: Number(e.target.value) }) : onChange(null))}
+        aria-label="Colocação"
+      >
+        <option value="">bye</option>
+        {positions.map((p) => (
+          <option key={p} value={p}>{p}º</option>
+        ))}
+      </select>
+      {groups.length > 1 && (
+        <select
+          value={slot?.group ?? groups[0]}
+          onChange={(e) => onChange({ group: e.target.value })}
+          disabled={!slot}
+          aria-label="Grupo"
+        >
+          {groups.map((g) => (
+            <option key={g} value={g}>{g === OVERALL_GROUP ? 'geral' : `grupo ${g}`}</option>
+          ))}
+        </select>
+      )}
+    </span>
+  )
+}
+
 export function ChampionshipForm({
   initial,
   onClose,
@@ -70,6 +121,14 @@ export function ChampionshipForm({
   const [advancePerGroup, setAdvancePerGroup] = useState<string>(initial?.advancePerGroup != null ? String(initial.advancePerGroup) : '')
   const [leagueQualifiers, setLeagueQualifiers] = useState<string>(initial?.leagueQualifiers != null ? String(initial.leagueQualifiers) : '')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
+  const [tiebreakers, setTiebreakers] = useState<TiebreakerId[]>(
+    initial?.tiebreakers?.length ? initial.tiebreakers : DEFAULT_TIEBREAKERS,
+  )
+  const [bracket, setBracket] = useState<BracketPairing[]>(initial?.bracket ?? [])
+  /** O chaveamento já foi editado à mão? (então não é mais autossugerido) */
+  const [bracketTouched, setBracketTouched] = useState(Boolean(initial?.bracket?.length))
+  const [thirdPlace, setThirdPlace] = useState(initial?.thirdPlace ?? false)
+  const [autoKnockout, setAutoKnockout] = useState(initial?.autoKnockout ?? true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const logoRef = useRef<HTMLInputElement>(null)
@@ -114,6 +173,64 @@ export function ChampionshipForm({
       })
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* Fase eliminatória: critérios de classificação e chaveamento             */
+  /* ---------------------------------------------------------------------- */
+  const advanceNum = advancePerGroup ? Number(advancePerGroup) : 2
+  const qualifiersNum = leagueQualifiers ? Number(leagueQualifiers) : 0
+  const hasKnockout =
+    format === 'groups_knockout' || (format === 'league' && qualifiersNum >= 2)
+  const groups = useMemo(
+    () => (format === 'groups_knockout' ? groupLetters(Number(numGroups) || 1) : [OVERALL_GROUP]),
+    [format, numGroups],
+  )
+  const maxPosition = format === 'groups_knockout' ? Math.max(1, advanceNum) : Math.max(2, qualifiersNum)
+
+  const suggest = useMemo(
+    () =>
+      suggestBracket({
+        format,
+        numGroups: Number(numGroups) || 1,
+        advancePerGroup: advanceNum,
+        leagueQualifiers: qualifiersNum,
+      }),
+    [format, numGroups, advanceNum, qualifiersNum],
+  )
+
+  // Enquanto o organizador não mexer no chaveamento, ele acompanha o formato:
+  // mudou o nº de grupos ou de classificados, a sugestão é refeita. A partir da
+  // primeira edição manual, o que ele montou é preservado.
+  useEffect(() => {
+    if (hasKnockout && !bracketTouched) setBracket(suggest)
+  }, [hasKnockout, bracketTouched, suggest])
+
+  function moveTiebreaker(id: TiebreakerId, dir: -1 | 1) {
+    setTiebreakers((prev) => {
+      const i = prev.indexOf(id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= prev.length) return prev
+      const next = [...prev]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+  }
+
+  function toggleTiebreaker(id: TiebreakerId) {
+    setTiebreakers((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  function updateSlot(pairingId: string, side: 'home' | 'away', patch: Partial<QualifierSlot> | null) {
+    setBracketTouched(true)
+    setBracket((prev) =>
+      prev.map((p) => {
+        if (p.id !== pairingId) return p
+        if (patch === null) return { ...p, [side]: null }
+        const base = p[side] ?? { group: groups[0], position: 1 }
+        return { ...p, [side]: { ...base, ...patch } }
+      }),
+    )
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -146,6 +263,10 @@ export function ChampionshipForm({
       teamsPerGroup: format === 'groups_knockout' && teamsPerGroup ? Number(teamsPerGroup) : undefined,
       advancePerGroup: format === 'groups_knockout' && advancePerGroup ? Number(advancePerGroup) : undefined,
       leagueQualifiers: format === 'league' && leagueQualifiers ? Number(leagueQualifiers) : undefined,
+      tiebreakers,
+      bracket: hasKnockout ? bracket : undefined,
+      thirdPlace: hasKnockout ? thirdPlace : undefined,
+      autoKnockout: hasKnockout ? autoKnockout : undefined,
     })
     setBusy(false)
   }
@@ -324,6 +445,132 @@ export function ChampionshipForm({
           <Field label="Quantos se classificam (opcional)" hint="Nº de times no topo da tabela que avançam. Deixe em branco para não destacar.">
             <input type="number" min={1} max={64} value={leagueQualifiers} onChange={(e) => setLeagueQualifiers(e.target.value)} placeholder="ex.: 8" />
           </Field>
+        )}
+
+        {format !== 'knockout' && (
+          <div className="phase-config">
+            <h4 className="phase-config__title">📊 Critérios de classificação</h4>
+            <p className="field__hint">
+              O 1º critério é sempre a <b>pontuação</b>. Abaixo, ordene os critérios de desempate —
+              eles valem para a tabela e para definir quem se classifica ao mata-mata.
+            </p>
+            <ol className="tiebreak-list">
+              {tiebreakers.map((t, i) => (
+                <li key={t} className="tiebreak-item">
+                  <span className="tiebreak-item__idx">{i + 2}º</span>
+                  <span className="tiebreak-item__label">{TIEBREAKER_LABELS[t]}</span>
+                  <span className="tiebreak-item__actions">
+                    <button type="button" className="icon-btn" title="Subir" onClick={() => moveTiebreaker(t, -1)} disabled={i === 0}>↑</button>
+                    <button type="button" className="icon-btn" title="Descer" onClick={() => moveTiebreaker(t, 1)} disabled={i === tiebreakers.length - 1}>↓</button>
+                    <button type="button" className="icon-btn icon-btn--danger" title="Remover critério" onClick={() => toggleTiebreaker(t)}>✕</button>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {(Object.keys(TIEBREAKER_LABELS) as TiebreakerId[]).some((t) => !tiebreakers.includes(t)) && (
+              <div className="tiebreak-add">
+                <span className="muted small">Adicionar:</span>
+                {(Object.keys(TIEBREAKER_LABELS) as TiebreakerId[])
+                  .filter((t) => !tiebreakers.includes(t))
+                  .map((t) => (
+                    <button type="button" key={t} className="chip-btn" onClick={() => toggleTiebreaker(t)}>
+                      ＋ {TIEBREAKER_LABELS[t]}
+                    </button>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {hasKnockout && (
+          <div className="phase-config">
+            <div className="phase-config__head">
+              <h4 className="phase-config__title">🏆 Chaveamento do mata-mata</h4>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setBracket(suggest)
+                  setBracketTouched(false)
+                }}
+              >
+                ↻ sugerir automaticamente
+              </button>
+            </div>
+            <p className="field__hint">
+              Defina <b>quem pega quem</b> na primeira fase eliminatória. As fases seguintes saem
+              daqui: o vencedor do Jogo 1 enfrenta o vencedor do Jogo 2, o do Jogo 3 enfrenta o do
+              Jogo 4, e assim por diante — até a final.
+            </p>
+
+            <div className="bracket-list">
+              {bracket.length === 0 && (
+                <p className="muted small">
+                  Informe os classificados {format === 'groups_knockout' ? 'por grupo' : 'da tabela'} para montar o chaveamento.
+                </p>
+              )}
+              {bracket.map((p, i) => (
+                <div key={p.id} className="bracket-row">
+                  <span className="bracket-row__idx">Jogo {i + 1}</span>
+                  <SlotPicker
+                    slot={p.home}
+                    side="home"
+                    groups={groups}
+                    maxPosition={maxPosition}
+                    onChange={(patch) => updateSlot(p.id, 'home', patch)}
+                  />
+                  <span className="bracket-row__x">×</span>
+                  <SlotPicker
+                    slot={p.away}
+                    side="away"
+                    groups={groups}
+                    maxPosition={maxPosition}
+                    onChange={(patch) => updateSlot(p.id, 'away', patch)}
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn--danger"
+                    title="Remover confronto"
+                    onClick={() => {
+                      setBracketTouched(true)
+                      setBracket((prev) => prev.filter((x) => x.id !== p.id))
+                    }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="link-btn link-btn--add"
+                onClick={() => {
+                  setBracketTouched(true)
+                  setBracket((prev) => [
+                    ...prev,
+                    { id: uid('br'), home: { group: groups[0], position: 1 }, away: { group: groups[groups.length - 1], position: Math.min(2, maxPosition) } },
+                  ])
+                }}
+              >
+                ＋ adicionar confronto
+              </button>
+            </div>
+
+            {bracket.length > 0 && (
+              <p className="bracket-preview">
+                Fase inicial: <b>{PHASE_LABELS[phaseForPairs(bracket.length)]}</b> ·{' '}
+                {bracket.map((p, i) => `Jogo ${i + 1}: ${slotLabel(p.home)} × ${slotLabel(p.away)}`).join(' · ')}
+              </p>
+            )}
+
+            <label className="checkbox">
+              <input type="checkbox" checked={thirdPlace} onChange={(e) => setThirdPlace(e.target.checked)} />
+              <span>Criar disputa de 3º lugar (perdedores das semifinais)</span>
+            </label>
+            <label className="checkbox">
+              <input type="checkbox" checked={autoKnockout} onChange={(e) => setAutoKnockout(e.target.checked)} />
+              <span>Criar o mata-mata automaticamente quando todos os jogos da primeira fase forem encerrados</span>
+            </label>
+          </div>
         )}
 
         {format !== 'knockout' && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { getChampionship } from '../services/championships'
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
+import { listEvents, listMatches, requestKnockoutSync } from '../services/matches'
 import {
   listAssignedMatches,
   mesaLogin,
@@ -56,6 +57,23 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  /**
+   * Depois que o mesário salva um jogo: se aquele era o último da primeira
+   * fase, o mata-mata é criado na hora (e os vencedores avançam) — sem
+   * depender do administrador abrir o campeonato.
+   */
+  const afterSave = useCallback(async () => {
+    try {
+      if (champ) {
+        const [all, evs] = await Promise.all([listMatches(championshipId), listEvents(championshipId)])
+        await requestKnockoutSync(champ, await listTeams(championshipId), all, evs)
+      }
+    } catch {
+      /* sem permissão de escrita: o administrador conclui ao abrir o campeonato */
+    }
+    await loadData()
+  }, [champ, championshipId, loadData])
 
   function onLoggedIn(s: Session) {
     try {
@@ -152,7 +170,7 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
-            void loadData()
+            void afterSave()
           }}
         />
       )}

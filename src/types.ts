@@ -67,6 +67,65 @@ export interface Sponsor {
   tier: 'patrocinador' | 'parceiro'
 }
 
+/**
+ * Critério de desempate da classificação, aplicado APÓS os pontos ganhos
+ * (que são sempre o primeiro critério).
+ */
+export type TiebreakerId =
+  | 'wins'
+  | 'goal_diff'
+  | 'goals_for'
+  | 'goals_against'
+  | 'head_to_head'
+  | 'fewest_red'
+  | 'fewest_yellow'
+  | 'draw_lots'
+
+export const TIEBREAKER_LABELS: Record<TiebreakerId, string> = {
+  wins: 'Mais vitórias',
+  goal_diff: 'Melhor saldo de gols',
+  goals_for: 'Mais gols marcados (gols pró)',
+  goals_against: 'Menos gols sofridos',
+  head_to_head: 'Confronto direto',
+  fewest_red: 'Menos cartões vermelhos',
+  fewest_yellow: 'Menos cartões amarelos',
+  draw_lots: 'Sorteio (ordem alfabética)',
+}
+
+/** Ordem sugerida de desempate para novos campeonatos. */
+export const DEFAULT_TIEBREAKERS: TiebreakerId[] = [
+  'wins',
+  'goal_diff',
+  'goals_for',
+  'head_to_head',
+  'fewest_red',
+  'fewest_yellow',
+  'draw_lots',
+]
+
+/** Ordem histórica — campeonatos criados antes dos critérios configuráveis. */
+export const LEGACY_TIEBREAKERS: TiebreakerId[] = ['goal_diff', 'goals_for', 'wins']
+
+/** Chave de "grupo" usada quando a classificação é geral (pontos corridos). */
+export const OVERALL_GROUP = '*'
+
+/**
+ * Vaga do mata-mata: "o Nº `position` do grupo `group`".
+ * `group` é a letra do grupo ("A", "B"…) ou `OVERALL_GROUP` na classificação geral.
+ */
+export interface QualifierSlot {
+  group: string
+  position: number
+}
+
+/** Confronto do chaveamento: quem pega quem na primeira fase do mata-mata. */
+export interface BracketPairing {
+  id: string
+  /** `null` = vaga vazia (bye): o adversário avança direto. */
+  home: QualifierSlot | null
+  away: QualifierSlot | null
+}
+
 export interface Championship {
   id: string
   ownerId: string
@@ -103,6 +162,24 @@ export interface Championship {
   advancePerGroup?: number
   /** Nº de classificados no formato de pontos corridos (liga). */
   leagueQualifiers?: number
+  /**
+   * Critérios de desempate da classificação, na ordem de aplicação (os pontos
+   * ganhos são sempre o primeiro critério, por isso não entram na lista).
+   */
+  tiebreakers?: TiebreakerId[]
+  /**
+   * Chaveamento da primeira fase do mata-mata: quem pega quem. As fases
+   * seguintes saem daí — o vencedor do confronto 1 enfrenta o do 2, e assim
+   * por diante até a final.
+   */
+  bracket?: BracketPairing[]
+  /** Criar também a disputa de 3º lugar (perdedores das semifinais). */
+  thirdPlace?: boolean
+  /**
+   * Gerar o mata-mata automaticamente quando TODOS os jogos da primeira fase
+   * forem encerrados. Padrão: ligado.
+   */
+  autoKnockout?: boolean
   /** Árbitros cadastrados no campeonato. */
   referees?: Referee[]
   /** Campos / locais das partidas. */
@@ -221,6 +298,17 @@ export interface Match {
   refereeId?: string
   /** Mesário responsável por lançar os dados desta partida. */
   officialId?: string
+  /**
+   * Posição do confronto dentro da fase do mata-mata (0, 1, 2…). É o que liga
+   * as fases: o vencedor da posição `p` vai para a posição `p / 2` da fase
+   * seguinte — mandante quando `p` é par, visitante quando é ímpar.
+   */
+  bracketPos?: number
+  /**
+   * Classificado definido manualmente (pênaltis/W.O.) quando o confronto de
+   * mata-mata termina empatado. Tem prioridade sobre o placar.
+   */
+  winnerTeamId?: string
   /** Relato de incidentes (atrasos, segurança, conduta de torcidas). */
   incidents?: string
   /**

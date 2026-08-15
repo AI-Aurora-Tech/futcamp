@@ -210,6 +210,8 @@ export async function listAssignedMatches(
       venue: r.venue ?? undefined,
       officialId: r.official_id ?? undefined,
       lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
+      bracketPos: r.bracket_pos ?? undefined,
+      winnerTeamId: r.winner_team_id ?? undefined,
       createdAt: r.created_at,
     }))
   }

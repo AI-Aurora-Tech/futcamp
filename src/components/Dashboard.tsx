@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   createChampionship,
+  listAllChampionships,
   listChampionships,
   type NewChampionship,
 } from '../services/championships'
@@ -10,20 +11,22 @@ import { Button, ChampLogo, EmptyState, Spinner, StatusPill } from './ui'
 import { ChampionshipForm } from './ChampionshipForm'
 
 export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
-  const { organizer } = useAuth()
+  const { organizer, isMaster } = useAuth()
   const [items, setItems] = useState<Championship[] | null>(null)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     if (!organizer) return
     let active = true
-    listChampionships(organizer.id)
+    // O administrador master enxerga os campeonatos de todos os organizadores.
+    const load = isMaster ? listAllChampionships() : listChampionships(organizer.id)
+    load
       .then((list) => active && setItems(list))
       .catch(() => active && setItems([]))
     return () => {
       active = false
     }
-  }, [organizer])
+  }, [organizer, isMaster])
 
   async function handleCreate(data: NewChampionship) {
     if (!organizer) return
@@ -36,8 +39,12 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
     <div className="container dashboard">
       <div className="dashboard__head">
         <div>
-          <h1>Meus campeonatos</h1>
-          <p className="muted">Gerencie suas competições e acompanhe os resultados.</p>
+          <h1>{isMaster ? 'Todos os campeonatos' : 'Meus campeonatos'}</h1>
+          <p className="muted">
+            {isMaster
+              ? 'Você é o administrador master: administra e exclui qualquer campeonato da plataforma.'
+              : 'Gerencie suas competições e acompanhe os resultados.'}
+          </p>
         </div>
         <Button onClick={() => setCreating(true)}>＋ Novo campeonato</Button>
       </div>
@@ -58,6 +65,9 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
                 <div className="champ-card__top">
                   <h3>{c.name}</h3>
                   <StatusPill status={c.status} />
+                  {isMaster && organizer && c.ownerId !== organizer.id && (
+                    <span className="master-tag" title="Campeonato de outro organizador">de outro organizador</span>
+                  )}
                 </div>
                 <p className="champ-card__meta">
                   {SPORT_LABELS[c.sport]} · {FORMAT_LABELS[c.format]}

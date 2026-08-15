@@ -15,11 +15,14 @@ import {
   signUp as apiSignUp,
   type Organizer,
 } from '../services/auth'
+import { isMasterUser } from '../services/masters'
 
 interface AuthContextValue {
   organizer: Organizer | null
   loading: boolean
   mode: 'supabase' | 'demo'
+  /** Administrador master: administra e exclui qualquer campeonato. */
+  isMaster: boolean
   signIn: (email: string, password: string) => Promise<string | null>
   signUp: (name: string, email: string, password: string) => Promise<string | null>
   enterDemo: () => void
@@ -31,6 +34,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [organizer, setOrganizer] = useState<Organizer | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isMaster, setIsMaster] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -42,11 +46,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Reavalia o papel de master sempre que a sessão muda.
+  useEffect(() => {
+    let active = true
+    if (!organizer) {
+      setIsMaster(false)
+      return
+    }
+    isMasterUser(organizer)
+      .then((m) => active && setIsMaster(m))
+      .catch(() => active && setIsMaster(false))
+    return () => {
+      active = false
+    }
+  }, [organizer])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       organizer,
       loading,
       mode: authMode,
+      isMaster,
       async signIn(email, password) {
         const { organizer: org, error } = await apiSignIn(email, password)
         if (org) setOrganizer(org)
@@ -64,9 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signOut() {
         await apiSignOut()
         setOrganizer(null)
+        setIsMaster(false)
       },
     }),
-    [organizer, loading],
+    [organizer, loading, isMaster],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

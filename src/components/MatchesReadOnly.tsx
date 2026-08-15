@@ -1,29 +1,17 @@
 import { useMemo } from 'react'
-import { PHASE_LABELS, type Championship, type Match, type MatchPhase, type Team } from '../types'
-import { MatchRow } from './MatchesPanel'
+import type { Championship, Match, Team } from '../types'
+import { MatchRow, matchSections } from './MatchesPanel'
 import { EmptyState } from './ui'
 
 export function MatchesReadOnly({
-  championship,
   teams,
   matches,
 }: {
-  championship: Championship
+  championship?: Championship
   teams: Team[]
   matches: Match[]
 }) {
-  const isKnockout = championship.format === 'knockout'
-  const sections = useMemo(() => {
-    if (isKnockout) {
-      const byPhase = new Map<MatchPhase, Match[]>()
-      for (const m of matches) (byPhase.get(m.phase) ?? byPhase.set(m.phase, []).get(m.phase)!)!.push(m)
-      const order: MatchPhase[] = ['round_of_32', 'round_of_16', 'quarter', 'semi', 'final', 'third_place']
-      return order.filter((p) => byPhase.has(p)).map((p) => ({ key: p, title: PHASE_LABELS[p], matches: byPhase.get(p)! }))
-    }
-    const byRound = new Map<number, Match[]>()
-    for (const m of matches) (byRound.get(m.round) ?? byRound.set(m.round, []).get(m.round)!)!.push(m)
-    return [...byRound.keys()].sort((a, b) => a - b).map((r) => ({ key: `r${r}`, title: `Rodada ${r}`, matches: byRound.get(r)! }))
-  }, [matches, isKnockout])
+  const sections = useMemo(() => matchSections(matches), [matches])
 
   if (matches.length === 0) {
     return (

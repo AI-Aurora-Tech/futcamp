@@ -7,8 +7,9 @@ import {
 } from '../services/championships'
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
-import { listEvents, listMatches } from '../services/matches'
+import { listEvents, listMatches, syncKnockout } from '../services/matches'
 import { listOfficials } from '../services/officials'
+import { useAuth } from '../context/AuthContext'
 import {
   FORMAT_LABELS,
   SPORT_LABELS,
@@ -49,6 +50,7 @@ export function ManageChampionship({
   championshipId: string
   onBack: () => void
 }) {
+  const { organizer, isMaster } = useAuth()
   const [champ, setChamp] = useState<Championship | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
@@ -64,14 +66,25 @@ export function ManageChampionship({
     // a falha de uma consulta secundária (ex.: mesários sem a migration 0006)
     // não pode "derrubar" a tela inteira nem esconder o campeonato.
     const empty = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[])
-    const [c, t, p, m, e, o] = await Promise.all([
-      getChampionship(championshipId).catch(() => null),
-      empty(listTeams(championshipId)),
-      empty(listPlayers(championshipId)),
-      empty(listMatches(championshipId)),
-      empty(listEvents(championshipId)),
-      empty(listOfficials(championshipId)),
-    ])
+    const fetchAll = () =>
+      Promise.all([
+        getChampionship(championshipId).catch(() => null),
+        empty(listTeams(championshipId)),
+        empty(listPlayers(championshipId)),
+        empty(listMatches(championshipId)),
+        empty(listEvents(championshipId)),
+        empty(listOfficials(championshipId)),
+      ])
+
+    let [c, t, p, m, e, o] = await fetchAll()
+
+    // Fase de grupos encerrada? Cria o mata-mata com os classificados e leva os
+    // vencedores para a fase seguinte. Só recarrega se algo mudou de fato.
+    if (c) {
+      const changed = await syncKnockout(c, t, m, e).catch(() => false)
+      if (changed) [c, t, p, m, e, o] = await fetchAll()
+    }
+
     setChamp(c)
     setTeams(t)
     setPlayers(p)
@@ -98,6 +111,11 @@ export function ManageChampionship({
 
   async function remove() {
     if (!champ) return
+    // Trava de segurança: só o administrador master exclui campeonatos.
+    if (!isMaster) {
+      alert('Somente o administrador master pode excluir campeonatos.')
+      return
+    }
     if (!confirm(`Excluir o campeonato "${champ.name}"? Esta ação não pode ser desfeita.`)) return
     await deleteChampionship(championshipId)
     onBack()
@@ -139,6 +157,11 @@ export function ManageChampionship({
               </p>
             </div>
             <div className="manage__actions">
+              {isMaster && organizer && champ.ownerId !== organizer.id && (
+                <span className="master-tag" title="Você está administrando o campeonato de outro organizador">
+                  👑 modo master
+                </span>
+              )}
               <Button variant="soft" onClick={copyPublicLink}>🔗 Link público</Button>
             </div>
           </div>
@@ -153,10 +176,10 @@ export function ManageChampionship({
       </div>
 
       <div className="container manage__content">
-        {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} />}
+        {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} players={players} events={events} />}
         {tab === 'teams' && <TeamsPanel championship={champ} teams={teams} onChange={reload} />}
         {tab === 'players' && <PlayersPanel championship={champ} teams={teams} players={players} onChange={reload} />}
-        {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} officials={officials} onChange={reload} />}
+        {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} events={events} officials={officials} onChange={reload} />}
         {tab === 'officials' && <OfficialsPanel championship={champ} officials={officials} matches={matches} onChange={reload} />}
         {tab === 'registries' && <RegistriesPanel championship={champ} onChange={reload} />}
         {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} />}
@@ -188,8 +211,24 @@ export function ManageChampionship({
 
             <div className="settings-block danger-zone">
               <h3>Zona de perigo</h3>
-              <p className="muted small">A exclusão remove times, jogadores, partidas e estatísticas.</p>
-              <Button variant="danger" onClick={() => void remove()}>Excluir campeonato</Button>
+              {isMaster ? (
+                <>
+                  <p className="muted small">
+                    A exclusão remove times, jogadores, partidas e estatísticas.
+                    Você é o administrador master — use com cuidado.
+                  </p>
+                  <Button variant="danger" onClick={() => void remove()}>Excluir campeonato</Button>
+                </>
+              ) : (
+                <>
+                  <p className="muted small">
+                    🔒 A exclusão de campeonatos é exclusiva do <b>administrador master</b> —
+                    nem mesmo o dono do campeonato pode excluí-lo. Precisa remover esta
+                    competição? Fale com o master ou marque o status como “Encerrado”.
+                  </p>
+                  <Button variant="danger" disabled>Excluir campeonato</Button>
+                </>
+              )}
             </div>
           </section>
         )}
