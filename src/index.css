@@ -264,7 +264,7 @@ input, select, textarea { font-family: inherit; font-size: 1rem; }
 .modal__head h3 { font-size: 1.15rem; }
 .modal__close { background: none; border: none; font-size: 1.1rem; color: var(--muted); width: 32px; height: 32px; border-radius: 50%; }
 .modal__close:hover { background: var(--surface-2); }
-.modal__body { padding: 1.35rem; overflow-y: auto; }
+.modal__body { padding: 1.35rem; overflow-y: auto; overflow-x: hidden; }
 
 /* ---------- Badge / Empty / Spinner ---------- */
 .badge-circle { display: inline-grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--line); overflow: hidden; flex: none; line-height: 1; }
@@ -719,7 +719,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
   color: var(--muted, #6b7280);
   margin-left: 0.4rem;
 }
-.presence-box__body { padding: 0.8rem 0.9rem; }
+.presence-box__body { padding: 0.8rem 0.9rem; overflow-x: hidden; }
 .presence-box__actions {
   display: flex;
   align-items: center;
@@ -729,9 +729,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .presence-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
+.presence-col { min-width: 0; }
 .presence-col__head {
   display: flex;
   align-items: center;
@@ -740,29 +741,37 @@ html, body { max-width: 100%; overflow-x: hidden; }
   margin-bottom: 0.5rem;
   padding-bottom: 0.4rem;
   border-bottom: 1px solid var(--border, #e5e7eb);
+  min-width: 0;
 }
+.presence-col__head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .presence-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+/* Grid: nome ocupa o espaço restante (encolhe com reticências) e o campo do   */
+/* número fica FIXO à direita, sempre visível — nunca empurra a tela.          */
 .presence-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.3rem 0.4rem;
   border-radius: 6px;
+  min-width: 0;
 }
 .presence-item.is-present { background: color-mix(in srgb, var(--accent, #16a34a) 10%, transparent); }
 .presence-item__check {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  flex: 1;
   min-width: 0;
   cursor: pointer;
 }
-.presence-item__check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.presence-item__check input[type="checkbox"] { flex: none; }
+.presence-item__check span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .presence-item__num {
-  width: 3.2rem;
+  width: 100%;
+  min-width: 0;
   text-align: center;
-  padding: 0.25rem;
+  padding: 0.25rem 0.15rem;
+  box-sizing: border-box;
 }
 @media (max-width: 640px) {
   .presence-grid { grid-template-columns: 1fr; }
