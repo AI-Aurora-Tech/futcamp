@@ -6,6 +6,7 @@ import {
   generateLeague,
 } from '../services/matches'
 import { updateChampionship } from '../services/championships'
+import { useAuth } from '../context/AuthContext'
 import {
   groupPhaseComplete,
   groupPhaseRemaining,
@@ -44,11 +45,16 @@ export function MatchesPanel({
   officials: Official[]
   onChange: () => void
 }) {
+  const { isMaster } = useAuth()
   const [editing, setEditing] = useState<Match | null>(null)
   const [generating, setGenerating] = useState(false)
   const [scheduling, setScheduling] = useState(false)
   const isKnockout = championship.format === 'knockout'
   const isGroups = championship.format === 'groups_knockout'
+  // Regerar a tabela apaga TODAS as partidas. Com jogos já encerrados isso
+  // levaria junto placares, gols, cartões e súmulas — então fica bloqueado.
+  const finishedCount = matches.filter((m) => m.status === 'finished').length
+  const regenBlocked = finishedCount > 0 && !isMaster
   const groupMatchesOnly = matches.filter((m) => m.phase === 'group')
   const knockoutMatches = matches.filter((m) => m.phase !== 'group')
   const remaining = groupPhaseRemaining(matches)
@@ -77,23 +83,46 @@ export function MatchesPanel({
       alert('Cadastre pelo menos 2 times para gerar a tabela.')
       return
     }
-    if (matches.length > 0 && !confirm('Isso substitui todas as partidas e resultados atuais. Continuar?')) return
+    if (finishedCount > 0) {
+      if (!isMaster) {
+        alert(
+          `Não é possível regerar a tabela: ${finishedCount} jogo(s) já foram encerrados.\n\n` +
+            'Regerar apagaria placares, gols, cartões e súmulas já registrados. ' +
+            'Se a tabela precisa mesmo ser refeita, fale com o administrador master.',
+        )
+        return
+      }
+      // Master pode refazer a tabela, mas com aviso explícito do que se perde.
+      if (
+        !confirm(
+          `ATENÇÃO: ${finishedCount} jogo(s) encerrados serão APAGADOS junto com os placares, ` +
+            'gols, cartões e súmulas. Esta ação não pode ser desfeita.\n\nRegerar mesmo assim?',
+        )
+      ) {
+        return
+      }
+    } else if (matches.length > 0 && !confirm('Isso substitui todas as partidas atuais. Continuar?')) {
+      return
+    }
     setGenerating(true)
     try {
+      const force = isMaster
       if (isKnockout) {
-        await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace)
+        await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace, force)
       } else if (isGroups) {
         const groups: Record<string, string[]> = {}
         for (const t of teams) {
           const g = t.group || 'A'
           ;(groups[g] ??= []).push(t.id)
         }
-        await generateGroups(championship.id, groups, championship.doubleRound)
+        await generateGroups(championship.id, groups, championship.doubleRound, force)
       } else {
-        await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound)
+        await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound, force)
       }
       onChange()
       setScheduling(true) // abre o agendador para informar data/hora jogo a jogo
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível gerar a tabela.')
     } finally {
       setGenerating(false)
     }
@@ -133,11 +162,27 @@ export function MatchesPanel({
               {generating ? 'Montando…' : '🏆 Criar mata-mata'}
             </Button>
           )}
-          <Button onClick={() => void generate()} disabled={generating}>
+          <Button
+            onClick={() => void generate()}
+            disabled={generating || regenBlocked}
+            title={
+              regenBlocked
+                ? `Bloqueado: ${finishedCount} jogo(s) já encerrados. Regerar apagaria os resultados.`
+                : undefined
+            }
+          >
             {generating ? 'Gerando…' : matches.length ? '↻ Regerar tabela' : '⚙ Gerar tabela de jogos'}
           </Button>
         </div>
       </div>
+
+      {finishedCount > 0 && (
+        <p className="ko-note ko-note--lock">
+          🔒 A tabela não pode mais ser regerada: {finishedCount} jogo(s) já encerrados.
+          Regerar apagaria placares, gols, cartões e súmulas.
+          {isMaster && ' Como administrador master, você ainda pode forçar — com perda dos resultados.'}
+        </p>
+      )}
 
       {!isKnockout && hasKnockoutStage(championship) && groupMatchesOnly.length > 0 && (
         <p className={`ko-note ${knockoutMatches.length ? 'ko-note--done' : ''}`}>

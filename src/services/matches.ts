@@ -152,6 +152,23 @@ export async function deleteMatchesOf(championshipId: string): Promise<void> {
 }
 
 /**
+ * Trava de segurança da regeração da tabela: com jogos já encerrados, apagar
+ * tudo levaria junto placares, gols, cartões e súmulas. Só passa com `force`
+ * (administrador master, que confirma a perda explicitamente).
+ */
+async function assertRegenerationAllowed(championshipId: string, force: boolean): Promise<void> {
+  if (force) return
+  const existing = await listMatches(championshipId)
+  const finished = existing.filter((m) => m.status === 'finished').length
+  if (finished > 0) {
+    throw new Error(
+      `Não é possível regerar a tabela: ${finished} jogo(s) já foram encerrados. ` +
+        'Regerar apagaria os resultados já registrados.',
+    )
+  }
+}
+
+/**
  * Gera automaticamente a tabela de pontos corridos (todos contra todos) e
  * substitui as partidas existentes do campeonato.
  */
@@ -159,7 +176,9 @@ export async function generateLeague(
   championshipId: string,
   teamIds: string[],
   doubleRound: boolean,
+  force = false,
 ): Promise<void> {
+  await assertRegenerationAllowed(championshipId, force)
   const pairings = generateRoundRobin(teamIds, doubleRound)
   await deleteMatchesOf(championshipId)
   const toInsert: NewMatch[] = pairings.map((p) => ({
@@ -180,7 +199,9 @@ export async function generateGroups(
   championshipId: string,
   groups: Record<string, string[]>,
   doubleRound: boolean,
+  force = false,
 ): Promise<void> {
+  await assertRegenerationAllowed(championshipId, force)
   const pairings = generateGroupFixtures(groups, doubleRound)
   await deleteMatchesOf(championshipId)
   const toInsert: NewMatch[] = pairings.map((p) => ({
@@ -206,7 +227,9 @@ export async function generateKnockout(
   championshipId: string,
   seededTeamIds: string[],
   thirdPlace = false,
+  force = false,
 ): Promise<void> {
+  await assertRegenerationAllowed(championshipId, force)
   const size = Math.max(2, nextPowerOfTwo(seededTeamIds.length))
   const padded: (string | null)[] = [...seededTeamIds]
   while (padded.length < size) padded.push(null)

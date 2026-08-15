@@ -42,6 +42,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
 - 👑 **Administrador master**: perfil único que administra **qualquer** campeonato e é o **único que pode excluir** um campeonato — nem mesmo o dono pode.
 - 🟩 **Jogo encerrado muda de cor** na lista do administrador e no portal do mesário.
+- 🔒 **Tabela protegida**: com jogos já encerrados, **regerar a tabela fica bloqueado** — placares, gols, cartões e súmulas não se perdem por engano.
 - 🏆 **Mata-mata automático**: definidos na criação do campeonato os **critérios de desempate**, os **classificados por grupo** e o **chaveamento** (quem pega quem até a final), o sistema **cria a fase eliminatória e insere as equipes** assim que o último jogo da primeira fase é encerrado — e leva o vencedor de cada confronto para a fase seguinte.
 
 ## 🚀 Começando
@@ -166,6 +167,8 @@ vercel --prod # produção
 2. **Cadastre os times** (e defina os grupos, no formato de grupos).
 3. **Monte os elencos** de cada time.
 4. Em **Partidas**, clique em **“Gerar tabela de jogos”** — as rodadas são criadas automaticamente.
+   Depois que o primeiro jogo for **encerrado**, a opção de **regerar** a tabela é bloqueada
+   (só o administrador master consegue forçar, confirmando a perda dos resultados).
 5. Clique em uma partida para **lançar o placar** e os **eventos** (gols/cartões).
    Ao **encerrar**, o jogo muda de cor na lista (para o administrador e o mesário).
 6. Acompanhe **classificação** e **estatísticas** — e compartilhe o **link público**.
