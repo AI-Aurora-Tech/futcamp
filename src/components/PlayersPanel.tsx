@@ -4,7 +4,7 @@ import { checkEligibility, checkRosterLimit, formatCpf, isValidCpf } from '../li
 import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
-import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
+import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 
 export function PlayersPanel({
@@ -22,6 +22,18 @@ export function PlayersPanel({
   const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [search, setSearch] = useState('')
+
+  // Busca de times: filtra os "chips" de seleção do elenco.
+  const visibleTeams = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return teams
+    return teams.filter((t) =>
+      [t.name, t.coach, t.group, t.group ? `grupo ${t.group}` : '']
+        .filter(Boolean)
+        .some((v) => (v as string).toLowerCase().includes(q)),
+    )
+  }, [teams, search])
 
   const teamPlayers = useMemo(
     () => players.filter((p) => p.teamId === selectedTeam).sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
@@ -59,13 +71,36 @@ export function PlayersPanel({
         </div>
       </div>
 
-      <div className="chip-row">
-        {teams.map((t) => (
-          <button key={t.id} className={`chip ${selectedTeam === t.id ? 'is-active' : ''}`} onClick={() => setSelectedTeam(t.id)}>
-            <TeamBadge team={t} size={20} /> {t.shortName || t.name}
-          </button>
-        ))}
-      </div>
+      <SearchField
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar time por nome, responsável ou grupo…"
+        count={visibleTeams.length}
+        total={teams.length}
+        noun="time"
+      />
+
+      {visibleTeams.length === 0 ? (
+        <EmptyState icon="🔎" title="Nenhum time encontrado">
+          <p>Nenhum time corresponde a “{search}”.</p>
+          <Button variant="soft" onClick={() => setSearch('')}>Limpar busca</Button>
+        </EmptyState>
+      ) : (
+        <div className="chip-row">
+          {visibleTeams.map((t) => (
+            <button
+              key={t.id}
+              className={`chip ${selectedTeam === t.id ? 'is-active' : ''}`}
+              onClick={() => setSelectedTeam(t.id)}
+              title={t.name}
+            >
+              <TeamBadge team={t} size={20} />
+              <span className="chip__label">{t.name}</span>
+              <span className="chip__count">{players.filter((p) => p.teamId === t.id).length}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {teamPlayers.length === 0 ? (
         <EmptyState icon="👤" title={`Sem atletas em ${team?.name ?? 'este time'}`}>

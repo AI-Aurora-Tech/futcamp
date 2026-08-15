@@ -131,6 +131,51 @@ export function EmptyState({
   )
 }
 
+/**
+ * Campo de busca com botão de limpar e contador de resultados.
+ * Usado para localizar times nas abas Times e Elencos.
+ */
+export function SearchField({
+  value,
+  onChange,
+  placeholder = 'Buscar…',
+  count,
+  total,
+  noun = 'item',
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  /** Quantidade encontrada (mostra o contador quando há busca ativa). */
+  count?: number
+  total?: number
+  noun?: string
+}) {
+  const searching = value.trim().length > 0
+  return (
+    <div className="search-field">
+      <span className="search-field__icon" aria-hidden>🔎</span>
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+      />
+      {searching && (
+        <button type="button" className="search-field__clear" onClick={() => onChange('')} title="Limpar busca">
+          ✕
+        </button>
+      )}
+      {searching && count != null && (
+        <span className="search-field__count">
+          {count} de {total} {noun}{(total ?? 0) === 1 ? '' : 's'}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function Spinner({ label = 'Carregando…' }: { label?: string }) {
   return (
     <div className="spinner">

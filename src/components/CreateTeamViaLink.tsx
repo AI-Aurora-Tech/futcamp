@@ -24,7 +24,6 @@ export function CreateTeamViaLink({
   const [notFound, setNotFound] = useState(false)
 
   const [name, setName] = useState('')
-  const [shortName, setShortName] = useState('')
   const [logo, setLogo] = useState('')
   const [color, setColor] = useState('#2563eb')
   const [coach, setCoach] = useState('')
@@ -68,7 +67,6 @@ export function CreateTeamViaLink({
     try {
       const { teamId, token: teamToken } = await createTeamViaLink(championshipId, token, {
         name,
-        shortName,
         logo,
         color,
         coach,
@@ -114,7 +112,7 @@ export function CreateTeamViaLink({
           <p className="muted">Crie o time do campeonato. Em seguida você define o acesso (até 2 gestores) e inscreve os atletas.</p>
           <form onSubmit={submit} className="reg__team">
             <div className="reg__badge">
-              <TeamBadge team={{ name, shortName, logo, color }} size={96} />
+              <TeamBadge team={{ name, logo, color }} size={96} />
               <div className="reg__logo-actions">
                 <input ref={fileRef} type="file" accept="image/*" hidden onChange={onLogoUpload} />
                 <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>⬆ Enviar escudo</Button>
@@ -126,14 +124,9 @@ export function CreateTeamViaLink({
             </div>
 
             <div className="reg__fields">
-              <div className="form-row">
-                <Field label="Nome do time">
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Leões FC" required />
-                </Field>
-                <Field label="Sigla" hint="3 letras (ex.: LEO)">
-                  <input value={shortName} onChange={(e) => setShortName(e.target.value)} maxLength={4} placeholder="LEO" />
-                </Field>
-              </div>
+              <Field label="Nome do time">
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Leões FC" required />
+              </Field>
               <div className="form-row">
                 <Field label="Responsável">
                   <input value={coach} onChange={(e) => setCoach(e.target.value)} placeholder="Nome do responsável" />
