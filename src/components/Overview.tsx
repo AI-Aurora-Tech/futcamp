@@ -21,6 +21,8 @@ export function Overview({
 }) {
   const isGroups = championship.format === 'groups_knockout'
   const isKnockout = championship.format === 'knockout'
+  const advancePerGroup = isGroups ? (championship.advancePerGroup ?? 2) : 0
+  const leagueQualifiers = championship.leagueQualifiers ?? 0
 
   const topScorer = useMemo(() => aggregateByPlayer(events, 'goal', players, teams)[0], [events, players, teams])
 
@@ -56,14 +58,24 @@ export function Overview({
               <p>Neste formato não há tabela de pontos. Acompanhe o chaveamento na aba Partidas.</p>
             </EmptyState>
           ) : isGroups && groupStandings ? (
-            Object.keys(groupStandings).sort().map((g) => (
-              <div key={g} className="group-block">
-                <h3 className="group-block__title">Grupo {g}</h3>
-                <StandingsTable rows={groupStandings[g]} teams={teams} highlightTop={2} />
-              </div>
-            ))
+            <>
+              {advancePerGroup > 0 && (
+                <p className="qualify-note">🟢 Os {advancePerGroup} primeiros de cada grupo se classificam para o mata-mata.</p>
+              )}
+              {Object.keys(groupStandings).sort().map((g) => (
+                <div key={g} className="group-block">
+                  <h3 className="group-block__title">Grupo {g}</h3>
+                  <StandingsTable rows={groupStandings[g]} teams={teams} highlightTop={advancePerGroup} />
+                </div>
+              ))}
+            </>
           ) : (
-            <StandingsTable rows={standings ?? []} teams={teams} />
+            <>
+              {leagueQualifiers > 0 && (
+                <p className="qualify-note">🟢 Os {leagueQualifiers} primeiros colocados se classificam.</p>
+              )}
+              <StandingsTable rows={standings ?? []} teams={teams} highlightTop={leagueQualifiers} />
+            </>
           )}
         </div>
 

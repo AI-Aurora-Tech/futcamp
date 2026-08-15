@@ -99,6 +99,10 @@ export interface Championship {
   numGroups?: number
   /** Quantidade de times por grupo (opcional; formato grupos + mata-mata). */
   teamsPerGroup?: number
+  /** Nº de classificados por grupo para o mata-mata (formato grupos + mata-mata). */
+  advancePerGroup?: number
+  /** Nº de classificados no formato de pontos corridos (liga). */
+  leagueQualifiers?: number
   /** Árbitros cadastrados no campeonato. */
   referees?: Referee[]
   /** Campos / locais das partidas. */
@@ -170,6 +174,13 @@ export interface Player {
   createdAt: string
 }
 
+/** Atleta presente (escalado) nesta partida, com o número da camisa do jogo. */
+export interface LineupEntry {
+  playerId: string
+  /** Número da camisa nesta partida (pode diferir do número de inscrição). */
+  number?: number
+}
+
 export type MatchStatus = 'scheduled' | 'live' | 'finished'
 
 export type MatchPhase =
@@ -212,6 +223,11 @@ export interface Match {
   officialId?: string
   /** Relato de incidentes (atrasos, segurança, conduta de torcidas). */
   incidents?: string
+  /**
+   * Atletas presentes (escalação da partida). Só quem está aqui pode receber
+   * gols/cartões/eventos. Vazio/indefinido = presença ainda não registrada.
+   */
+  lineup?: LineupEntry[]
   createdAt: string
 }
 

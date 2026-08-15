@@ -209,6 +209,7 @@ export async function listAssignedMatches(
       scheduledAt: r.scheduled_at ?? undefined,
       venue: r.venue ?? undefined,
       officialId: r.official_id ?? undefined,
+      lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
       createdAt: r.created_at,
     }))
   }
@@ -279,6 +280,16 @@ export function mesaWriter(ctx: MesaContext): MatchWriter {
         })
         if (error) throw error
       },
+      async setLineup(matchId, lineup) {
+        const { error } = await sb.rpc('mesa_set_lineup', {
+          p_champ: ctx.championshipId,
+          p_username: ctx.username,
+          p_password: ctx.password,
+          p_match: matchId,
+          p_lineup: lineup,
+        })
+        if (error) throw error
+      },
     }
   }
 
@@ -304,6 +315,13 @@ export function mesaWriter(ctx: MesaContext): MatchWriter {
       const ev = query((d) => d.events.find((e) => e.id === id))
       if (ev) assertAssigned(ev.matchId)
       return deleteEventAdmin(id)
+    },
+    async setLineup(matchId, lineup) {
+      assertAssigned(matchId)
+      mutate((d) => {
+        const i = d.matches.findIndex((m) => m.id === matchId)
+        if (i >= 0) d.matches[i] = { ...d.matches[i], lineup }
+      })
     },
   }
 }

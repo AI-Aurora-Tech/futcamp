@@ -140,7 +140,7 @@ export function MatchesPanel({
                 </div>
                 <div className="round__matches">
                   {sec.matches.map((m) => (
-                    <MatchRow key={m.id} match={m} teams={teams} onClick={() => setEditing(m)} />
+                    <MatchRow key={m.id} match={m} teams={teams} onClick={() => setEditing(m)} showSchedule venues={championship.venues} />
                   ))}
                 </div>
               </div>

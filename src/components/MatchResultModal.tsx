@@ -6,6 +6,7 @@ import {
   EVENT_LABELS,
   type Championship,
   type EventType,
+  type LineupEntry,
   type Match,
   type MatchEvent,
   type MatchStatus,
@@ -69,6 +70,7 @@ export function MatchResultModal({
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
   const [incidents, setIncidents] = useState<string>(match.incidents ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
+  const [lineup, setLineup] = useState<LineupEntry[]>(match.lineup ?? [])
   const [busy, setBusy] = useState(false)
 
   // Formulário de novo evento
@@ -83,7 +85,15 @@ export function MatchResultModal({
     w.listEvents(match.championshipId).then((all) => setEvents(all.filter((e) => e.matchId === match.id)))
   }, [match.id, match.championshipId, w])
 
-  const teamPlayers = players.filter((p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta')
+  // Só atletas PRESENTES (na escalação salva) podem receber eventos.
+  const presentIds = new Set(lineup.map((l) => l.playerId))
+  const lineupNumber = new Map(lineup.map((l) => [l.playerId, l.number] as const))
+  const teamPlayers = players.filter(
+    (p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id),
+  )
+  /** Nº da camisa desta partida (cai para o nº de inscrição se não definido). */
+  const shirtOf = (p: Player) => lineupNumber.get(p.id) ?? p.number
+  const playerOption = (p: Player) => `${shirtOf(p) ? `${shirtOf(p)} · ` : ''}${p.name}`
 
   function bumpScore(teamId: string, type: EventType) {
     // Placar automático ao vivo: gol soma para o time; gol contra soma ao adversário.
@@ -249,8 +259,24 @@ export function MatchResultModal({
       </div>
 
       {match.homeTeamId && match.awayTeamId && (
+        <PresencePanel
+          home={home}
+          away={away}
+          players={players}
+          lineup={lineup}
+          onSave={async (entries) => {
+            await w.setLineup(match.id, entries)
+            setLineup(entries)
+          }}
+        />
+      )}
+
+      {match.homeTeamId && match.awayTeamId && (
         <div className="events-box">
           <h4>Eventos da partida {status === 'live' && <span className="live-dot">ao vivo</span>}</h4>
+          {teamPlayers.length === 0 && (
+            <p className="hint hint--warn">⚠️ Marque a presença dos atletas na escalação acima para habilitá-los aqui.</p>
+          )}
           <div className="event-form">
             <select value={evTeam} onChange={(e) => { setEvTeam(e.target.value); setEvPlayer(''); setEvPlayerIn('') }}>
               {match.homeTeamId && <option value={match.homeTeamId}>{home?.name}</option>}
@@ -266,13 +292,13 @@ export function MatchResultModal({
                 <select value={evPlayer} onChange={(e) => setEvPlayer(e.target.value)}>
                   <option value="">▼ Saiu</option>
                   {teamPlayers.map((p) => (
-                    <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
+                    <option key={p.id} value={p.id}>{playerOption(p)}</option>
                   ))}
                 </select>
                 <select value={evPlayerIn} onChange={(e) => setEvPlayerIn(e.target.value)}>
                   <option value="">▲ Entrou</option>
                   {teamPlayers.map((p) => (
-                    <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
+                    <option key={p.id} value={p.id}>{playerOption(p)}</option>
                   ))}
                 </select>
               </>
@@ -280,7 +306,7 @@ export function MatchResultModal({
               <select value={evPlayer} onChange={(e) => setEvPlayer(e.target.value)}>
                 <option value="">Jogador (opcional)</option>
                 {teamPlayers.map((p) => (
-                  <option key={p.id} value={p.id}>{p.number ? `${p.number} · ` : ''}{p.name}</option>
+                  <option key={p.id} value={p.id}>{playerOption(p)}</option>
                 ))}
               </select>
             )}
@@ -347,5 +373,142 @@ export function MatchResultModal({
         </Button>
       </div>
     </Modal>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Presença / escalação da partida                                             */
+/* Admin ou mesário marca os atletas presentes e o nº da camisa do jogo.       */
+/* Só os presentes ficam disponíveis para gols/cartões. Atrasado? Marque e     */
+/* salve novamente — ele passa a fazer parte.                                   */
+/* -------------------------------------------------------------------------- */
+interface PresenceRow {
+  present: boolean
+  number: string
+}
+
+function PresencePanel({
+  home,
+  away,
+  players,
+  lineup,
+  onSave,
+}: {
+  home?: Team
+  away?: Team
+  players: Player[]
+  lineup: LineupEntry[]
+  onSave: (entries: LineupEntry[]) => Promise<void>
+}) {
+  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta')
+
+  const build = (): Record<string, PresenceRow> => {
+    const present = new Set(lineup.map((l) => l.playerId))
+    const num = new Map(lineup.map((l) => [l.playerId, l.number] as const))
+    const draft: Record<string, PresenceRow> = {}
+    for (const p of athletes) {
+      const n = num.get(p.id) ?? p.number
+      draft[p.id] = { present: present.has(p.id), number: n != null ? String(n) : '' }
+    }
+    return draft
+  }
+
+  const [draft, setDraft] = useState<Record<string, PresenceRow>>(build)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  // Ressincroniza quando a escalação salva muda por fora.
+  useEffect(() => {
+    setDraft(build())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineup])
+
+  const presentCount = athletes.filter((p) => draft[p.id]?.present).length
+
+  function toggle(id: string) {
+    setDraft((d) => ({ ...d, [id]: { ...d[id], present: !d[id]?.present } }))
+    setMsg(null)
+  }
+  function setNumber(id: string, v: string) {
+    setDraft((d) => ({ ...d, [id]: { ...d[id], number: v.replace(/\D/g, '').slice(0, 3) } }))
+    setMsg(null)
+  }
+
+  async function save() {
+    setBusy(true)
+    const entries: LineupEntry[] = athletes
+      .filter((p) => draft[p.id]?.present)
+      .map((p) => ({ playerId: p.id, number: draft[p.id].number ? Number(draft[p.id].number) : undefined }))
+    try {
+      await onSave(entries)
+      setMsg('Presença salva ✅')
+    } catch {
+      setMsg('Não foi possível salvar a presença.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function TeamColumn({ team }: { team?: Team }) {
+    const list = athletes.filter((p) => p.teamId === team?.id)
+    return (
+      <div className="presence-col">
+        <div className="presence-col__head"><TeamBadge team={team} size={22} /> <span>{team?.name ?? '—'}</span></div>
+        {list.length === 0 ? (
+          <p className="muted small">Nenhum atleta inscrito.</p>
+        ) : (
+          <ul className="presence-list">
+            {list.map((p) => {
+              const row = draft[p.id] ?? { present: false, number: '' }
+              return (
+                <li key={p.id} className={`presence-item ${row.present ? 'is-present' : ''}`}>
+                  <label className="presence-item__check">
+                    <input type="checkbox" checked={row.present} onChange={() => toggle(p.id)} />
+                    <span>{p.name}</span>
+                  </label>
+                  <input
+                    className="presence-item__num"
+                    inputMode="numeric"
+                    placeholder="nº"
+                    value={row.number}
+                    onChange={(e) => setNumber(p.id, e.target.value)}
+                    disabled={!row.present}
+                    aria-label={`Número de ${p.name}`}
+                  />
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="presence-box">
+      <button type="button" className="presence-box__toggle" onClick={() => setOpen((o) => !o)}>
+        <span>👥 Presença / escalação <span className="presence-box__count">{presentCount} presente(s)</span></span>
+        <span>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="presence-box__body">
+          <p className="hint">
+            Marque quem está presente e informe o número da camisa desta partida. Só os presentes recebem gols e cartões.
+            Chegou atrasado? Marque e salve novamente.
+          </p>
+          <div className="presence-grid">
+            <TeamColumn team={home} />
+            <TeamColumn team={away} />
+          </div>
+          <div className="presence-box__actions">
+            {msg && <span className="reg__msg">{msg}</span>}
+            <Button variant="soft" type="button" onClick={() => void save()} disabled={busy}>
+              {busy ? 'Salvando…' : 'Salvar presentes'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

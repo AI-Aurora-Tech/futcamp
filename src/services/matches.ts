@@ -7,7 +7,7 @@ import {
   generateRoundRobin,
   seedKnockoutPairings,
 } from '../lib/fixtures'
-import type { Match, MatchEvent, MatchPhase } from '../types'
+import type { LineupEntry, Match, MatchEvent, MatchPhase } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -28,6 +28,7 @@ function fromRow(r: any): Match {
     refereeId: r.referee_id ?? undefined,
     officialId: r.official_id ?? undefined,
     incidents: r.incidents ?? undefined,
+    lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
     createdAt: r.created_at,
   }
 }
@@ -48,6 +49,7 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.refereeId !== undefined) row.referee_id = m.refereeId
   if (m.officialId !== undefined) row.official_id = m.officialId
   if (m.incidents !== undefined) row.incidents = m.incidents
+  if (m.lineup !== undefined) row.lineup = m.lineup
   return row
 }
 
@@ -61,6 +63,8 @@ export interface MatchWriter {
   updateMatch(id: string, patch: Partial<Match>): Promise<void>
   addEvent(input: NewEvent): Promise<MatchEvent>
   deleteEvent(id: string): Promise<void>
+  /** Salva a escalação (atletas presentes + número da camisa da partida). */
+  setLineup(matchId: string, lineup: LineupEntry[]): Promise<void>
 }
 
 export async function listMatches(championshipId: string): Promise<Match[]> {
@@ -217,8 +221,13 @@ async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<
   })
 }
 
+/** Salva a escalação da partida (atletas presentes + números). */
+export async function setLineup(matchId: string, lineup: LineupEntry[]): Promise<void> {
+  return updateMatch(matchId, { lineup })
+}
+
 /** Writer padrão (administrador). */
-export const defaultMatchWriter: MatchWriter = { listEvents, updateMatch, addEvent, deleteEvent }
+export const defaultMatchWriter: MatchWriter = { listEvents, updateMatch, addEvent, deleteEvent, setLineup }
 
 // ---------------------------------------------------------------------------
 // Eventos de partida

@@ -67,6 +67,8 @@ export function ChampionshipForm({
   const [doubleRound, setDoubleRound] = useState(initial?.doubleRound ?? false)
   const [numGroups, setNumGroups] = useState(initial?.numGroups ?? 2)
   const [teamsPerGroup, setTeamsPerGroup] = useState<string>(initial?.teamsPerGroup != null ? String(initial.teamsPerGroup) : '')
+  const [advancePerGroup, setAdvancePerGroup] = useState<string>(initial?.advancePerGroup != null ? String(initial.advancePerGroup) : '')
+  const [leagueQualifiers, setLeagueQualifiers] = useState<string>(initial?.leagueQualifiers != null ? String(initial.leagueQualifiers) : '')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -142,6 +144,8 @@ export function ChampionshipForm({
       doubleRound,
       numGroups: format === 'groups_knockout' ? Number(numGroups) : undefined,
       teamsPerGroup: format === 'groups_knockout' && teamsPerGroup ? Number(teamsPerGroup) : undefined,
+      advancePerGroup: format === 'groups_knockout' && advancePerGroup ? Number(advancePerGroup) : undefined,
+      leagueQualifiers: format === 'league' && leagueQualifiers ? Number(leagueQualifiers) : undefined,
     })
     setBusy(false)
   }
@@ -310,7 +314,16 @@ export function ChampionshipForm({
             <Field label="Times por grupo (opcional)" hint="Meta de times em cada grupo. Deixe em branco para não limitar.">
               <input type="number" min={2} max={64} value={teamsPerGroup} onChange={(e) => setTeamsPerGroup(e.target.value)} placeholder="ex.: 4" />
             </Field>
+            <Field label="Classificados por grupo" hint="Quantos avançam de cada grupo para o mata-mata.">
+              <input type="number" min={1} max={32} value={advancePerGroup} onChange={(e) => setAdvancePerGroup(e.target.value)} placeholder="ex.: 2" />
+            </Field>
           </div>
+        )}
+
+        {format === 'league' && (
+          <Field label="Quantos se classificam (opcional)" hint="Nº de times no topo da tabela que avançam. Deixe em branco para não destacar.">
+            <input type="number" min={1} max={64} value={leagueQualifiers} onChange={(e) => setLeagueQualifiers(e.target.value)} placeholder="ex.: 8" />
+          </Field>
         )}
 
         {format !== 'knockout' && (

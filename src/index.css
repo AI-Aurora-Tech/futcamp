@@ -669,3 +669,101 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .topbar__uname { display: none; }
   .logo-word { font-size: 1.1rem; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Classificação: aviso de zona de classificação                       */
+/* ------------------------------------------------------------------ */
+.qualify-note {
+  margin: 0 0 0.6rem;
+  padding: 0.45rem 0.7rem;
+  background: color-mix(in srgb, var(--accent, #16a34a) 12%, transparent);
+  border-left: 3px solid var(--accent, #16a34a);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text, #1f2937);
+}
+
+/* ------------------------------------------------------------------ */
+/* Presença / escalação da partida                                     */
+/* ------------------------------------------------------------------ */
+.hint--warn {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+}
+
+.presence-box {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  margin: 0.8rem 0;
+  overflow: hidden;
+}
+.presence-box__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--surface-2, #f9fafb);
+  border: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text, #1f2937);
+}
+.presence-box__count {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--muted, #6b7280);
+  margin-left: 0.4rem;
+}
+.presence-box__body { padding: 0.8rem 0.9rem; }
+.presence-box__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 0.7rem;
+}
+.presence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.presence-col__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.presence-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.presence-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+}
+.presence-item.is-present { background: color-mix(in srgb, var(--accent, #16a34a) 10%, transparent); }
+.presence-item__check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.presence-item__check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.presence-item__num {
+  width: 3.2rem;
+  text-align: center;
+  padding: 0.25rem;
+}
+@media (max-width: 640px) {
+  .presence-grid { grid-template-columns: 1fr; }
+}
