@@ -4,12 +4,20 @@ import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { generateGroupFixtures, generateRoundRobin } from '../lib/fixtures'
 import {
-  groupPhaseComplete,
   hasKnockoutStage,
+  KNOCKOUT_ROUND_BASE,
   pendingAdvances,
   planKnockout,
   resolveBracketTeams,
 } from '../lib/knockout'
+import {
+  allGroupStagesComplete,
+  distributeIntoGroups,
+  groupStagesOf,
+  nextGroupStageToCreate,
+  qualifiersOfStage,
+  stageExists,
+} from '../lib/groupStages'
 import type {
   Championship,
   LineupEntry,
@@ -41,6 +49,7 @@ function fromRow(r: any): Match {
     lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
     bracketPos: r.bracket_pos ?? undefined,
     winnerTeamId: r.winner_team_id ?? undefined,
+    stage: r.stage ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -64,6 +73,7 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.lineup !== undefined) row.lineup = m.lineup
   if (m.bracketPos !== undefined) row.bracket_pos = m.bracketPos
   if (m.winnerTeamId !== undefined) row.winner_team_id = m.winnerTeamId
+  if (m.stage !== undefined) row.stage = m.stage
   return row
 }
 
@@ -208,6 +218,7 @@ export async function generateGroups(
     championshipId,
     round: p.round,
     phase: 'group' as MatchPhase,
+    stage: 1,
     group: p.group,
     homeTeamId: p.homeTeamId,
     awayTeamId: p.awayTeamId,
@@ -216,6 +227,60 @@ export async function generateGroups(
     status: 'scheduled',
   }))
   await bulkInsert(championshipId, toInsert)
+}
+
+/**
+ * Cria a PRÓXIMA fase de grupos com os classificados da fase anterior,
+ * respeitando o número de vagas de cada grupo, e distribuindo os times nos
+ * novos grupos. As rodadas continuam a numeração da fase anterior, para não
+ * conflitar com o fechamento de inscrições por rodada.
+ */
+export async function createGroupStage(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  stage: number,
+  events: MatchEvent[] = [],
+): Promise<boolean> {
+  const cfg = groupStagesOf(champ)[stage - 1]
+  if (!cfg || stage < 2) return false
+
+  const qualified = qualifiersOfStage(champ, teams, matches, stage - 1, events)
+  if (qualified.length < 2) return false
+
+  const groups = distributeIntoGroups(qualified, cfg.numGroups)
+  const playable = Object.fromEntries(
+    Object.entries(groups).filter(([, ids]) => ids.length >= 2),
+  )
+  if (Object.keys(playable).length === 0) return false
+
+  // Relê antes de inserir: não cria a mesma fase duas vezes.
+  const fresh = await listMatches(champ.id)
+  if (stageExists(fresh, stage)) return false
+
+  const previousRounds = Math.max(
+    0,
+    ...fresh
+      .filter((m) => m.phase === 'group')
+      .map((m) => m.round)
+      .filter((r) => r < KNOCKOUT_ROUND_BASE),
+    0,
+  )
+  const pairings = generateGroupFixtures(playable, cfg.doubleRound ?? false)
+  const toInsert: NewMatch[] = pairings.map((p) => ({
+    championshipId: champ.id,
+    round: previousRounds + p.round,
+    phase: 'group' as MatchPhase,
+    stage,
+    group: p.group,
+    homeTeamId: p.homeTeamId,
+    awayTeamId: p.awayTeamId,
+    homeScore: null,
+    awayScore: null,
+    status: 'scheduled',
+  }))
+  await bulkInsert(champ.id, toInsert)
+  return true
 }
 
 /**
@@ -321,12 +386,22 @@ async function runSync(
   let changed = false
   let current = matches
 
+  // 1) Fases de grupos seguintes (2ª, 3ª…) com os classificados da anterior.
+  for (let guard = 0; guard < 8; guard++) {
+    const next = nextGroupStageToCreate(champ, current)
+    if (next == null) break
+    if (!(await createGroupStage(champ, teams, current, next, events))) break
+    changed = true
+    current = await listMatches(champ.id)
+  }
+
+  // 2) Mata-mata, quando TODAS as fases de grupos terminaram.
   const hasKnockoutMatches = current.some((m) => m.phase !== 'group')
   if (
     !hasKnockoutMatches &&
     champ.autoKnockout !== false &&
     hasKnockoutStage(champ) &&
-    groupPhaseComplete(current)
+    allGroupStagesComplete(champ, current)
   ) {
     if (await createKnockoutStage(champ, teams, current, events)) {
       changed = true
@@ -356,12 +431,47 @@ export async function requestKnockoutSync(
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     // As funções do banco revalidam as regras e serializam a criação.
+    const stages = groupStagesOf(champ)
+
+    // Próxima fase de grupos (2ª, 3ª…) com os classificados da anterior.
+    const next = nextGroupStageToCreate(champ, matches)
+    if (next != null) {
+      const cfg = stages[next - 1]
+      const qualified = qualifiersOfStage(champ, teams, matches, next - 1, events)
+      const groups = distributeIntoGroups(qualified, cfg.numGroups)
+      const playable = Object.fromEntries(
+        Object.entries(groups).filter(([, ids]) => ids.length >= 2),
+      )
+      const previousRounds = Math.max(
+        0,
+        ...matches
+          .filter((m) => m.phase === 'group')
+          .map((m) => m.round)
+          .filter((r) => r < KNOCKOUT_ROUND_BASE),
+        0,
+      )
+      const plan = generateGroupFixtures(playable, cfg.doubleRound ?? false).map((p) => ({
+        round: previousRounds + p.round,
+        group: p.group,
+        home_team_id: p.homeTeamId,
+        away_team_id: p.awayTeamId,
+      }))
+      if (plan.length > 0) {
+        const { error } = await supabase.rpc('ensure_group_stage', {
+          p_champ: champ.id,
+          p_stage: next,
+          p_matches: plan,
+        })
+        if (error) console.warn('ensure_group_stage:', error.message)
+      }
+    }
+
     const hasKnockoutMatches = matches.some((m) => m.phase !== 'group')
     if (
       !hasKnockoutMatches &&
       champ.autoKnockout !== false &&
       hasKnockoutStage(champ) &&
-      groupPhaseComplete(matches)
+      allGroupStagesComplete(champ, matches)
     ) {
       const pairs = resolveBracketTeams(champ, teams, matches, events)
       const plan = planKnockout(pairs, champ.thirdPlace).map((p) => ({
@@ -374,6 +484,7 @@ export async function requestKnockoutSync(
       const { error } = await supabase.rpc('ensure_knockout_stage', {
         p_champ: champ.id,
         p_matches: plan,
+        p_stages: Math.max(1, stages.length),
       })
       if (error) console.warn('ensure_knockout_stage:', error.message)
     }

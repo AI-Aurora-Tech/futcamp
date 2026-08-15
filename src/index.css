@@ -856,3 +856,31 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .ko-winner { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.6rem 0.75rem; margin-bottom: 1rem; }
 .ko-winner--warn { border-color: #fed7aa; background: #fff7ed; }
 .ko-winner select { border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0.5rem 0.6rem; background: var(--surface); width: 100%; }
+
+/* ---------- Fases de grupos (criação do campeonato) ---------- */
+.stage-card {
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface);
+  padding: 0.6rem 0.7rem; display: flex; flex-direction: column; gap: 0.5rem;
+}
+.stage-card__head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.stage-card__idx { font-weight: 800; font-size: 0.8rem; color: var(--brand-dark); text-transform: uppercase; letter-spacing: 0.03em; }
+.stage-card__note { margin: 0; font-size: 0.78rem; color: var(--muted); }
+.stage-card__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem; }
+.stage-card__grid > * { min-width: 0; }
+.stage-card__quotas { display: flex; flex-direction: column; gap: 0.35rem; }
+.quota-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 0.4rem; }
+.quota-item { display: flex; align-items: center; gap: 0.4rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 0.25rem 0.4rem; }
+.quota-item__label { font-size: 0.75rem; font-weight: 600; color: var(--ink-soft); white-space: nowrap; }
+.quota-item input { width: 100%; min-width: 0; border: 1.5px solid var(--line-strong); border-radius: 6px; padding: 0.2rem 0.3rem; text-align: center; background: var(--surface); }
+.checkbox--inline { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding-top: 0.3rem; }
+/* `.mini-field input` força width:100%; aqui o checkbox volta ao tamanho de caixa. */
+.checkbox--inline input { flex: none; width: 18px; height: 18px; }
+/* Botão de remover com rótulo: `.icon-btn` tem largura fixa de 32px. */
+.icon-btn--label { width: auto; min-width: 32px; padding: 0 0.5rem; white-space: nowrap; font-size: 0.8rem; font-weight: 600; }
+
+/* ---------- Classificação por fase de grupos ---------- */
+.stage-block { margin-bottom: 1.25rem; }
+.stage-block__title {
+  margin: 0 0 0.4rem; font-size: 0.95rem; color: var(--brand-dark);
+  border-bottom: 2px solid var(--line); padding-bottom: 0.25rem;
+}

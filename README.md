@@ -43,6 +43,8 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 👑 **Administrador master**: perfil único que administra **qualquer** campeonato e é o **único que pode excluir** um campeonato — nem mesmo o dono pode.
 - 🟩 **Jogo encerrado muda de cor** na lista do administrador e no portal do mesário.
 - 🔒 **Tabela protegida**: com jogos já encerrados, **regerar a tabela fica bloqueado** — placares, gols, cartões e súmulas não se perdem por engano.
+- 🔢 **Classificados por grupo**: cada grupo tem o **seu** número de vagas (grupo A classificam 3, grupo B classifica 1…) — feito para grupos com quantidades diferentes de times.
+- 🪜 **Mais de uma fase de grupos**: os classificados da 1ª fase são redistribuídos em novos grupos na 2ª fase (e assim por diante) antes do mata-mata.
 - 🏆 **Mata-mata automático**: definidos na criação do campeonato os **critérios de desempate**, os **classificados por grupo** e o **chaveamento** (quem pega quem até a final), o sistema **cria a fase eliminatória e insere as equipes** assim que o último jogo da primeira fase é encerrado — e leva o vencedor de cada confronto para a fase seguinte.
 
 ## 🚀 Começando
@@ -101,15 +103,21 @@ com classificados) você define:
 - **Critérios de desempate**, na ordem — a pontuação é sempre o 1º critério e
   os demais (vitórias, saldo, gols pró, confronto direto, cartões, sorteio) são
   ordenados por você;
-- **Quantos se classificam por grupo**;
+- As **fases de grupos**: quantas forem necessárias. Cada fase tem seus grupos
+  e, em cada grupo, o **seu** número de classificados — `Grupo A: 3`,
+  `Grupo B: 1` — o que resolve o caso de grupos com quantidades diferentes de
+  times. Os classificados de uma fase são distribuídos automaticamente nos
+  grupos da fase seguinte (em serpentina, evitando reencontros do mesmo grupo);
+  da **última** fase saem as vagas do mata-mata;
 - O **chaveamento**: quem pega quem na primeira fase eliminatória
   (ex.: `1º do grupo A × 2º do grupo B`). As fases seguintes saem daí — o
   vencedor do **Jogo 1** enfrenta o do **Jogo 2**, e assim por diante **até a
   final** —, com opção de **disputa de 3º lugar**.
 
-Quando o **último jogo da primeira fase é encerrado**, o sistema monta a fase de
-mata-mata **já com as equipes classificadas** e, a cada confronto encerrado,
-leva o vencedor para a fase seguinte. Empate em jogo eliminatório? Abra a
+Quando o **último jogo de uma fase é encerrado**, o sistema monta sozinho a fase
+seguinte — a próxima fase de grupos ou, se aquela era a última, o **mata-mata**
+— **já com as equipes classificadas**. A cada confronto eliminatório encerrado,
+o vencedor é levado para a fase seguinte. Empate em jogo eliminatório? Abra a
 partida e informe o **classificado** (pênaltis/W.O.) — o chaveamento segue
 sozinho a partir daí.
 

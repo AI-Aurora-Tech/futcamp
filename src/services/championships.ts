@@ -29,6 +29,8 @@ function fromRow(r: any): Championship {
     teamsPerGroup: r.teams_per_group ?? undefined,
     advancePerGroup: r.advance_per_group ?? undefined,
     leagueQualifiers: r.league_qualifiers ?? undefined,
+    advanceByGroup: r.advance_by_group ?? undefined,
+    groupStages: Array.isArray(r.group_stages) ? r.group_stages : undefined,
     tiebreakers: Array.isArray(r.tiebreakers) ? r.tiebreakers : undefined,
     bracket: Array.isArray(r.bracket) ? r.bracket : undefined,
     thirdPlace: r.third_place ?? undefined,
@@ -62,6 +64,8 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.teamsPerGroup !== undefined) row.teams_per_group = c.teamsPerGroup
   if (c.advancePerGroup !== undefined) row.advance_per_group = c.advancePerGroup
   if (c.leagueQualifiers !== undefined) row.league_qualifiers = c.leagueQualifiers
+  if (c.advanceByGroup !== undefined) row.advance_by_group = c.advanceByGroup
+  if (c.groupStages !== undefined) row.group_stages = c.groupStages
   if (c.tiebreakers !== undefined) row.tiebreakers = c.tiebreakers
   if (c.bracket !== undefined) row.bracket = c.bracket
   if (c.thirdPlace !== undefined) row.third_place = c.thirdPlace
