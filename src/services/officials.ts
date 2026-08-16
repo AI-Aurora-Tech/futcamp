@@ -212,6 +212,8 @@ export async function listAssignedMatches(
       lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
       bracketPos: r.bracket_pos ?? undefined,
       winnerTeamId: r.winner_team_id ?? undefined,
+      penaltyHome: r.penalty_home ?? undefined,
+      penaltyAway: r.penalty_away ?? undefined,
       createdAt: r.created_at,
     }))
   }
@@ -243,6 +245,8 @@ export function mesaWriter(ctx: MesaContext): MatchWriter {
           p_away: patch.awayScore ?? null,
           p_status: patch.status ?? null,
           p_incidents: patch.incidents ?? null,
+          p_pen_home: patch.penaltyHome ?? null,
+          p_pen_away: patch.penaltyAway ?? null,
         })
         if (error) throw error
       },

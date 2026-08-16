@@ -322,6 +322,11 @@ export function MatchRow({
         {live && <span className="live-dot live-dot--sm">ao vivo</span>}
         {finished && <span className="finished-tag">encerrado</span>}
         {showScore && hasScore ? `${match.homeScore} × ${match.awayScore}` : 'vs'}
+        {match.penaltyHome != null && match.penaltyAway != null && (
+          <span className="match-row__pens" title="Disputa por pênaltis">
+            {match.penaltyHome} × {match.penaltyAway} pên
+          </span>
+        )}
       </span>
       <span className="match-row__side match-row__side--away">
         <TeamBadge team={away} size={26} />

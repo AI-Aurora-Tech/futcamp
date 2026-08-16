@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 import type { Championship, Match, MatchEvent, Team } from '../types'
 import { computeStandings } from './standings'
-import { loserOf, winnerOf } from './knockout'
+import { decidedOnPenalties, loserOf, winnerOf } from './knockout'
 
 export interface Podium {
   championId?: string
@@ -19,12 +19,18 @@ export interface Podium {
   thirdId?: string
   /** Como o título foi decidido — muda o texto exibido. */
   decidedBy: 'final' | 'league' | null
+  /** Placar da final, com os pênaltis quando houver ("1 × 1 (4-2 nos pênaltis)"). */
+  finalScore?: string
+  /** Pontos do campeão e jogos disputados (pontos corridos). */
+  points?: number
+  played?: number
 }
 
 const EMPTY: Podium = { decidedBy: null }
 
 export function computePodium(
-  champ: Pick<Championship, 'format' | 'pointsWin' | 'pointsDraw' | 'tiebreakers'>,
+  champ: Pick<Championship, 'format' | 'pointsWin' | 'pointsDraw' | 'tiebreakers'> &
+    Partial<Pick<Championship, 'status'>>,
   teams: Team[],
   matches: Match[],
   events: MatchEvent[] = [],
@@ -36,18 +42,30 @@ export function computePodium(
     const championId = winnerOf(final) ?? undefined
     if (!championId) return EMPTY
     const third = matches.find((m) => m.phase === 'third_place' && m.status === 'finished')
+    // Placar da final na ordem mandante × visitante, com os nomes dos times.
+    const nameOf = (id?: string | null) => teams.find((t) => t.id === id)?.name ?? '—'
+    const score =
+      final.homeScore != null && final.awayScore != null
+        ? `${nameOf(final.homeTeamId)} ${final.homeScore} × ${final.awayScore} ${nameOf(final.awayTeamId)}`
+        : undefined
+    const pens = decidedOnPenalties(final)
+      ? `${final.penaltyHome} × ${final.penaltyAway} nos pênaltis`
+      : undefined
     return {
       championId,
       runnerUpId: loserOf(final) ?? undefined,
       thirdId: third ? (winnerOf(third) ?? undefined) : undefined,
       decidedBy: 'final',
+      finalScore: [score, pens].filter(Boolean).join(' · ') || undefined,
     }
   }
 
-  // 2. Pontos corridos: campeão é o líder, com a competição toda encerrada.
+  // 2. Pontos corridos: campeão é o líder, com a competição toda encerrada —
+  //    ou quando o organizador encerra o campeonato manualmente.
   if (champ.format !== 'league') return EMPTY
   const played = matches.filter((m) => m.phase === 'group')
-  if (played.length === 0 || played.some((m) => m.status !== 'finished')) return EMPTY
+  if (played.length === 0) return EMPTY
+  if (champ.status !== 'finished' && played.some((m) => m.status !== 'finished')) return EMPTY
 
   const table = computeStandings(teams, matches, champ, { events })
   if (table.length === 0) return EMPTY
@@ -56,5 +74,7 @@ export function computePodium(
     runnerUpId: table[1]?.teamId,
     thirdId: table[2]?.teamId,
     decidedBy: 'league',
+    points: table[0]?.points,
+    played: table[0]?.played,
   }
 }

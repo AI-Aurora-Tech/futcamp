@@ -69,6 +69,8 @@ export function MatchResultModal({
   const [refereeId, setRefereeId] = useState<string>(match.refereeId ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
   const [winnerTeamId, setWinnerTeamId] = useState<string>(match.winnerTeamId ?? '')
+  const [penHome, setPenHome] = useState<string>(match.penaltyHome != null ? String(match.penaltyHome) : '')
+  const [penAway, setPenAway] = useState<string>(match.penaltyAway != null ? String(match.penaltyAway) : '')
   const [incidents, setIncidents] = useState<string>(match.incidents ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [lineup, setLineup] = useState<LineupEntry[]>(match.lineup ?? [])
@@ -153,7 +155,11 @@ export function MatchResultModal({
       patch.refereeId = refereeId || undefined
     }
     if (officials) patch.officialId = officialId || undefined
-    if (isKnockoutMatch) patch.winnerTeamId = winnerTeamId || undefined
+    if (isKnockoutMatch) {
+      patch.winnerTeamId = winnerTeamId || undefined
+      patch.penaltyHome = penHome === '' ? null : Number(penHome)
+      patch.penaltyAway = penAway === '' ? null : Number(penAway)
+    }
     patch.incidents = incidents.trim() || undefined
     setBusy(true)
     await w.updateMatch(match.id, patch)
@@ -185,6 +191,13 @@ export function MatchResultModal({
   const teamShort = (id: string) => teams.find((t) => t.id === id)?.shortName || teams.find((t) => t.id === id)?.name
   const isKnockoutMatch = match.phase !== 'group'
   const isTied = homeScore !== '' && awayScore !== '' && Number(homeScore) === Number(awayScore)
+  /** Quem venceu as cobranças, se já houver placar de pênaltis. */
+  const penWinner =
+    penHome !== '' && penAway !== '' && Number(penHome) !== Number(penAway)
+      ? Number(penHome) > Number(penAway)
+        ? home?.name
+        : away?.name
+      : null
   // A súmula sai ANTES do jogo (partida agendada) e, DEPOIS, somente quando a
   // partida for ENCERRADA. Durante o jogo (ao vivo) fica bloqueada.
   const canSumula = match.status === 'scheduled' || match.status === 'finished'
@@ -271,6 +284,45 @@ export function MatchResultModal({
         </div>
       </div>
 
+      {isKnockoutMatch && match.homeTeamId && match.awayTeamId && (
+        <div className={`penalties ${isTied ? 'penalties--needed' : ''}`}>
+          <div className="penalties__head">
+            <strong>🥅 Disputa por pênaltis</strong>
+            <span className="muted small">
+              {isTied
+                ? 'Jogo empatado: informe as cobranças para definir quem avança.'
+                : 'Preencha só se o confronto for para os pênaltis.'}
+            </span>
+          </div>
+          <div className="penalties__score">
+            <span className="penalties__team">{home?.name ?? 'Mandante'}</span>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              value={penHome}
+              onChange={(e) => setPenHome(e.target.value)}
+              aria-label={`Pênaltis ${home?.name ?? 'mandante'}`}
+              placeholder="—"
+            />
+            <span className="penalties__x">×</span>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              value={penAway}
+              onChange={(e) => setPenAway(e.target.value)}
+              aria-label={`Pênaltis ${away?.name ?? 'visitante'}`}
+              placeholder="—"
+            />
+            <span className="penalties__team">{away?.name ?? 'Visitante'}</span>
+          </div>
+          {penWinner && (
+            <p className="penalties__result">✅ {penWinner} avança nos pênaltis.</p>
+          )}
+        </div>
+      )}
+
       {isKnockoutMatch && !readOnlySchedule && match.homeTeamId && match.awayTeamId && (
         <label className={`field ko-winner ${isTied && !winnerTeamId ? 'ko-winner--warn' : ''}`}>
           <span className="field__label">🏆 Classificado para a fase seguinte</span>
@@ -280,9 +332,11 @@ export function MatchResultModal({
             <option value={match.awayTeamId}>{away?.name}</option>
           </select>
           <span className="field__hint">
-            {isTied
-              ? 'Empate: informe quem passou (pênaltis/W.O.) para o chaveamento avançar.'
-              : 'Deixe em “pelo placar” — use apenas em decisão por pênaltis ou W.O.'}
+            {penWinner
+              ? 'Já definido pelos pênaltis acima — use aqui apenas para W.O. ou decisão do organizador.'
+              : isTied
+                ? 'Empate: informe as cobranças acima ou escolha aqui quem passou (W.O.).'
+                : 'Deixe em “pelo placar” — use apenas em W.O. ou decisão do organizador.'}
           </span>
         </label>
       )}
