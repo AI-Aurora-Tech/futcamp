@@ -45,3 +45,49 @@ self.addEventListener('fetch', (event) => {
     })(),
   )
 })
+
+// ---------------------------------------------------------------------------
+// Notificações push (Web Push / VAPID).
+// O conteúdo vem da Edge Function `send-push`:
+//   { title, body, url, tag }
+// ---------------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { title: 'Tabelaço', body: event.data ? event.data.text() : '' }
+  }
+  const title = data.title || 'Tabelaço'
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag || 'tabelaco',
+      renotify: true,
+      data: { url: data.url || '/' },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || '/'
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      // Se o app já estiver aberto, leva a aba existente para a página do aviso.
+      for (const client of all) {
+        if ('focus' in client) {
+          await client.focus()
+          if ('navigate' in client && target.startsWith('#')) {
+            await client.navigate(client.url.split('#')[0] + target).catch(() => {})
+          }
+          return
+        }
+      }
+      await self.clients.openWindow(target.startsWith('#') ? '/' + target : target)
+    })(),
+  )
+})

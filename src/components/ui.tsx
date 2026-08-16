@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { Team } from '../types'
 
 /** Escudo do time: usa emoji/data URL em `logo` ou as iniciais como fallback. */
@@ -172,6 +172,77 @@ export function SearchField({
           {count} de {total} {noun}{(total ?? 0) === 1 ? '' : 's'}
         </span>
       )}
+    </div>
+  )
+}
+
+/**
+ * Liga/desliga as notificações push deste navegador. O componente cuida da
+ * permissão e do estado; quem usa só informa o que ligar.
+ */
+export function PushToggle({
+  title,
+  hint,
+  enable,
+  disable,
+  available,
+}: {
+  title: string
+  hint: string
+  enable: () => Promise<{ ok: boolean; error?: string }>
+  disable: () => Promise<{ ok: boolean; error?: string }>
+  /** Recurso disponível (backend + navegador). */
+  available: boolean
+}) {
+  const [on, setOn] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      if (!available || !('serviceWorker' in navigator)) return
+      try {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (active) setOn(!!sub && Notification.permission === 'granted')
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [available])
+
+  async function toggle() {
+    setBusy(true)
+    setMsg(null)
+    const res = on ? await disable() : await enable()
+    setBusy(false)
+    if (!res.ok) {
+      setMsg(res.error ?? 'Não foi possível alterar as notificações.')
+      return
+    }
+    setOn(!on)
+    setMsg(on ? 'Notificações desligadas.' : 'Notificações ligadas neste dispositivo ✅')
+  }
+
+  return (
+    <div className={`push-toggle ${on ? 'is-on' : ''}`}>
+      <div className="push-toggle__info">
+        <strong>{on ? '🔔' : '🔕'} {title}</strong>
+        <span className="muted small">{hint}</span>
+        {!available && (
+          <span className="muted small">
+            Disponível quando o app estiver conectado ao Supabase, em um navegador com suporte a push.
+          </span>
+        )}
+        {msg && <span className="push-toggle__msg">{msg}</span>}
+      </div>
+      <Button variant={on ? 'ghost' : 'soft'} type="button" onClick={() => void toggle()} disabled={busy || !available}>
+        {busy ? 'Aguarde…' : on ? 'Desligar' : 'Ligar avisos'}
+      </Button>
     </div>
   )
 }
