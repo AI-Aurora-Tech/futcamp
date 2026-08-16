@@ -2,6 +2,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
+import { checkCpfConflict } from '../lib/duplicates'
 import type { Player } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -53,7 +54,50 @@ export async function listPlayers(championshipId: string): Promise<Player[]> {
 
 export type NewPlayer = Omit<Player, 'id' | 'createdAt'>
 
+/**
+ * Um CPF pertence a um único time dentro do campeonato (podendo repetir no
+ * mesmo time em outra categoria). Vale para o painel do administrador e para o
+ * modo demo; no Supabase a mesma regra é garantida por índice e gatilho.
+ */
+async function assertCpfAvailable(
+  championshipId: string,
+  patch: Partial<Player>,
+  ignorePlayerId?: string,
+): Promise<void> {
+  const cpf = (patch.cpf ?? '').replace(/\D/g, '')
+  if (!cpf || !patch.teamId) return
+  const players = await listPlayers(championshipId)
+  const teams = await listTeamNames(championshipId)
+  const check = checkCpfConflict({
+    cpf,
+    teamId: patch.teamId,
+    categoryId: patch.categoryId,
+    players,
+    teamName: (id) => teams.get(id),
+    ignorePlayerId,
+  })
+  if (!check.ok) throw new Error(check.reason ?? 'CPF já inscrito neste campeonato.')
+}
+
+/** Nomes dos times do campeonato (só para compor a mensagem de erro). */
+async function listTeamNames(championshipId: string): Promise<Map<string, string>> {
+  if (authMode === 'supabase' && supabase) {
+    const { data } = await supabase
+      .from('teams')
+      .select('id,name')
+      .eq('championship_id', championshipId)
+    return new Map((data ?? []).map((t: any) => [t.id as string, t.name as string]))
+  }
+  return query(
+    (d) =>
+      new Map(
+        d.teams.filter((t) => t.championshipId === championshipId).map((t) => [t.id, t.name]),
+      ),
+  )
+}
+
 export async function createPlayer(input: NewPlayer): Promise<Player> {
+  await assertCpfAvailable(input.championshipId, input)
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.from('players').insert(toRow(input)).select('*').single()
     if (error) throw error
@@ -67,6 +111,9 @@ export async function createPlayer(input: NewPlayer): Promise<Player> {
 }
 
 export async function updatePlayer(id: string, patch: Partial<Player>): Promise<void> {
+  if (patch.championshipId && patch.cpf !== undefined) {
+    await assertCpfAvailable(patch.championshipId, patch, id)
+  }
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.from('players').update(toRow(patch)).eq('id', id)
     if (error) throw error

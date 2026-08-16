@@ -22,6 +22,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0014_qualifiers_and_lineup.sql` | Classificados por grupo/liga e presença (escalação) da partida. |
 | `migrations/0015_master_admin_and_bracket.sql` | **Administrador master** (`master_admins`, `is_master()`, exclusão de campeonato só para o master) + **mata-mata automático**: critérios de desempate, chaveamento, disputa de 3º lugar e as funções `ensure_knockout_stage` / `advance_bracket`. |
 | `migrations/0016_group_stages.sql` | **Fases de grupos múltiplas** (`championships.group_stages`, `matches.stage`) e **classificados por grupo** (`advance_by_group`), com a função `ensure_group_stage` e o `ensure_knockout_stage` ciente do nº de fases. |
+| `migrations/0017_one_cpf_one_team.sql` | **Um CPF, um time** no campeonato: índice único por (campeonato, CPF, categoria) e gatilho que impede o mesmo CPF em duas equipes — vale para todos os caminhos de inscrição. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
 | `config.toml` | Configuração do Supabase CLI (dev local). |
@@ -48,6 +49,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0014_qualifiers_and_lineup.sql`
    - `migrations/0015_master_admin_and_bracket.sql`
    - `migrations/0016_group_stages.sql`
+   - `migrations/0017_one_cpf_one_team.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');

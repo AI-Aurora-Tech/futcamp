@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { createPlayer, deletePlayer, updatePlayer, type NewPlayer } from '../services/players'
 import { checkEligibility, checkRosterLimit, formatCpf, isValidCpf } from '../lib/eligibility'
+import { checkCpfConflict } from '../lib/duplicates'
 import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
@@ -151,6 +152,8 @@ export function PlayersPanel({
           championship={championship}
           teamId={selectedTeam}
           teamPlayers={teamPlayers}
+          championshipPlayers={players}
+          teamName={(id) => teams.find((t) => t.id === id)?.name}
           initial={editing ?? undefined}
           onClose={() => {
             setAdding(false)
@@ -168,6 +171,9 @@ export function PlayersPanel({
         <ImportAthletesModal
           categories={championship.categories}
           existing={teamPlayers}
+          championshipPlayers={players}
+          teamId={selectedTeam}
+          teamName={(id) => teams.find((t) => t.id === id)?.name}
           onAdd={async (i) => {
             await createPlayer({
               championshipId: championship.id,
@@ -191,6 +197,8 @@ function PlayerForm({
   championship,
   teamId,
   teamPlayers,
+  championshipPlayers,
+  teamName,
   initial,
   onClose,
   onSaved,
@@ -198,6 +206,9 @@ function PlayerForm({
   championship: Championship
   teamId: string
   teamPlayers: Player[]
+  /** Todos os atletas do campeonato (regra "um CPF, um time"). */
+  championshipPlayers: Player[]
+  teamName: (teamId: string) => string | undefined
   initial?: Player
   onClose: () => void
   onSaved: () => void
@@ -234,6 +245,18 @@ function PlayerForm({
     setError(null)
     if (cpf && !birthdate && !isValidCpf(cpf)) {
       setError('CPF inválido.')
+      return
+    }
+    const cpfConflict = checkCpfConflict({
+      cpf,
+      teamId,
+      categoryId,
+      players: championshipPlayers,
+      teamName,
+      ignorePlayerId: initial?.id,
+    })
+    if (!cpfConflict.ok) {
+      setError(cpfConflict.reason ?? 'CPF já inscrito neste campeonato.')
       return
     }
     const existing = teamPlayers.filter((p) => p.categoryId === categoryId && p.id !== initial?.id)

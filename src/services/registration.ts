@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
+import { checkCpfConflict } from '../lib/duplicates'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import type { Category, Match, Player, Position, Team } from '../types'
 
@@ -338,7 +339,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
-  const { category, existing, cutoff, closedRounds, matches } = query((d) => {
+  const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
@@ -352,8 +353,23 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
       cutoff: champ?.registrationCutoffHours ?? 0,
       closedRounds: champ?.closedRounds ?? [],
       matches,
+      champPlayers: d.players.filter((p) => p.championshipId === team?.championshipId),
+      teamNames: new Map(
+        d.teams.filter((t) => t.championshipId === team?.championshipId).map((t) => [t.id, t.name]),
+      ),
     }
   })
+
+  // Um CPF, um time no campeonato (podendo repetir no mesmo time em outra categoria).
+  const cpfCheck = checkCpfConflict({
+    cpf: input.cpf,
+    teamId,
+    categoryId: input.categoryId,
+    players: champPlayers,
+    teamName: (id) => teamNames.get(id),
+    ignorePlayerId: excludePlayerId,
+  })
+  if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
   const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
   if (lock.locked) {
