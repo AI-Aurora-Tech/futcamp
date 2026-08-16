@@ -65,6 +65,14 @@ export function MatchesPanel({
   const currentStage = Math.max(1, ...groupMatchesOnly.map(matchStage))
   const remaining = matchesOfStage(matches, currentStage).filter((m) => m.status !== 'finished').length
   const pendingStage = nextGroupStageToCreate(championship, matches)
+  /**
+   * Rótulo da fase (1-based) tolerante a campeonatos sem fases configuradas —
+   * um índice inexistente não pode derrubar a tela.
+   */
+  const stageLabel = (stage: number): string => {
+    const cfg = stages[stage - 1]
+    return cfg ? stageName(cfg, stage - 1, stages.length) : 'fase de classificação'
+  }
   const canCreateKnockout =
     !isKnockout &&
     hasKnockoutStage(championship) &&
@@ -196,13 +204,13 @@ export function MatchesPanel({
           {knockoutMatches.length
             ? '🏆 Mata-mata criado com os classificados. Ao encerrar cada confronto, o vencedor avança sozinho para a fase seguinte.'
             : remaining > 0
-              ? `🏁 Faltam ${remaining} jogo(s) da ${stageName(stages[currentStage - 1] ?? stages[0], currentStage - 1, stages.length)}.` +
-                (pendingStage != null || currentStage < stages.length
-                  ? ' Quando o último for encerrado, a fase seguinte é criada automaticamente com os classificados.'
-                  : ' Quando o último for encerrado, o mata-mata é criado automaticamente com os classificados.')
+              ? `🏁 Faltam ${remaining} jogo(s) para encerrar a fase atual (${stageLabel(currentStage)}).` +
+                (currentStage < stages.length
+                  ? ' Depois, a fase seguinte é criada automaticamente com os classificados.'
+                  : ' Depois, o mata-mata é criado automaticamente com os classificados.')
               : pendingStage != null
-                ? `✅ ${stageName(stages[pendingStage - 2] ?? stages[0], pendingStage - 2, stages.length)} encerrada — montando a ${stageName(stages[pendingStage - 1], pendingStage - 1, stages.length)} com os classificados…`
-                : '🏆 Fase de grupos encerrada — montando o mata-mata com os classificados…'}
+                ? `✅ Fase encerrada (${stageLabel(pendingStage - 1)}) — montando a ${stageLabel(pendingStage)} com os classificados…`
+                : '🏆 Fase de classificação encerrada — montando o mata-mata com os classificados…'}
         </p>
       )}
 

@@ -35,16 +35,30 @@ export function stageName(stage: GroupStage, index: number, total: number): stri
  */
 export function groupStagesOf(champ: Championship): GroupStage[] {
   if (champ.groupStages?.length) return champ.groupStages
-  if (champ.format !== 'groups_knockout') return []
-  return [
-    {
-      id: 'stage-1',
-      numGroups: champ.numGroups ?? 2,
-      advancePerGroup: champ.advancePerGroup,
-      advanceByGroup: champ.advanceByGroup,
-      doubleRound: champ.doubleRound,
-    },
-  ]
+  if (champ.format === 'groups_knockout') {
+    return [
+      {
+        id: 'stage-1',
+        numGroups: champ.numGroups ?? 2,
+        advancePerGroup: champ.advancePerGroup,
+        advanceByGroup: champ.advanceByGroup,
+        doubleRound: champ.doubleRound,
+      },
+    ]
+  }
+  if (champ.format === 'league') {
+    // Pontos corridos é uma fase de classificação única (grupo geral).
+    return [
+      {
+        id: 'league-1',
+        name: 'fase de pontos corridos',
+        numGroups: 1,
+        advancePerGroup: champ.leagueQualifiers ?? 0,
+        doubleRound: champ.doubleRound,
+      },
+    ]
+  }
+  return []
 }
 
 /** Quantos se classificam neste grupo desta fase. */
