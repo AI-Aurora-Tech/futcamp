@@ -10,6 +10,7 @@ import { listPlayers } from '../services/players'
 import { listEvents, listMatches, syncKnockout } from '../services/matches'
 import { listOfficials } from '../services/officials'
 import { useAuth } from '../context/AuthContext'
+import { disablePush, enablePush, pushAvailable } from '../services/push'
 import {
   FORMAT_LABELS,
   SPORT_LABELS,
@@ -20,7 +21,7 @@ import {
   type Player,
   type Team,
 } from '../types'
-import { Button, ChampLogo, Spinner, StatusPill } from './ui'
+import { Button, ChampLogo, PushToggle, Spinner, StatusPill } from './ui'
 import { Overview } from './Overview'
 import { TeamsPanel } from './TeamsPanel'
 import { PlayersPanel } from './PlayersPanel'
@@ -207,6 +208,21 @@ export function ManageChampionship({
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="settings-block">
+              <h3>Notificações</h3>
+              <p className="muted small">
+                Receba um aviso no celular quando um time mexer no elenco ou nos próprios dados —
+                inscrição, edição e remoção de atletas. Vale para este dispositivo.
+              </p>
+              <PushToggle
+                title="Avisos de alterações dos times"
+                hint="Um aviso por time, agrupando alterações seguidas (uma importação não vira dezenas de avisos)."
+                available={pushAvailable()}
+                enable={() => enablePush({ championshipId, role: 'organizer' })}
+                disable={() => disablePush(championshipId)}
+              />
             </div>
 
             <div className="settings-block danger-zone">

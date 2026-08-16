@@ -943,3 +943,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* ---------- Importação por planilha ---------- */
 .import-clear { margin-left: 0.5rem; }
+
+/* ---------- Notificações push ---------- */
+.push-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2);
+  padding: 0.7rem 0.85rem; margin: 0.75rem 0;
+}
+.push-toggle.is-on { border-color: #bbf7d0; background: #f0fdf4; }
+.push-toggle__info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
+.push-toggle__info strong { font-size: 0.9rem; }
+.push-toggle__msg { font-size: 0.78rem; font-weight: 600; color: var(--brand-dark); }

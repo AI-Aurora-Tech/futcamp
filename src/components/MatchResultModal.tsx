@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { flushPush } from '../services/push'
 import {
   EVENT_LABELS,
   type Championship,
@@ -121,7 +122,11 @@ export function MatchResultModal({
     }
     const created = await w.addEvent(payload)
     setEvents((prev) => [...prev, created])
-    if (evType === 'goal' || evType === 'own_goal') bumpScore(evTeam, evType)
+    if (evType === 'goal' || evType === 'own_goal') {
+      bumpScore(evTeam, evType)
+      // Avisa os times do mesmo grupo (fila criada por gatilho no banco).
+      void flushPush(match.championshipId)
+    }
     setEvPlayer('')
     setEvPlayerIn('')
     setEvDetail('')

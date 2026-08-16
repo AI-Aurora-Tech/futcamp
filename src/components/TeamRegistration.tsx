@@ -15,8 +15,9 @@ import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { validateAthlete } from '../services/validation'
+import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import { POSITIONS, type Category, type Player, type Position } from '../types'
-import { Button, ChampLogo, EmptyState, Field, Modal, Spinner, TeamBadge } from './ui'
+import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 
 const authKey = (teamId: string) => `futcamp:teamauth:${teamId}`
@@ -38,7 +39,11 @@ export function TeamRegistration({
   const reload = async () => {
     const d = await loadRegistration(teamId, token)
     if (!d) setInvalid(true)
-    else setData(d)
+    else {
+      setData(d)
+      // Alterações do time geram aviso para o organizador: entrega na hora.
+      void flushPush(d.championshipId)
+    }
   }
 
   useEffect(() => {
@@ -451,6 +456,14 @@ function RosterCard({
           <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
         </div>
       </div>
+
+      <PushToggle
+        title="Avisos de gol do meu grupo"
+        hint="Um aviso no celular a cada gol nas partidas do grupo em que o seu time joga."
+        available={pushAvailable()}
+        enable={() => enablePush({ championshipId: data.championshipId, role: 'team', teamId: teamId, token })}
+        disable={() => disablePush(data.championshipId)}
+      />
 
       {lock.locked && (
         <div className="lock-banner">

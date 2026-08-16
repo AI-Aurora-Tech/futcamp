@@ -39,6 +39,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento, abertos a qualquer visitante.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
+- 🔔 **Notificações push**: o responsável do time recebe aviso de **gol no grupo em que seu time joga**; o organizador recebe aviso quando **um time altera o elenco** ou os próprios dados.
 - 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
 - 👑 **Administrador master**: perfil único que administra **qualquer** campeonato e é o **único que pode excluir** um campeonato — nem mesmo o dono pode.
@@ -95,6 +96,50 @@ Como definir quem é master:
 
 No **modo demo** basta entrar com um e-mail da lista `VITE_MASTER_ADMINS`
 (padrão: `master@tabelaco.app`) para navegar como master.
+
+## 🔔 Notificações push
+
+Dois avisos automáticos, cada um ligado por quem quer recebê-lo (por
+dispositivo):
+
+- **Responsável do time** — no portal de inscrição, liga *"Avisos de gol do meu
+  grupo"*: recebe uma notificação a cada gol nas partidas do **mesmo grupo e da
+  mesma fase** em que o time dele joga.
+- **Organizador** — em *Ajustes*, liga *"Avisos de alterações dos times"*:
+  recebe quando um time inscreve, edita ou remove atletas, ou muda os próprios
+  dados. Alterações seguidas do mesmo time são agrupadas em um aviso só (uma
+  importação de 30 atletas não vira 30 notificações).
+
+Os avisos nascem de **gatilhos no banco** (`push_outbox`), então valem para
+qualquer caminho — painel, portal do mesário e link de inscrição.
+
+### Como habilitar
+
+1. Gere o par de chaves VAPID:
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+2. **App** — coloque a chave pública no `.env` e faça um novo build/deploy:
+   ```bash
+   VITE_VAPID_PUBLIC_KEY=BEl...   # chave pública
+   ```
+3. **Banco** — rode a migration `0018_push_notifications.sql`.
+4. **Edge Function** — publique a função de entrega e configure os secrets:
+   ```bash
+   supabase functions deploy send-push
+   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... \
+     VAPID_SUBJECT="mailto:voce@exemplo.com"
+   ```
+5. (Opcional, recomendado) Agende a função para rodar a cada minuto — ela
+   entrega o que por acaso tenha ficado pendente. O app já chama a função logo
+   após cada gol e cada alteração, então o agendamento é só a rede de segurança.
+
+Sem esses passos o recurso aparece desligado e explicado na interface — nada
+quebra. No **modo demo** (sem Supabase) não há push: não existe servidor para
+enviar.
+
+> iPhone/iPad: o push só funciona com o app **adicionado à tela de início**
+> (PWA instalado), exigência do próprio iOS.
 
 ## 🏆 Da fase de grupos ao mata-mata (automático)
 
