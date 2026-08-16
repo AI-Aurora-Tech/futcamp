@@ -66,7 +66,7 @@ export function PlayersPanel({
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📄 Importar TXT</Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
         </div>
       </div>

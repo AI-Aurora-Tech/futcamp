@@ -447,7 +447,7 @@ function RosterCard({
           <p className="muted">Inscreva os atletas com nome completo, CPF e data de nascimento.</p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={lock.locked}>📄 Importar TXT</Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={lock.locked}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
         </div>
       </div>

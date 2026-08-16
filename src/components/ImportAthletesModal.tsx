@@ -1,8 +1,28 @@
 import { useMemo, useRef, useState } from 'react'
-import { parseAthletesTxt } from '../lib/importAthletes'
+import { parseAthletesRows, parseAthletesText, type ParsedAthlete } from '../lib/importAthletes'
+import { readSpreadsheet, SpreadsheetError, type SheetRows } from '../lib/spreadsheet'
 import { checkEligibility, checkRosterLimit, formatCpf } from '../lib/eligibility'
 import type { Category, Player } from '../types'
 import { Button, Field, Modal } from './ui'
+
+/** Modelo de planilha para o organizador preencher (CSV que o Excel abre). */
+function downloadTemplate() {
+  const csv = [
+    'Nome;CPF;Data de nascimento',
+    'Maria Souza;529.982.247-25;12/03/2004',
+    'Carlos Lima;111.444.777-35;21/07/2005',
+  ].join('\r\n')
+  // BOM para o Excel abrir os acentos corretamente.
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'modelo-atletas.csv'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 
 export interface ImportInput {
   name: string
@@ -35,7 +55,10 @@ export function ImportAthletesModal({
   onDone: () => void
 }) {
   const [text, setText] = useState('')
+  /** Linhas vindas de um arquivo de planilha (têm prioridade sobre o texto). */
+  const [sheet, setSheet] = useState<SheetRows | null>(null)
   const [fileName, setFileName] = useState('')
+  const [fileError, setFileError] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '')
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<{ added: number; failed: number } | null>(null)
@@ -45,13 +68,35 @@ export function ImportAthletesModal({
     const file = e.target.files?.[0]
     if (!file) return
     setFileName(file.name)
-    setText(await file.text())
+    setResult(null)
+    setFileError(null)
+    try {
+      const rows = await readSpreadsheet(file)
+      if (rows.length === 0) throw new SpreadsheetError('A planilha está vazia.')
+      setSheet(rows)
+      setText('')
+    } catch (err) {
+      setSheet(null)
+      setFileError(
+        err instanceof SpreadsheetError
+          ? err.message
+          : 'Não foi possível ler o arquivo. Use .xlsx ou salve a planilha como CSV.',
+      )
+    } finally {
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  function clearFile() {
+    setSheet(null)
+    setFileName('')
+    setFileError(null)
     setResult(null)
   }
 
   // Avalia cada linha acumulando (respeita limites e exceções da categoria).
   const rows: EvalRow[] = useMemo(() => {
-    const parsed = parseAthletesTxt(text)
+    const parsed: ParsedAthlete[] = sheet ? parseAthletesRows(sheet) : parseAthletesText(text)
     const category = categories.find((c) => c.id === categoryId)
     const running: Player[] = existing.filter((p) => p.categoryId === categoryId)
     return parsed.map((p) => {
@@ -72,7 +117,7 @@ export function ImportAthletesModal({
       })
       return { ...p, ok: true }
     })
-  }, [text, categoryId, categories, existing])
+  }, [text, sheet, categoryId, categories, existing])
 
   const okCount = rows.filter((r) => r.ok).length
 
@@ -95,16 +140,30 @@ export function ImportAthletesModal({
   }
 
   return (
-    <Modal title="Importar atletas (.txt)" onClose={onClose} wide>
+    <Modal title="Importar atletas por planilha" onClose={onClose} wide>
       <p className="muted small">
-        Um atleta por linha, no formato <code>NOME - CPF - DATA DE NASCIMENTO</code>.
-        Ex.: <code>João da Silva - 111.444.777-35 - 10/05/2005</code>
+        Planilha (<code>.xlsx</code>, <code>.csv</code>) ou arquivo de texto com três colunas por
+        atleta: <b>Nome</b>, <b>CPF</b> e <b>Data de nascimento</b>. Se a primeira linha for o
+        cabeçalho, as colunas são reconhecidas pelo nome — em qualquer ordem.
       </p>
 
       <div className="import-controls">
-        <input ref={fileRef} type="file" accept=".txt,text/plain" hidden onChange={onFile} />
-        <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>📄 Escolher arquivo .txt</Button>
-        {fileName && <span className="muted small">{fileName}</span>}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xlsx,.xlsm,.csv,.tsv,.txt,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          onChange={onFile}
+        />
+        <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>📊 Escolher planilha</Button>
+        <button type="button" className="link-btn" onClick={downloadTemplate}>⬇ baixar modelo</button>
+        {fileName && (
+          <span className="muted small">
+            {sheet ? '📄' : '⚠️'} {fileName}
+            {sheet && ` · ${sheet.length} linha(s)`}
+            <button type="button" className="link-btn import-clear" onClick={clearFile}>remover</button>
+          </span>
+        )}
         {categories.length > 1 && (
           <Field label="Categoria">
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -116,14 +175,22 @@ export function ImportAthletesModal({
         )}
       </div>
 
-      <p className="muted small">Ou cole o conteúdo abaixo:</p>
-      <textarea
-        className="import-textarea"
-        rows={5}
-        value={text}
-        onChange={(e) => { setText(e.target.value); setResult(null) }}
-        placeholder={'Maria Souza - 529.982.247-25 - 12/03/2004\nCarlos Lima - 111.444.777-35 - 2005-07-21'}
-      />
+      {fileError && <p className="auth-error">{fileError}</p>}
+
+      {!sheet && (
+        <>
+          <p className="muted small">
+            Ou cole as linhas abaixo (direto do Excel, ou no formato <code>NOME - CPF - DATA</code>):
+          </p>
+          <textarea
+            className="import-textarea"
+            rows={5}
+            value={text}
+            onChange={(e) => { setText(e.target.value); setResult(null) }}
+            placeholder={'Maria Souza;529.982.247-25;12/03/2004\nCarlos Lima - 111.444.777-35 - 2005-07-21'}
+          />
+        </>
+      )}
 
       {rows.length > 0 && (
         <div className="import-preview">
