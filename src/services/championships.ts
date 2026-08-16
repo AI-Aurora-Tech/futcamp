@@ -38,6 +38,7 @@ function fromRow(r: any): Championship {
     referees: Array.isArray(r.referees) ? r.referees : [],
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
+    finishedAt: r.finished_at ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -112,23 +113,71 @@ export async function listAllChampionships(): Promise<Championship[]> {
   )
 }
 
-/** Campeonatos EM ANDAMENTO (status "active") visíveis publicamente. */
+/**
+ * Por quantos dias um campeonato ENCERRADO continua na vitrine pública —
+ * é o tempo em que o campeão fica à vista de quem não tem o link direto.
+ */
+export const PUBLIC_FINISHED_DAYS = 10
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Até quando o campeonato encerrado ainda aparece publicamente (ms). */
+export function publicUntil(c: Championship): number | null {
+  if (c.status !== 'finished') return null
+  const at = Date.parse(c.finishedAt ?? c.createdAt)
+  return Number.isNaN(at) ? null : at + PUBLIC_FINISHED_DAYS * DAY_MS
+}
+
+/** Quantos dias faltam para o campeonato encerrado sair da vitrine. */
+export function daysLeftPublic(c: Championship, now = Date.now()): number | null {
+  const until = publicUntil(c)
+  if (until == null) return null
+  return Math.max(0, Math.ceil((until - now) / DAY_MS))
+}
+
+/** O campeonato aparece na vitrine pública agora? */
+export function isPubliclyListed(c: Championship, now = Date.now()): boolean {
+  if (c.status === 'active') return true
+  const until = publicUntil(c)
+  return until != null && until > now
+}
+
+/**
+ * Campeonatos visíveis publicamente: os EM ANDAMENTO e os ENCERRADOS há no
+ * máximo `PUBLIC_FINISHED_DAYS` dias (para o campeão continuar à vista).
+ * Os em andamento vêm primeiro.
+ */
 export async function listPublicChampionships(): Promise<Championship[]> {
+  const now = Date.now()
+  const cutoff = new Date(now - PUBLIC_FINISHED_DAYS * DAY_MS).toISOString()
+  const order = (a: Championship, b: Championship) =>
+    a.status === b.status
+      ? b.createdAt.localeCompare(a.createdAt)
+      : a.status === 'active'
+        ? -1
+        : 1
+
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase
       .from('championships')
       .select('*')
-      .eq('status', 'active')
+      .or(`status.eq.active,and(status.eq.finished,finished_at.gte.${cutoff})`)
       .order('created_at', { ascending: false })
       .limit(60)
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    // Banco sem a coluna finished_at (migration 0020 pendente): cai no filtro
+    // antigo em vez de deixar a vitrine vazia.
+    if (error) {
+      const { data: actives } = await supabase
+        .from('championships')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(60)
+      return (actives ?? []).map(fromRow)
+    }
+    return (data ?? []).map(fromRow).sort(order)
   }
-  return query((d) =>
-    d.championships
-      .filter((c) => c.status === 'active')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  )
+  return query((d) => d.championships.filter((c) => isPubliclyListed(c, now)).sort(order))
 }
 
 export async function getChampionship(id: string): Promise<Championship | null> {
@@ -178,7 +227,14 @@ export async function updateChampionship(
   }
   mutate((d) => {
     const i = d.championships.findIndex((c) => c.id === id)
-    if (i >= 0) d.championships[i] = { ...d.championships[i], ...patch }
+    if (i < 0) return
+    const next = { ...d.championships[i], ...patch }
+    // Carimba (ou apaga) a data de encerramento na troca de status — no
+    // Supabase quem faz isso é o gatilho da migration 0020.
+    if (patch.status !== undefined && patch.status !== d.championships[i].status) {
+      next.finishedAt = patch.status === 'finished' ? new Date().toISOString() : undefined
+    }
+    d.championships[i] = next
   })
 }
 

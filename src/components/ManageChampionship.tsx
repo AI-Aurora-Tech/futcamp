@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  daysLeftPublic,
   deleteChampionship,
   getChampionship,
   updateChampionship,
@@ -211,6 +212,14 @@ export function ManageChampionship({
                   </button>
                 ))}
               </div>
+              {champ.status === 'finished' && (
+                <p className="muted small">
+                  🏆 Campeonato encerrado{' '}
+                  {daysLeftPublic(champ)
+                    ? `— o campeão fica na vitrine pública por mais ${daysLeftPublic(champ)} dia(s).`
+                    : `— saiu da vitrine pública (o link direto continua valendo).`}
+                </p>
+              )}
             </div>
 
             <div className="settings-block">
