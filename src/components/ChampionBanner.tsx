@@ -24,8 +24,12 @@ export function ChampionBanner({ podium, teams }: { podium: Podium; teams: Team[
           <strong className="champion__name">{champion.name}</strong>
           <span className="champion__how">
             {podium.decidedBy === 'final'
-              ? 'Campeão na final'
-              : 'Campeão pela classificação final'}
+              ? podium.finalScore
+                ? `Final: ${podium.finalScore}`
+                : 'Campeão na final'
+              : podium.points != null
+                ? `Campeão com ${podium.points} ponto(s) em ${podium.played} jogo(s)`
+                : 'Campeão pela classificação final'}
           </span>
         </div>
       </div>

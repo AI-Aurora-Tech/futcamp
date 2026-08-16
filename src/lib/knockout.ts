@@ -245,12 +245,28 @@ export function resolveBracketTeams(
   return bracket.map((p) => ({ home: teamFor(p.home), away: teamFor(p.away) }))
 }
 
-/** Vencedor do confronto (pênaltis/W.O. manual, placar ou bye). */
+/** A partida foi decidida nos pênaltis? */
+export function decidedOnPenalties(m: Match): boolean {
+  return (
+    m.penaltyHome != null &&
+    m.penaltyAway != null &&
+    m.penaltyHome !== m.penaltyAway
+  )
+}
+
+/**
+ * Vencedor do confronto, nesta ordem: classificado definido à mão (W.O.),
+ * disputa por pênaltis, placar do jogo e, por fim, bye.
+ */
 export function winnerOf(m: Match): string | null {
   if (m.winnerTeamId) return m.winnerTeamId
   if (m.homeTeamId && !m.awayTeamId) return m.homeTeamId // bye
   if (m.awayTeamId && !m.homeTeamId) return m.awayTeamId
-  if (m.status !== 'finished' || m.homeScore == null || m.awayScore == null) return null
+  if (m.status !== 'finished') return null
+  if (decidedOnPenalties(m)) {
+    return (m.penaltyHome as number) > (m.penaltyAway as number) ? m.homeTeamId : m.awayTeamId
+  }
+  if (m.homeScore == null || m.awayScore == null) return null
   if (m.homeScore > m.awayScore) return m.homeTeamId
   if (m.homeScore < m.awayScore) return m.awayTeamId
   return null // empate sem classificado definido

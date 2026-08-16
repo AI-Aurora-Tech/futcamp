@@ -99,6 +99,10 @@ export function buildSumulaHtml(params: {
 
   const score =
     match.homeScore != null && match.awayScore != null ? `${match.homeScore} x ${match.awayScore}` : '____ x ____'
+  const penalties =
+    match.penaltyHome != null && match.penaltyAway != null
+      ? `${match.penaltyHome} x ${match.penaltyAway} nos pênaltis`
+      : ''
   const phaseOrRound = match.phase === 'group' ? `Rodada ${match.round}` : PHASE_LABELS[match.phase]
   const refereeName = (championship.referees ?? []).find((r) => r.id === match.refereeId)?.name ?? ''
 
@@ -113,6 +117,7 @@ export function buildSumulaHtml(params: {
   .score { text-align: center; }
   .score .teams { font-size: 16px; font-weight: bold; }
   .score .num { font-size: 26px; font-weight: bold; }
+  .score .pens { font-size: 11px; font-weight: bold; color: #555; }
   .meta { margin: 8px 0 16px; display: flex; gap: 24px; flex-wrap: wrap; }
   .meta div { font-size: 12px; }
   .cols { display: flex; gap: 16px; }
@@ -143,6 +148,7 @@ export function buildSumulaHtml(params: {
   <div class="score">
     <div class="teams">${esc(home?.name ?? 'A definir')} x ${esc(away?.name ?? 'A definir')}</div>
     <div class="num">${esc(score)}</div>
+    ${penalties ? `<div class="pens">${esc(penalties)}</div>` : ''}
   </div>
 </div>
 <div class="meta">

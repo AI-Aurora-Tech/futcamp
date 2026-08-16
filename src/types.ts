@@ -348,10 +348,14 @@ export interface Match {
    */
   bracketPos?: number
   /**
-   * Classificado definido manualmente (pênaltis/W.O.) quando o confronto de
-   * mata-mata termina empatado. Tem prioridade sobre o placar.
+   * Classificado definido manualmente (W.O. ou decisão do organizador) quando o
+   * confronto de mata-mata termina empatado. Tem prioridade sobre tudo.
    */
   winnerTeamId?: string
+  /** Disputa por pênaltis (mata-mata): gols do mandante nas cobranças. */
+  penaltyHome?: number | null
+  /** Disputa por pênaltis (mata-mata): gols do visitante nas cobranças. */
+  penaltyAway?: number | null
   /** Relato de incidentes (atrasos, segurança, conduta de torcidas). */
   incidents?: string
   /**

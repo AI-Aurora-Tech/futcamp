@@ -993,3 +993,24 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .champion { flex-direction: column; align-items: flex-start; }
   .champion__podium { flex-direction: row; flex-wrap: wrap; }
 }
+
+/* ---------- Disputa por pênaltis ---------- */
+.match-row__pens {
+  display: block; font-size: 0.62rem; font-weight: 800; color: var(--muted);
+  letter-spacing: 0.02em; margin-top: 1px;
+}
+.penalties {
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2);
+  padding: 0.7rem 0.85rem; margin-bottom: 1rem;
+}
+.penalties--needed { border-color: #fed7aa; background: #fff7ed; }
+.penalties__head { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 0.5rem; }
+.penalties__score { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+.penalties__team { font-size: 0.82rem; font-weight: 700; color: var(--ink-soft); max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.penalties__score input {
+  width: 62px; text-align: center; font-size: 1.05rem; font-weight: 800;
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0.35rem;
+  background: var(--surface);
+}
+.penalties__x { font-weight: 800; color: var(--muted); }
+.penalties__result { margin: 0.5rem 0 0; font-size: 0.8rem; font-weight: 700; color: var(--brand-dark); text-align: center; }

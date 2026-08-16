@@ -49,6 +49,8 @@ function fromRow(r: any): Match {
     lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
     bracketPos: r.bracket_pos ?? undefined,
     winnerTeamId: r.winner_team_id ?? undefined,
+    penaltyHome: r.penalty_home ?? undefined,
+    penaltyAway: r.penalty_away ?? undefined,
     stage: r.stage ?? undefined,
     createdAt: r.created_at,
   }
@@ -73,6 +75,8 @@ function toRow(m: Partial<Match>): Record<string, unknown> {
   if (m.lineup !== undefined) row.lineup = m.lineup
   if (m.bracketPos !== undefined) row.bracket_pos = m.bracketPos
   if (m.winnerTeamId !== undefined) row.winner_team_id = m.winnerTeamId
+  if (m.penaltyHome !== undefined) row.penalty_home = m.penaltyHome
+  if (m.penaltyAway !== undefined) row.penalty_away = m.penaltyAway
   if (m.stage !== undefined) row.stage = m.stage
   return row
 }

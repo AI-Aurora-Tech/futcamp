@@ -39,7 +39,8 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento, abertos a qualquer visitante.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
-- 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela.
+- 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela. A página pública mantém o **placar da final** (mata-mata) ou os **pontos do campeão** (pontos corridos).
+- 🥅 **Disputa por pênaltis**: nos jogos de mata-mata, a partida ao vivo tem o placar das cobranças — quem vence nos pênaltis avança automaticamente no chaveamento e o placar aparece na lista de jogos, na súmula e na faixa de campeão.
 - 🔔 **Notificações push**: o responsável do time recebe aviso de **gol no grupo em que seu time joga**; o organizador recebe aviso quando **um time altera o elenco** ou os próprios dados.
 - 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
@@ -110,13 +111,28 @@ Assim que o título é decidido, a equipe campeã aparece:
 
 O campeão vem do **resultado**, não do status do campeonato:
 
-| Formato | Quem é o campeão |
-|---|---|
-| Mata-mata (inclusive após fase de grupos) | Vencedor da **final**; vice é o perdedor e o 3º sai da disputa de terceiro |
-| Pontos corridos | **Líder da tabela**, depois que todos os jogos são encerrados |
+| Formato | Quem é o campeão | O que fica registrado |
+|---|---|---|
+| Mata-mata (inclusive após fase de grupos) | Vencedor da **final**; vice é o perdedor e o 3º sai da disputa de terceiro | **Placar da final** — `Alfa 1 × 1 Beta · 4 × 2 nos pênaltis` |
+| Pontos corridos | **Líder da tabela**, depois que todos os jogos são encerrados (ou quando o organizador marca o campeonato como *encerrado*) | **Pontos do campeão** — `Campeão com 32 ponto(s) em 14 jogo(s)` |
 
-Empate na final sem classificado definido não coroa ninguém — informe quem
-passou (pênaltis/W.O.) na partida e o campeão aparece.
+Esses dados **continuam na página pública** depois que o campeonato é
+encerrado: quem abrir o link vê o campeão e como o título foi decidido.
+
+Empate na final sem classificado definido não coroa ninguém — informe os
+**pênaltis** (ou o classificado por W.O.) na partida e o campeão aparece.
+
+## 🥅 Disputa por pênaltis
+
+Nas partidas de **mata-mata**, a tela da partida ao vivo traz o bloco
+**Disputa por pênaltis** com o placar das cobranças. Ele fica destacado
+quando o jogo está empatado, e o organizador **ou o mesário** pode preenchê-lo.
+
+- Quem vence nas cobranças **avança sozinho** no chaveamento (o app e o banco
+  usam a mesma regra: classificado manual → pênaltis → placar do jogo).
+- O placar aparece na lista de jogos (`4 × 2 pên`), na **súmula** e na faixa
+  de campeão quando a decisão é a final.
+- Pênaltis empatados não decidem nada — o confronto continua pendente.
 
 ## 🔔 Notificações push
 
