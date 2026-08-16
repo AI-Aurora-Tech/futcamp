@@ -530,6 +530,7 @@ function RosterCard({
         <ImportAthletesModal
           categories={data.categories}
           existing={data.players}
+          teamId={teamId}
           onAdd={async (i) => {
             await addRegPlayer(teamId, token, {
               name: i.name,

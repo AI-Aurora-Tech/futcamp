@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { parseAthletesRows, parseAthletesText, type ParsedAthlete } from '../lib/importAthletes'
 import { readSpreadsheet, SpreadsheetError, type SheetRows } from '../lib/spreadsheet'
 import { checkEligibility, checkRosterLimit, formatCpf } from '../lib/eligibility'
+import { checkCpfConflict } from '../lib/duplicates'
 import type { Category, Player } from '../types'
 import { Button, Field, Modal } from './ui'
 
@@ -44,12 +45,20 @@ interface EvalRow {
 export function ImportAthletesModal({
   categories,
   existing,
+  championshipPlayers,
+  teamId,
+  teamName,
   onAdd,
   onClose,
   onDone,
 }: {
   categories: Category[]
   existing: Player[]
+  /** Todos os atletas do campeonato — para barrar CPF já inscrito por outro time. */
+  championshipPlayers?: Player[]
+  /** Time que está recebendo os atletas (necessário para a checagem de CPF). */
+  teamId?: string
+  teamName?: (teamId: string) => string | undefined
   onAdd: (input: ImportInput) => Promise<void>
   onClose: () => void
   onDone: () => void
@@ -61,7 +70,7 @@ export function ImportAthletesModal({
   const [fileError, setFileError] = useState<string | null>(null)
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '')
   const [importing, setImporting] = useState(false)
-  const [result, setResult] = useState<{ added: number; failed: number } | null>(null)
+  const [result, setResult] = useState<{ added: number; failed: number; firstError?: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -99,25 +108,43 @@ export function ImportAthletesModal({
     const parsed: ParsedAthlete[] = sheet ? parseAthletesRows(sheet) : parseAthletesText(text)
     const category = categories.find((c) => c.id === categoryId)
     const running: Player[] = existing.filter((p) => p.categoryId === categoryId)
-    return parsed.map((p) => {
+    // Acumula o que já foi aceito neste mesmo arquivo, para pegar CPF repetido.
+    const inFile: Player[] = []
+    return parsed.map((p, i) => {
       if (p.error) return { ...p, ok: false, reason: p.error }
+
+      // Um CPF, um time no campeonato.
+      if (teamId) {
+        const conflict = checkCpfConflict({
+          cpf: p.cpf,
+          teamId,
+          categoryId,
+          players: [...(championshipPlayers ?? existing), ...inFile],
+          teamName,
+        })
+        if (!conflict.ok) return { ...p, ok: false, reason: conflict.reason }
+      }
+
       const elig = checkEligibility({ category, birthdate: p.birthdate, existingInCategory: running })
       if (!elig.ok) return { ...p, ok: false, reason: elig.reason }
       const lim = checkRosterLimit({ category, role: 'atleta', existingInCategory: running })
       if (!lim.ok) return { ...p, ok: false, reason: lim.reason }
-      running.push({
-        id: `tmp-${running.length}`,
-        teamId: '',
+      const pending: Player = {
+        id: `tmp-${i}`,
+        teamId: teamId ?? '',
         championshipId: '',
         name: p.name,
+        cpf: p.cpf,
         birthdate: p.birthdate,
         categoryId,
         role: 'atleta',
         createdAt: '',
-      })
+      }
+      running.push(pending)
+      inFile.push(pending)
       return { ...p, ok: true }
     })
-  }, [text, sheet, categoryId, categories, existing])
+  }, [text, sheet, categoryId, categories, existing, championshipPlayers, teamId, teamName])
 
   const okCount = rows.filter((r) => r.ok).length
 
@@ -125,17 +152,20 @@ export function ImportAthletesModal({
     setImporting(true)
     let added = 0
     let failed = 0
+    let firstError: string | undefined
     for (const r of rows) {
       if (!r.ok) continue
       try {
         await onAdd({ name: r.name, cpf: r.cpf, birthdate: r.birthdate, categoryId: categoryId || undefined, role: 'atleta' })
         added++
-      } catch {
+      } catch (err) {
         failed++
+        // O motivo da recusa (ex.: CPF já inscrito por outro time) vem do serviço.
+        if (!firstError) firstError = `${r.name}: ${err instanceof Error ? err.message : 'erro ao salvar'}`
       }
     }
     setImporting(false)
-    setResult({ added, failed })
+    setResult({ added, failed, firstError })
     if (added > 0) onDone()
   }
 
@@ -217,8 +247,9 @@ export function ImportAthletesModal({
       )}
 
       {result && (
-        <p className="reg__msg">
-          {result.added} atleta(s) importado(s){result.failed ? ` · ${result.failed} falharam` : ''}.
+        <p className={result.failed ? 'auth-error' : 'reg__msg'}>
+          {result.added} atleta(s) importado(s){result.failed ? ` · ${result.failed} recusado(s)` : ''}.
+          {result.firstError ? ` ${result.firstError}` : ''}
         </p>
       )}
 

@@ -27,6 +27,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🛂 **API de validação do atleta** (Edge Function `validate-athlete`): valida o **CPF** e confere **CPF × data de nascimento** (via provedor configurável), com fallback local.
 - ⏱️ **Prazo de inscrição por partida**: as inscrições de um time encerram X horas antes do jogo e **reabrem** após a partida ser finalizada.
 - 🔢 **Limites por categoria**: máximo de **atletas** e de **comissão técnica** por time.
+- 🪪 **Um CPF, um time**: inscrito por uma equipe, o atleta **não** pode ser inscrito por outra do mesmo campeonato — em nenhuma categoria. Pela **mesma** equipe ele pode entrar em outra categoria, desde que se enquadre nela. A regra vale no painel, no link de inscrição e na importação, e é garantida também no banco (índice + gatilho).
 - 📄 **Súmula**: gere e exporte (imprimir/PDF ou HTML) a súmula do jogo quando as inscrições encerram.
 - 🔴 **Ao vivo**: o organizador lança gols/cartões durante o jogo e a **classificação e estatísticas** atualizam em tempo real.
 - 🧑‍⚖️ **Mesários**: logins próprios (vários mesários) que lançam os dados **em tempo real**; o administrador define **quais jogos** cada mesário pode preencher. Portal em `#/mesa/<id>`.
