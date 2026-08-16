@@ -14,6 +14,8 @@ import {
 } from '../types'
 import { ChampLogo, Spinner, StatusPill } from './ui'
 import { Overview } from './Overview'
+import { ChampionTag } from './ChampionBanner'
+import { computePodium } from '../lib/champion'
 import { MatchesReadOnly } from './MatchesReadOnly'
 import { MatchCalendar } from './MatchCalendar'
 import { SponsorsStrip } from './SponsorsStrip'
@@ -90,6 +92,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
                 {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[champ.format]}
                 {champ.season ? ` · ${champ.season}` : ''}
               </p>
+              <ChampionTag podium={computePodium(champ, teams, matches, events)} teams={teams} />
             </div>
           </div>
           {champ.description && <p className="public__desc">{champ.description}</p>}

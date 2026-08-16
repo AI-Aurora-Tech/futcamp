@@ -23,6 +23,8 @@ import {
 } from '../types'
 import { Button, ChampLogo, PushToggle, Spinner, StatusPill } from './ui'
 import { Overview } from './Overview'
+import { ChampionTag } from './ChampionBanner'
+import { computePodium } from '../lib/champion'
 import { TeamsPanel } from './TeamsPanel'
 import { PlayersPanel } from './PlayersPanel'
 import { MatchesPanel } from './MatchesPanel'
@@ -156,6 +158,7 @@ export function ManageChampionship({
                 {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[champ.format]}
                 {champ.season ? ` · ${champ.season}` : ''}
               </p>
+              <ChampionTag podium={computePodium(champ, teams, matches, events)} teams={teams} />
             </div>
             <div className="manage__actions">
               {isMaster && organizer && champ.ownerId !== organizer.id && (

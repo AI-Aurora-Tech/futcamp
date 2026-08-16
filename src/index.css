@@ -954,3 +954,42 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .push-toggle__info { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
 .push-toggle__info strong { font-size: 0.9rem; }
 .push-toggle__msg { font-size: 0.78rem; font-weight: 600; color: var(--brand-dark); }
+
+/* ---------- Equipe campeã ---------- */
+.champion {
+  background: linear-gradient(135deg, #f59e0b, #eab308);
+  color: #431407; border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 1rem 1.15rem; margin-bottom: 1.25rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+}
+.champion__main { display: flex; align-items: center; gap: 0.85rem; min-width: 0; }
+.champion__trophy { font-size: 2.2rem; line-height: 1; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.15)); }
+.champion__badge { display: flex; }
+.champion__text { display: flex; flex-direction: column; min-width: 0; }
+.champion__label {
+  font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.75;
+}
+.champion__name { font-size: 1.35rem; line-height: 1.15; overflow-wrap: anywhere; }
+.champion__how { font-size: 0.78rem; opacity: 0.8; }
+.champion__podium { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.champion__podium li {
+  display: flex; align-items: center; gap: 0.4rem; background: rgba(255,255,255,0.55);
+  border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.82rem; font-weight: 600;
+}
+.champion__podium-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
+
+.champion-tag {
+  display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.35rem;
+  background: rgba(245, 158, 11, 0.22); border: 1px solid rgba(245, 158, 11, 0.55);
+  color: #fff7ed; border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.8rem; font-weight: 700;
+}
+.champion-tag__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 16rem; }
+
+.standings tr.is-champion { background: rgba(245, 158, 11, 0.14); }
+.standings tr.is-champion .team-cell__name { font-weight: 800; }
+.team-cell__trophy { margin-left: 0.35rem; }
+
+@media (max-width: 640px) {
+  .champion { flex-direction: column; align-items: flex-start; }
+  .champion__podium { flex-direction: row; flex-wrap: wrap; }
+}
