@@ -25,6 +25,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0017_one_cpf_one_team.sql` | **Um CPF, um time** no campeonato: índice único por (campeonato, CPF, categoria) e gatilho que impede o mesmo CPF em duas equipes — vale para todos os caminhos de inscrição. |
 | `migrations/0018_push_notifications.sql` | **Notificações push**: `push_subscriptions`, fila `push_outbox` e gatilhos (gol → times do grupo; alteração de time → organizador) + RPCs `push_subscribe`/`push_unsubscribe`. |
 | `migrations/0019_penalty_shootout.sql` | **Disputa por pênaltis**: colunas `matches.penalty_home`/`penalty_away`, `match_winner()` ciente das cobranças (o vencedor dos pênaltis avança em `advance_bracket`) e `mesa_update_match` com os dois novos parâmetros. |
+| `migrations/0020_finished_at.sql` | **Campeão em cartaz**: `championships.finished_at` carimbado por gatilho no encerramento — a vitrine pública mantém o campeonato (e o campeão) por 10 dias. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
@@ -55,6 +56,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0017_one_cpf_one_team.sql`
    - `migrations/0018_push_notifications.sql`
    - `migrations/0019_penalty_shootout.sql`
+   - `migrations/0020_finished_at.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');

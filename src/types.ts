@@ -224,6 +224,12 @@ export interface Championship {
    * `#/novo-time/<championshipId>?k=<token>` e o responsável cria o próprio time.
    */
   teamCreateToken?: string
+  /**
+   * Momento em que o campeonato foi encerrado. Preenchido automaticamente na
+   * troca de status — é o que mantém o campeão na vitrine pública pelos dias
+   * seguintes (ver `PUBLIC_FINISHED_DAYS`).
+   */
+  finishedAt?: string
   createdAt: string
 }
 

@@ -1,11 +1,56 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { listPublicChampionships } from '../services/championships'
+import {
+  PUBLIC_FINISHED_DAYS,
+  daysLeftPublic,
+  listPublicChampionships,
+} from '../services/championships'
+import { listTeams } from '../services/teams'
+import { listEvents, listMatches } from '../services/matches'
+import { computePodium } from '../lib/champion'
 import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
 import { Button, ChampLogo, Field } from './ui'
 
+/** Campeão de cada campeonato encerrado, para a vitrine pública. */
+interface ChampionInfo {
+  name: string
+  how?: string
+}
+
 function openPublic(id: string) {
   window.location.hash = `#/c/${id}`
+}
+
+/**
+ * Descobre o campeão de cada campeonato encerrado da vitrine. Só roda para os
+ * encerrados (poucos, pela janela de dias), um a um, sem derrubar a lista se
+ * algum falhar.
+ */
+async function loadChampions(finished: Championship[]): Promise<Record<string, ChampionInfo>> {
+  const entries = await Promise.all(
+    finished.slice(0, 12).map(async (c) => {
+      try {
+        const [teams, matches, events] = await Promise.all([
+          listTeams(c.id),
+          listMatches(c.id),
+          listEvents(c.id),
+        ])
+        const podium = computePodium(c, teams, matches, events)
+        const champion = teams.find((t) => t.id === podium.championId)
+        if (!champion) return null
+        const how =
+          podium.decidedBy === 'final'
+            ? podium.finalScore
+            : podium.points != null
+              ? `${podium.points} ponto(s) em ${podium.played} jogo(s)`
+              : undefined
+        return [c.id, { name: champion.name, how }] as const
+      } catch {
+        return null
+      }
+    }),
+  )
+  return Object.fromEntries(entries.filter(Boolean) as (readonly [string, ChampionInfo])[])
 }
 
 export function Landing() {
@@ -17,12 +62,19 @@ export function Landing() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [ongoing, setOngoing] = useState<Championship[]>([])
+  const [champions, setChampions] = useState<Record<string, ChampionInfo>>({})
   const [search, setSearch] = useState('')
 
   useEffect(() => {
     let active = true
     listPublicChampionships()
-      .then((list) => active && setOngoing(list))
+      .then((list) => {
+        if (!active) return
+        setOngoing(list)
+        void loadChampions(list.filter((c) => c.status === 'finished')).then(
+          (map) => active && setChampions(map),
+        )
+      })
       .catch(() => active && setOngoing([]))
     return () => {
       active = false
@@ -156,8 +208,12 @@ export function Landing() {
       <div className="container">
         <div className="pub-band__head">
           <div>
-            <h2>📣 Campeonatos em andamento</h2>
-            <p className="muted">Acompanhe a classificação e as estatísticas — acesso público, sem login.</p>
+            <h2>📣 Campeonatos em andamento e campeões recentes</h2>
+            <p className="muted">
+              Acompanhe a classificação e as estatísticas — acesso público, sem login. Os
+              campeonatos encerrados ficam aqui, com o campeão em destaque, por{' '}
+              {PUBLIC_FINISHED_DAYS} dias.
+            </p>
           </div>
           {ongoing.length > 0 && (
             <div className="pub-search">
@@ -180,26 +236,43 @@ export function Landing() {
           <p className="muted">Nenhum campeonato encontrado para “{search}”.</p>
         ) : (
           <div className="champ-grid">
-            {filtered.map((c) => (
-              <button
-                key={c.id}
-                className="champ-card"
-                onClick={() => openPublic(c.id)}
-                style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}
-              >
-                <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>
-                <div className="champ-card__body">
-                  <div className="champ-card__top">
-                    <h3>{c.name}</h3>
-                    <span className="pill pill--active">ao vivo</span>
+            {filtered.map((c) => {
+              const done = c.status === 'finished'
+              const champion = champions[c.id]
+              const days = done ? daysLeftPublic(c) : null
+              return (
+                <button
+                  key={c.id}
+                  className={`champ-card ${done ? 'champ-card--done' : ''}`}
+                  onClick={() => openPublic(c.id)}
+                  style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}
+                >
+                  <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>
+                  <div className="champ-card__body">
+                    <div className="champ-card__top">
+                      <h3>{c.name}</h3>
+                      <span className={`pill ${done ? 'pill--done' : 'pill--active'}`}>
+                        {done ? 'encerrado' : 'ao vivo'}
+                      </span>
+                    </div>
+                    <p className="champ-card__meta">
+                      {SPORT_LABELS[c.sport]} · {FORMAT_LABELS[c.format]}{c.season ? ` · ${c.season}` : ''}
+                    </p>
+                    {done && champion && (
+                      <p className="champ-card__champion">
+                        <span aria-hidden>🏆</span> Campeão: <strong>{champion.name}</strong>
+                        {champion.how && <span className="champ-card__how">{champion.how}</span>}
+                      </p>
+                    )}
+                    <p className="champ-card__desc">
+                      {done
+                        ? `Ver resultado final${days ? ` · em cartaz por mais ${days} dia(s)` : ''} →`
+                        : 'Ver classificação e estatísticas →'}
+                    </p>
                   </div>
-                  <p className="champ-card__meta">
-                    {SPORT_LABELS[c.sport]} · {FORMAT_LABELS[c.format]}{c.season ? ` · ${c.season}` : ''}
-                  </p>
-                  <p className="champ-card__desc">Ver classificação e estatísticas →</p>
-                </div>
-              </button>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>

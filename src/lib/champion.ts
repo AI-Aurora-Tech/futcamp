@@ -36,9 +36,12 @@ export function computePodium(
   events: MatchEvent[] = [],
 ): Podium {
   // 1. Mata-mata: a final decide.
-  const final = matches.find((m) => m.phase === 'final')
-  if (final) {
-    if (final.status !== 'finished') return EMPTY
+  const raw = matches.find((m) => m.phase === 'final')
+  if (raw) {
+    // Com o campeonato encerrado pelo organizador, o placar da final vale
+    // mesmo que a partida tenha ficado sem o status "encerrada".
+    if (raw.status !== 'finished' && champ.status !== 'finished') return EMPTY
+    const final: Match = raw.status === 'finished' ? raw : { ...raw, status: 'finished' }
     const championId = winnerOf(final) ?? undefined
     if (!championId) return EMPTY
     const third = matches.find((m) => m.phase === 'third_place' && m.status === 'finished')

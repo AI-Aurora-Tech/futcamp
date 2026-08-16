@@ -37,7 +37,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🧑‍⚖️🏟️ **Cadastro de árbitros e campos**: escale o árbitro e informe o local de cada jogo (aparecem na súmula e no calendário).
 - 📆 **Calendário de jogos**: agenda das partidas por data, com horário, local e árbitro.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
-- 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento, abertos a qualquer visitante.
+- 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento **e dos campeões recentes** — o campeonato encerrado fica na vitrine por **10 dias**, com o campeão em destaque.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
 - 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela. A página pública mantém o **placar da final** (mata-mata) ou os **pontos do campeão** (pontos corridos).
 - 🥅 **Disputa por pênaltis**: nos jogos de mata-mata, a partida ao vivo tem o placar das cobranças — quem vence nos pênaltis avança automaticamente no chaveamento e o placar aparece na lista de jogos, na súmula e na faixa de campeão.
@@ -118,6 +118,18 @@ O campeão vem do **resultado**, não do status do campeonato:
 
 Esses dados **continuam na página pública** depois que o campeonato é
 encerrado: quem abrir o link vê o campeão e como o título foi decidido.
+
+### Campeão em cartaz por 10 dias
+
+Encerrar o campeonato não o tira do ar. Ele continua na **vitrine da página
+inicial** por **10 dias** (`PUBLIC_FINISHED_DAYS`), num cartão dourado com
+`🏆 Campeão: <time>` e o placar da final (ou os pontos do líder), contando
+quantos dias ainda faltam. Depois desse prazo o campeonato sai da vitrine,
+mas **o link direto continua funcionando** — e ainda mostra o campeão.
+
+A contagem começa no momento em que o organizador marca o status como
+*Encerrado* (`championships.finished_at`, carimbado por gatilho). Reabrir o
+campeonato limpa a data e ele volta a aparecer como *em andamento*.
 
 Empate na final sem classificado definido não coroa ninguém — informe os
 **pênaltis** (ou o classificado por W.O.) na partida e o campeão aparece.
