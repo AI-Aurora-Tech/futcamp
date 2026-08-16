@@ -128,7 +128,9 @@ export function ChampionshipForm({
   // Fases de grupos: a 1ª sempre existe; o organizador pode acrescentar outras
   // (os classificados de uma fase formam os grupos da seguinte).
   const [stages, setStages] = useState<GroupStage[]>(() => {
-    const existing = initial ? groupStagesOf(initial) : []
+    // Só aproveita as fases de um campeonato que já é de grupos — em outros
+    // formatos `groupStagesOf` devolve a fase sintética da classificação.
+    const existing = initial?.format === 'groups_knockout' ? groupStagesOf(initial) : []
     return existing.length ? existing : [{ id: uid('gs'), numGroups: 2, advancePerGroup: 2 }]
   })
   const [leagueQualifiers, setLeagueQualifiers] = useState<string>(initial?.leagueQualifiers != null ? String(initial.leagueQualifiers) : '')
