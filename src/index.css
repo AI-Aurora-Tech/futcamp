@@ -940,3 +940,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .search-field__clear:hover { background: var(--line); color: var(--ink); }
 .search-field__count { flex: none; font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+
+/* ---------- Importação por planilha ---------- */
+.import-clear { margin-left: 0.5rem; }

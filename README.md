@@ -15,7 +15,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 ## ✨ Funcionalidades
 
 - 🏆 **Campeonatos** em três formatos: **pontos corridos**, **grupos + mata-mata** e **mata-mata**.
-- 🛡️ **Times** com escudo (emoji ou cor), sigla e técnico.
+- 🛡️ **Times** com escudo (imagem ou cor), responsável e telefone, além de busca por nome/responsável/grupo.
 - 👥 **Elencos** com número, posição e jogadores por time.
 - 📅 **Geração automática de rodadas** (todos contra todos) com turno e returno opcional.
 - ⚽ **Registro de resultados** com eventos por jogador (gols, gols contra, assistências, cartões).
@@ -30,7 +30,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 📄 **Súmula**: gere e exporte (imprimir/PDF ou HTML) a súmula do jogo quando as inscrições encerram.
 - 🔴 **Ao vivo**: o organizador lança gols/cartões durante o jogo e a **classificação e estatísticas** atualizam em tempo real.
 - 🧑‍⚖️ **Mesários**: logins próprios (vários mesários) que lançam os dados **em tempo real**; o administrador define **quais jogos** cada mesário pode preencher. Portal em `#/mesa/<id>`.
-- 📄 **Importar atletas por .txt**: uma linha por atleta no formato `NOME - CPF - DATA DE NASCIMENTO`, com prévia e validação (CPF, idade, limites) antes de importar.
+- 📊 **Importar atletas por planilha**: arquivo `.xlsx` ou `.csv` (também `.tsv`, `.txt` ou colar direto do Excel) com as colunas **Nome**, **CPF** e **Data de nascimento** — cabeçalho reconhecido em qualquer ordem, datas do Excel convertidas sozinhas, prévia e validação (CPF, idade, limites) antes de importar, e um modelo pronto para baixar.
 - 🚫 **Suspensão automática**: alerta quando um atleta acumula **3 amarelos** na fase de grupos / pontos corridos ou leva **cartão vermelho** (qualquer fase).
 - 🎲 **Sorteio automático dos grupos**: distribui os times nos grupos de forma equilibrada com um clique.
 - 🧑‍⚖️🏟️ **Cadastro de árbitros e campos**: escale o árbitro e informe o local de cada jogo (aparecem na súmula e no calendário).
