@@ -5,11 +5,14 @@ export function StandingsTable({
   rows,
   teams,
   highlightTop = 0,
+  championTeamId,
 }: {
   rows: StandingRow[]
   teams: Team[]
   /** Destaca as N primeiras posições (zona de classificação). */
   highlightTop?: number
+  /** Marca a equipe campeã com o troféu. */
+  championTeamId?: string
 }) {
   const teamById = new Map(teams.map((t) => [t.id, t] as const))
   if (rows.length === 0) {
@@ -36,12 +39,16 @@ export function StandingsTable({
           {rows.map((r, i) => {
             const team = teamById.get(r.teamId)
             return (
-              <tr key={r.teamId} className={highlightTop && i < highlightTop ? 'is-qualified' : ''}>
+              <tr
+                key={r.teamId}
+                className={`${highlightTop && i < highlightTop ? 'is-qualified' : ''} ${r.teamId === championTeamId ? 'is-champion' : ''}`}
+              >
                 <td className="col-pos">{i + 1}</td>
                 <td className="col-team">
                   <span className="team-cell">
                     <TeamBadge team={team} size={24} />
                     <span className="team-cell__name">{team?.name ?? '—'}</span>
+                    {r.teamId === championTeamId && <span className="team-cell__trophy" title="Campeão">🏆</span>}
                   </span>
                 </td>
                 <td className="strong">{r.points}</td>

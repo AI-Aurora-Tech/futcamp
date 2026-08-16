@@ -9,6 +9,8 @@ import {
   standingsOfStage,
 } from '../lib/groupStages'
 import { aggregateByPlayer } from '../lib/stats'
+import { computePodium } from '../lib/champion'
+import { ChampionBanner } from './ChampionBanner'
 import type { Championship, Match, MatchEvent, Player, Team } from '../types'
 import { StandingsTable } from './StandingsTable'
 import { MatchRow } from './MatchesPanel'
@@ -52,6 +54,11 @@ export function Overview({
       }))
   }, [isGroups, stages, championship, teams, matches, events])
 
+  const podium = useMemo(
+    () => computePodium(championship, teams, matches, events),
+    [championship, teams, matches, events],
+  )
+
   const finished = matches.filter((m) => m.status === 'finished')
   const recent = finished.slice(-5).reverse()
   const upcoming = matches.filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId).slice(0, 5)
@@ -60,6 +67,8 @@ export function Overview({
 
   return (
     <div className="overview">
+      <ChampionBanner podium={podium} teams={teams} />
+
       <div className="stat-row">
         <StatTile label="Times" value={teams.length} icon="🛡️" />
         <StatTile label="Partidas" value={matches.length} icon="📅" />
@@ -102,7 +111,12 @@ export function Overview({
               {leagueQualifiers > 0 && (
                 <p className="qualify-note">🟢 Os {leagueQualifiers} primeiros colocados se classificam.</p>
               )}
-              <StandingsTable rows={standings ?? []} teams={teams} highlightTop={leagueQualifiers} />
+              <StandingsTable
+                rows={standings ?? []}
+                teams={teams}
+                highlightTop={leagueQualifiers}
+                championTeamId={podium.decidedBy === 'league' ? podium.championId : undefined}
+              />
             </>
           )}
         </div>

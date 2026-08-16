@@ -39,6 +39,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento, abertos a qualquer visitante.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
+- 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela.
 - 🔔 **Notificações push**: o responsável do time recebe aviso de **gol no grupo em que seu time joga**; o organizador recebe aviso quando **um time altera o elenco** ou os próprios dados.
 - 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
@@ -96,6 +97,26 @@ Como definir quem é master:
 
 No **modo demo** basta entrar com um e-mail da lista `VITE_MASTER_ADMINS`
 (padrão: `master@tabelaco.app`) para navegar como master.
+
+## 🏆 Equipe campeã
+
+Assim que o título é decidido, a equipe campeã aparece:
+
+- **no cabeçalho** do campeonato (visível em qualquer aba) e **na página
+  pública**, com um selo `🏆 Campeão: <time>`;
+- **na visão geral**, numa faixa dourada com o campeão, o **vice** e o **3º
+  lugar** (quando há disputa de terceiro);
+- **na tabela**, com o troféu na linha do campeão (pontos corridos).
+
+O campeão vem do **resultado**, não do status do campeonato:
+
+| Formato | Quem é o campeão |
+|---|---|
+| Mata-mata (inclusive após fase de grupos) | Vencedor da **final**; vice é o perdedor e o 3º sai da disputa de terceiro |
+| Pontos corridos | **Líder da tabela**, depois que todos os jogos são encerrados |
+
+Empate na final sem classificado definido não coroa ninguém — informe quem
+passou (pênaltis/W.O.) na partida e o campeão aparece.
 
 ## 🔔 Notificações push
 
