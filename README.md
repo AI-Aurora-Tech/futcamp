@@ -37,6 +37,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🧑‍⚖️🏟️ **Cadastro de árbitros e campos**: escale o árbitro e informe o local de cada jogo (aparecem na súmula e no calendário).
 - 📆 **Calendário de jogos**: agenda das partidas por data, com horário, local e árbitro.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
+- 💳 **Planos com pagamento**: os botões de Bronze, Prata e Ouro abrem o link de pagamento do **Mercado Pago**; nenhuma credencial fica no navegador.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento **e dos campeões recentes** — o campeonato encerrado fica na vitrine por **10 dias**, com o campeão em destaque.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
 - 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela. A página pública mantém o **placar da final** (mata-mata) ou os **pontos do campeão** (pontos corridos).
@@ -145,6 +146,67 @@ quando o jogo está empatado, e o organizador **ou o mesário** pode preenchê-l
 - O placar aparece na lista de jogos (`4 × 2 pên`), na **súmula** e na faixa
   de campeão quando a decisão é a final.
 - Pênaltis empatados não decidem nada — o confronto continua pendente.
+
+## 💳 Pagamentos (Mercado Pago)
+
+A página **Planos e preços** (`#/planos`) é o começo do caminho: o organizador
+escolhe o plano, cai no formulário de criação já com ele marcado, e o sistema
+**soma o plano com as categorias adicionais** antes de gerar o link de
+pagamento.
+
+| Plano | Valor | Categoria adicional | Equipes por categoria |
+|---|---|---|---|
+| Grátis | R$ 0,00 | — | 8 (1 categoria, 1 campeonato) |
+| Bronze | R$ 59,90 | + R$ 39,90 | 16 |
+| Prata | R$ 79,90 | + R$ 49,90 | 32 |
+| Ouro | R$ 109,90 | + R$ 59,90 | ilimitadas |
+| Diamante | sob consulta | — | ilimitadas |
+
+O valor já inclui a primeira categoria. Ex.: Ouro com 3 categorias =
+`109,90 + 2 × 59,90 = R$ 229,70`.
+
+A tabela vive em [`src/lib/pricing.ts`](src/lib/pricing.ts) — e é espelhada em
+SQL na função `plan_price_cents()` da migration `0021_payments.sql`, que é
+**quem manda**: o preço é recalculado por gatilho no banco a cada campeonato
+criado, então um cliente adulterado não consegue pagar menos nem se marcar como
+pago (fora do `service_role`, o gatilho restaura os campos de pagamento).
+
+### Fluxo
+
+1. **Criou** — o campeonato nasce com `payment_status = 'pending'` e fica
+   **bloqueado**: na lista aparece com 🔒 *pagamento pendente* e, ao abrir,
+   mostra só a cobrança.
+2. **Pagou** — a Edge Function `mp-checkout` cria a preferência do Checkout Pro
+   e devolve o link; o app abre o Mercado Pago em outra aba e fica conferindo o
+   campeonato a cada 5 s (Pix e boleto podem demorar).
+3. **Confirmou** — o Mercado Pago chama a Edge Function `mp-webhook`, que
+   **reconsulta o pagamento na API oficial** (a notificação sozinha não prova
+   nada), confere o valor e libera o campeonato. O painel abre sozinho.
+
+Plano **Grátis** não passa por cobrança nenhuma (`payment_status = 'free'`), e
+**Diamante** abre o e-mail de contato quando `VITE_CONTACT_EMAIL` está
+definido. No **modo demo** (sem Supabase) o pagamento é simulado na hora, para
+dar para testar o fluxo inteiro sem backend.
+
+### Configuração
+
+```bash
+supabase secrets set MP_ACCESS_TOKEN="APP_USR-..." APP_URL="https://seu-app.vercel.app"
+supabase functions deploy mp-checkout
+supabase functions deploy mp-webhook --no-verify-jwt
+```
+
+E aponte o webhook do Mercado Pago (Suas integrações → Webhooks, evento
+**Pagamentos**) para
+`https://<project-ref>.supabase.co/functions/v1/mp-webhook`.
+
+### Onde vai cada credencial
+
+| Credencial | Onde | Por quê |
+|---|---|---|
+| **Access token de produção** (`APP_USR-...`) | **Nunca** no front. Só como secret de servidor: Supabase → *Project Settings → Edge Functions → Secrets* → `MP_ACCESS_TOKEN` (ou `supabase secrets set MP_ACCESS_TOKEN=...`) | Tudo que começa com `VITE_` é embutido no JavaScript e fica visível para qualquer visitante. O token dá acesso à sua conta — ele só é lido no servidor, com `Deno.env.get('MP_ACCESS_TOKEN')`. |
+| **Chave pública** (`APP_USR-...`) | `.env` → `VITE_MP_PUBLIC_KEY` (e nas *Environment Variables* da Vercel) | É pública por definição; só faz falta se o checkout passar a rodar dentro do app (Checkout Bricks). Com o Checkout Pro, nem é necessária. |
+| **Links de assinatura** (`mpago.la/...`) | [`src/lib/checkout.ts`](src/lib/checkout.ts) ou `VITE_MP_LINK_BRONZE` / `_PRATA` / `_OURO` | São públicos — não carregam credencial nenhuma. Ficam como alternativa de cobrança avulsa. |
 
 ## 🔔 Notificações push
 

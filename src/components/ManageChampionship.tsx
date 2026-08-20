@@ -33,6 +33,8 @@ import { StatsPanel } from './StatsPanel'
 import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
+import { PaymentPanel } from './PaymentPanel'
+import { isLocked } from '../lib/pricing'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
 
@@ -139,6 +141,17 @@ export function ManageChampionship({
       <div className="container">
         <p>Campeonato não encontrado.</p>
         <Button onClick={onBack}>Voltar</Button>
+      </div>
+    )
+  }
+
+  // Pagamento pendente: o campeonato existe, mas fica fechado até o Mercado
+  // Pago confirmar. O organizador vê só a cobrança.
+  if (isLocked(champ)) {
+    return (
+      <div className="container pad-lg">
+        <button className="back-link" onClick={onBack}>← Meus campeonatos</button>
+        <PaymentPanel champ={champ} onPaid={(updated) => setChamp(updated)} />
       </div>
     )
   }

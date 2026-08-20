@@ -1,93 +1,7 @@
+import { CONTACT_EMAIL } from '../lib/checkout'
+import { PLANS, formatBRL, type PlanInfo } from '../lib/pricing'
+import { rememberPlan } from '../lib/planChoice'
 import { ChampLogo } from './ui'
-
-/** Um plano da página de preços. */
-interface Plan {
-  key: string
-  tier: string
-  gem: string
-  tint: string
-  cap: string
-  price: string
-  cur?: string
-  consult?: boolean
-  unit: string
-  addon: string
-  feats: string[]
-  cta: string
-  featured?: boolean
-  badge?: string
-}
-
-const PLANS: Plan[] = [
-  {
-    key: 'gratis',
-    tier: 'Grátis',
-    gem: '●',
-    tint: '#16a34a',
-    cap: 'Para experimentar e organizar uma copa pequena.',
-    price: '0',
-    cur: 'R$',
-    unit: 'para sempre · 1 campeonato',
-    addon: 'Com a marca Tabelaço na página pública',
-    feats: ['Apenas 1 campeonato com 1 categoria', 'Até 8 equipes', 'Todas as funcionalidades'],
-    cta: 'Começar grátis',
-  },
-  {
-    key: 'bronze',
-    tier: 'Bronze',
-    gem: '●',
-    tint: '#c0803f',
-    cap: 'Para copas menores, com poucas equipes por categoria.',
-    price: '59,90',
-    cur: 'R$',
-    unit: 'por campeonato · 1 categoria',
-    addon: '+ R$ 39,90 por categoria adicional',
-    feats: ['Até 16 equipes por categoria', 'Todas as funcionalidades', 'Com a marca Tabelaço na página pública'],
-    cta: 'Escolher Bronze',
-  },
-  {
-    key: 'prata',
-    tier: 'Prata',
-    gem: '●',
-    tint: '#8f9bad',
-    cap: 'Para campeonatos de porte médio, com mais times.',
-    price: '79,90',
-    cur: 'R$',
-    unit: 'por campeonato · 1 categoria',
-    addon: '+ R$ 49,90 por categoria adicional',
-    feats: ['Até 32 equipes por categoria', 'Todas as funcionalidades'],
-    cta: 'Escolher Prata',
-  },
-  {
-    key: 'ouro',
-    tier: 'Ouro',
-    gem: '●',
-    tint: '#d1a01e',
-    cap: 'Para ligas e copas grandes, sem se preocupar com limite.',
-    price: '109,90',
-    cur: 'R$',
-    unit: 'por campeonato · 1 categoria',
-    addon: '+ R$ 59,90 por categoria adicional',
-    feats: ['Equipes ilimitadas por categoria', 'Todas as funcionalidades'],
-    cta: 'Escolher Ouro',
-    featured: true,
-    badge: 'Mais popular',
-  },
-  {
-    key: 'diamante',
-    tier: 'Diamante',
-    gem: '◆',
-    tint: '#35a9c4',
-    cap: 'Para organizações que rodam vários campeonatos o ano todo.',
-    price: 'Preço a consultar',
-    consult: true,
-    unit: 'plano anual',
-    addon: 'Categorias ilimitadas — sem cobrança por adicional',
-    feats: ['Equipes ilimitadas', 'Categorias ilimitadas', 'Todas as funcionalidades'],
-    cta: 'Falar com a gente',
-    badge: 'Anual',
-  },
-]
 
 const Check = () => (
   <svg className="plan-feats__ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
@@ -95,7 +9,39 @@ const Check = () => (
   </svg>
 )
 
+/**
+ * Botão do plano. Escolher um plano leva para a criação do campeonato — é lá
+ * que o valor final é fechado (plano + categorias) e o pagamento é gerado.
+ */
+function PlanCta({ plan, onChoose }: { plan: PlanInfo; onChoose: (p: PlanInfo) => void }) {
+  const cls = `btn ${plan.featured ? 'btn--primary' : 'btn--ghost'} plan-btn`
+
+  if (plan.consult) {
+    return CONTACT_EMAIL ? (
+      <a className={cls} href={`mailto:${CONTACT_EMAIL}?subject=Plano Diamante — Tabelaço`}>
+        {plan.cta}
+      </a>
+    ) : (
+      <button type="button" className={cls} onClick={() => onChoose(plan)}>
+        {plan.cta}
+      </button>
+    )
+  }
+  return (
+    <button type="button" className={cls} onClick={() => onChoose(plan)}>
+      {plan.cta}
+    </button>
+  )
+}
+
 export function Plans({ onHome }: { onHome: () => void }) {
+  // Guarda a escolha e volta para o app: quem estiver logado cai direto no
+  // formulário de criação com o plano marcado; quem não estiver, entra antes.
+  function choose(plan: PlanInfo) {
+    rememberPlan(plan.key)
+    onHome()
+  }
+
   return (
     <div className="reg plans-page">
       <header className="reg__hero">
@@ -109,8 +55,8 @@ export function Plans({ onHome }: { onHome: () => void }) {
             </div>
           </div>
           <p className="plans-lede">
-            Cada <b>categoria é um campeonato à parte</b>. Você escolhe o plano pela quantidade de equipes
-            e paga por campeonato — sem mensalidade surpresa.
+            Cada <b>categoria é um campeonato à parte</b>. Escolha o plano pela quantidade de equipes,
+            monte o campeonato e pague só o que usar — sem mensalidade surpresa.
           </p>
         </div>
       </header>
@@ -127,8 +73,12 @@ export function Plans({ onHome }: { onHome: () => void }) {
               <div className="plan-card__tier"><span className="plan-card__gem">{p.gem}</span> {p.tier}</div>
               <p className="plan-card__cap">{p.cap}</p>
               <div className="plan-price">
-                {p.cur && <span className="plan-price__cur">{p.cur}</span>}
-                <span className={`plan-price__val ${p.consult ? 'plan-price__val--consult' : ''}`}>{p.price}</span>
+                {!p.consult && <span className="plan-price__cur">R$</span>}
+                <span className={`plan-price__val ${p.consult ? 'plan-price__val--consult' : ''}`}>
+                  {p.consult
+                    ? 'Preço a consultar'
+                    : formatBRL(p.priceCents).replace('R$', '').trim()}
+                </span>
               </div>
               <div className="plan-price__unit">{p.unit}</div>
               <div className="plan-addon">{p.addon}</div>
@@ -138,7 +88,7 @@ export function Plans({ onHome }: { onHome: () => void }) {
                 ))}
               </ul>
               <div className="plan-cta">
-                <button className={`btn ${p.featured ? 'btn--primary' : 'btn--ghost'} plan-btn`}>{p.cta}</button>
+                <PlanCta plan={p} onChoose={choose} />
               </div>
             </article>
           ))}
@@ -148,16 +98,16 @@ export function Plans({ onHome }: { onHome: () => void }) {
           <h2 className="section-title">Como funciona a cobrança</h2>
           <div className="plans-how__grid">
             <div className="plan-note">
-              <h3>Categoria = campeonato</h3>
-              <p>Cada categoria (Sub-15, Adulto, Veterano…) roda como um campeonato independente, com tabela e classificação próprias.</p>
+              <h3>1. Escolha o plano</h3>
+              <p>O plano define quantas equipes cabem em cada categoria. O valor já inclui a primeira categoria.</p>
             </div>
             <div className="plan-note">
-              <h3>O plano cobre 1 categoria</h3>
-              <p>O valor já inclui o primeiro campeonato. O plano define o limite de equipes de cada categoria.</p>
+              <h3>2. Monte o campeonato</h3>
+              <p>Ao criar, o sistema soma o plano com as categorias adicionais — <b>Bronze R$ 39,90</b> · <b>Prata R$ 49,90</b> · <b>Ouro R$ 59,90</b> cada — e mostra o total antes de cobrar.</p>
             </div>
             <div className="plan-note">
-              <h3>Categorias a mais</h3>
-              <p>A partir da 2ª categoria, o valor adicional varia por plano: <b>Bronze R$ 39,90</b> · <b>Prata R$ 49,90</b> · <b>Ouro R$ 59,90</b>. No Diamante, são ilimitadas.</p>
+              <h3>3. Pague e comece</h3>
+              <p>O pagamento é feito pelo Mercado Pago (Pix, cartão ou boleto). Confirmado o pagamento, o campeonato é liberado automaticamente para você administrar.</p>
             </div>
           </div>
         </section>

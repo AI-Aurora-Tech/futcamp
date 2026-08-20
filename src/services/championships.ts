@@ -2,6 +2,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
+import { totalCents } from '../lib/pricing'
 import type { Championship } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -38,6 +39,12 @@ function fromRow(r: any): Championship {
     referees: Array.isArray(r.referees) ? r.referees : [],
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
+    plan: r.plan ?? undefined,
+    // Campeonato antigo (antes da cobrança) não tem situação: vale como pago.
+    paymentStatus: r.payment_status ?? undefined,
+    amountCents: r.amount_cents ?? undefined,
+    paymentRef: r.payment_ref ?? undefined,
+    paidAt: r.paid_at ?? undefined,
     finishedAt: r.finished_at ?? undefined,
     createdAt: r.created_at,
   }
@@ -74,6 +81,11 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.referees !== undefined) row.referees = c.referees
   if (c.venues !== undefined) row.venues = c.venues
   if (c.sponsors !== undefined) row.sponsors = c.sponsors
+  if (c.plan !== undefined) row.plan = c.plan
+  if (c.amountCents !== undefined) row.amount_cents = c.amountCents
+  // `payment_status`, `payment_ref` e `paid_at` NÃO são escritos pelo app: quem
+  // confirma pagamento é a Edge Function `mp-webhook` (service role). Um gatilho
+  // no banco (migration 0021) rejeita a tentativa vinda do cliente.
   return row
 }
 
@@ -204,8 +216,13 @@ export async function createChampionship(
     if (error) throw error
     return fromRow(data)
   }
+  // Modo demo: o preço é calculado aqui (no Supabase quem calcula é o gatilho
+  // da migration 0021, para o cliente não conseguir "zerar" o valor).
+  const cents = totalCents(input.plan, input.categories.length)
   const champ: Championship = {
     ...input,
+    amountCents: cents,
+    paymentStatus: cents > 0 ? 'pending' : 'free',
     id: uid('champ'),
     ownerId,
     createdAt: new Date().toISOString(),

@@ -10,6 +10,17 @@ export type ChampionshipFormat = 'league' | 'groups_knockout' | 'knockout'
 
 export type ChampionshipStatus = 'draft' | 'active' | 'finished'
 
+/** Plano contratado para o campeonato (ver `lib/pricing.ts`). */
+export type PlanKey = 'gratis' | 'bronze' | 'prata' | 'ouro' | 'diamante'
+
+/**
+ * Situação da cobrança do campeonato:
+ *  • `free`    — plano grátis (ou Diamante, acertado fora do app): liberado;
+ *  • `pending` — criado, aguardando o pagamento: fica bloqueado;
+ *  • `paid`    — pagamento confirmado pelo Mercado Pago: liberado.
+ */
+export type PaymentStatus = 'free' | 'pending' | 'paid'
+
 /** Público-alvo do campeonato. */
 export type Audience = 'infantil' | 'adulto'
 
@@ -224,6 +235,16 @@ export interface Championship {
    * `#/novo-time/<championshipId>?k=<token>` e o responsável cria o próprio time.
    */
   teamCreateToken?: string
+  /** Plano contratado na criação do campeonato. */
+  plan?: PlanKey
+  /** Situação da cobrança — `pending` mantém o campeonato bloqueado. */
+  paymentStatus?: PaymentStatus
+  /** Valor cobrado (centavos): plano + categorias adicionais. */
+  amountCents?: number
+  /** Identificador do pagamento no Mercado Pago, quando aprovado. */
+  paymentRef?: string
+  /** Momento da confirmação do pagamento. */
+  paidAt?: string
   /**
    * Momento em que o campeonato foi encerrado. Preenchido automaticamente na
    * troca de status — é o que mantém o campeão na vitrine pública pelos dias

@@ -26,6 +26,9 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0018_push_notifications.sql` | **Notificações push**: `push_subscriptions`, fila `push_outbox` e gatilhos (gol → times do grupo; alteração de time → organizador) + RPCs `push_subscribe`/`push_unsubscribe`. |
 | `migrations/0019_penalty_shootout.sql` | **Disputa por pênaltis**: colunas `matches.penalty_home`/`penalty_away`, `match_winner()` ciente das cobranças (o vencedor dos pênaltis avança em `advance_bracket`) e `mesa_update_match` com os dois novos parâmetros. |
 | `migrations/0020_finished_at.sql` | **Campeão em cartaz**: `championships.finished_at` carimbado por gatilho no encerramento — a vitrine pública mantém o campeonato (e o campeão) por 10 dias. |
+| `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
+| `functions/mp-checkout/` | Cria a preferência de pagamento no Mercado Pago e devolve o link do Checkout Pro. Secrets: `MP_ACCESS_TOKEN`, `APP_URL`. |
+| `functions/mp-webhook/` | Recebe a notificação do Mercado Pago, reconsulta o pagamento na API oficial e libera o campeonato quando aprovado. Secret: `MP_ACCESS_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
@@ -57,6 +60,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0018_push_notifications.sql`
    - `migrations/0019_penalty_shootout.sql`
    - `migrations/0020_finished_at.sql`
+   - `migrations/0021_payments.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');
@@ -76,6 +80,41 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 supabase start
 supabase db reset      # aplica as migrations e o seed
 ```
+
+## Pagamento do campeonato (Mercado Pago)
+
+O valor é **calculado no banco**: o gatilho `set_championship_price()` roda o
+`plan_price_cents(plan, nº de categorias)` a cada inserção e grava
+`amount_cents` + `payment_status`. Um cliente adulterado não consegue criar um
+campeonato pago por R$ 0 nem marcar-se como pago: fora do `service_role`, o
+gatilho restaura os campos de pagamento em qualquer `update`.
+
+1. **Secrets** (Project Settings → Edge Functions → Secrets, ou pelo CLI):
+   ```bash
+   supabase secrets set MP_ACCESS_TOKEN="APP_USR-..." APP_URL="https://seu-app.vercel.app"
+   ```
+   O access token **nunca** vai para o `.env` do front nem para a Vercel: tudo
+   que começa com `VITE_` é embutido no JavaScript e fica visível para
+   qualquer visitante.
+2. **Publique as funções**:
+   ```bash
+   supabase functions deploy mp-checkout
+   supabase functions deploy mp-webhook --no-verify-jwt
+   ```
+   O `--no-verify-jwt` é obrigatório no webhook: quem chama é o Mercado Pago,
+   sem sessão de usuário.
+3. **Notificações**: no painel do Mercado Pago (Suas integrações → Webhooks),
+   aponte para
+   `https://<project-ref>.supabase.co/functions/v1/mp-webhook` e marque o
+   evento **Pagamentos**. A `mp-checkout` também manda essa URL em
+   `notification_url`, então o passo é só um reforço.
+
+**Fluxo:** o organizador escolhe o plano → cria o campeonato (nasce
+`pending`) → `mp-checkout` gera a preferência e devolve o `init_point` → ele
+paga → o Mercado Pago avisa a `mp-webhook`, que **reconsulta**
+`GET /v1/payments/<id>` (a notificação sozinha não é prova de nada), confere se
+o valor cobre o devido e chama `mark_championship_paid()`. O campeonato passa a
+`paid` e o painel abre.
 
 ## Modelo de acesso (RLS)
 

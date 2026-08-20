@@ -68,6 +68,8 @@ input, select, textarea { font-family: inherit; font-size: 1rem; }
   align-items: center;
   gap: 0.4rem;
 }
+/* Botão que na verdade é um link (checkout, contato): mesmo visual. */
+a.btn { text-decoration: none; cursor: pointer; }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn--primary { background: var(--brand); color: #fff; box-shadow: 0 6px 16px rgba(22, 163, 74, 0.28); }
@@ -1025,3 +1027,51 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 .penalties__x { font-weight: 800; color: var(--muted); }
 .penalties__result { margin: 0.5rem 0 0; font-size: 0.8rem; font-weight: 700; color: var(--brand-dark); text-align: center; }
+
+/* ---------- Cobrança do campeonato (Mercado Pago) ---------- */
+.pill--pay { background: rgba(217, 119, 6, 0.16); color: #92400e; }
+.champ-card--locked { border-left-color: #d97706; background: linear-gradient(180deg, #fffbeb 0%, var(--surface) 60%); }
+.champ-card__pay { color: #b45309; font-weight: 600; }
+
+.pay {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.25rem; box-shadow: var(--shadow); max-width: 560px; margin: 1rem auto;
+}
+.pay__head { display: flex; gap: 0.9rem; align-items: flex-start; margin-bottom: 1rem; }
+.pay__icon { font-size: 1.6rem; line-height: 1; }
+.pay__head h3 { font-size: 1.15rem; margin: 0 0 0.15rem; }
+.pay__lines { list-style: none; margin: 0 0 1rem; padding: 0; border-top: 1px solid var(--line); }
+.pay__lines li {
+  display: flex; justify-content: space-between; gap: 1rem; align-items: baseline;
+  padding: 0.6rem 0; border-bottom: 1px solid var(--line);
+}
+.pay__total { font-weight: 800; font-size: 1.1rem; color: var(--ink); }
+.pay__total span:last-child { color: var(--brand-dark); }
+.pay__actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.pay__waiting { display: flex; align-items: center; gap: 0.6rem; margin: 0.9rem 0 0; color: var(--ink-soft); font-size: 0.9rem; }
+.pay__note { margin-top: 0.9rem; }
+
+.pay-done__ic { font-size: 3rem; display: block; }
+.pay-done__logo { display: inline-flex; vertical-align: middle; margin-right: 0.4rem; }
+
+/* Escolha do plano no formulário de criação */
+.plan-pick { display: grid; gap: 0.5rem; }
+.plan-pick__opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem; }
+.plan-pick__opt {
+  display: grid; gap: 0.15rem; text-align: left; padding: 0.6rem 0.7rem; border-radius: 12px;
+  border: 1.5px solid var(--line-strong); background: var(--surface); cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.plan-pick__opt:hover { border-color: var(--tier, var(--brand)); }
+.plan-pick__opt.is-active {
+  border-color: var(--tier, var(--brand)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tier, #16a34a) 22%, transparent);
+  background: color-mix(in srgb, var(--tier, #16a34a) 8%, var(--surface));
+}
+.plan-pick__tier { font-weight: 800; color: var(--tier, var(--ink)); font-size: 0.92rem; }
+.plan-pick__price { font-weight: 700; font-size: 0.95rem; }
+.plan-pick__lim { color: var(--muted); font-size: 0.76rem; }
+
+/* Total antes de criar */
+.plan-total { border: 1px dashed var(--line-strong); border-radius: 12px; padding: 0.8rem 0.9rem; background: var(--bg); }
+.plan-total__lines { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.plan-total__val { font-size: 1.2rem; color: var(--brand-dark); }
