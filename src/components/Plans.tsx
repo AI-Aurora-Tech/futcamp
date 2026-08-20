@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL, checkoutUrl } from '../lib/checkout'
 import { ChampLogo } from './ui'
 
 /** Um plano da página de preços. */
@@ -95,6 +96,35 @@ const Check = () => (
   </svg>
 )
 
+/**
+ * Botão do plano: leva ao checkout do Mercado Pago nos planos pagos, ao
+ * cadastro no plano grátis e ao e-mail de contato no Diamante (sob consulta).
+ */
+function PlanCta({ plan, onHome }: { plan: Plan; onHome: () => void }) {
+  const cls = `btn ${plan.featured ? 'btn--primary' : 'btn--ghost'} plan-btn`
+  const url = checkoutUrl(plan.key)
+
+  if (url) {
+    return (
+      <a className={cls} href={url} target="_blank" rel="noopener noreferrer">
+        {plan.cta}
+      </a>
+    )
+  }
+  if (plan.consult && CONTACT_EMAIL) {
+    return (
+      <a className={cls} href={`mailto:${CONTACT_EMAIL}?subject=Plano Diamante — Tabelaço`}>
+        {plan.cta}
+      </a>
+    )
+  }
+  return (
+    <button type="button" className={cls} onClick={onHome}>
+      {plan.cta}
+    </button>
+  )
+}
+
 export function Plans({ onHome }: { onHome: () => void }) {
   return (
     <div className="reg plans-page">
@@ -138,7 +168,7 @@ export function Plans({ onHome }: { onHome: () => void }) {
                 ))}
               </ul>
               <div className="plan-cta">
-                <button className={`btn ${p.featured ? 'btn--primary' : 'btn--ghost'} plan-btn`}>{p.cta}</button>
+                <PlanCta plan={p} onHome={onHome} />
               </div>
             </article>
           ))}

@@ -37,6 +37,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🧑‍⚖️🏟️ **Cadastro de árbitros e campos**: escale o árbitro e informe o local de cada jogo (aparecem na súmula e no calendário).
 - 📆 **Calendário de jogos**: agenda das partidas por data, com horário, local e árbitro.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
+- 💳 **Planos com pagamento**: os botões de Bronze, Prata e Ouro abrem o link de pagamento do **Mercado Pago**; nenhuma credencial fica no navegador.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento **e dos campeões recentes** — o campeonato encerrado fica na vitrine por **10 dias**, com o campeão em destaque.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
 - 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela. A página pública mantém o **placar da final** (mata-mata) ou os **pontos do campeão** (pontos corridos).
@@ -145,6 +146,36 @@ quando o jogo está empatado, e o organizador **ou o mesário** pode preenchê-l
 - O placar aparece na lista de jogos (`4 × 2 pên`), na **súmula** e na faixa
   de campeão quando a decisão é a final.
 - Pênaltis empatados não decidem nada — o confronto continua pendente.
+
+## 💳 Pagamentos (Mercado Pago)
+
+Os botões da página **Planos e preços** (`#/planos`) levam ao **link de
+pagamento** do Mercado Pago de cada plano:
+
+| Plano | Link |
+|---|---|
+| Bronze | <https://mpago.la/2Af73pB> |
+| Prata | <https://mpago.la/2Ko31QH> |
+| Ouro | <https://mpago.la/18CTFci> |
+
+Os links ficam em [`src/lib/checkout.ts`](src/lib/checkout.ts) e podem ser
+trocados sem mexer no código, por `VITE_MP_LINK_BRONZE` / `VITE_MP_LINK_PRATA`
+/ `VITE_MP_LINK_OURO`. O plano **Diamante** abre o e-mail de contato quando
+`VITE_CONTACT_EMAIL` está definido.
+
+### Onde vai cada credencial
+
+| Credencial | Onde | Por quê |
+|---|---|---|
+| **Link de pagamento** (`mpago.la/...`) | `src/lib/checkout.ts` ou `.env` | É público — não carrega credencial nenhuma. |
+| **Chave pública** (`APP_USR-...`) | `.env` → `VITE_MP_PUBLIC_KEY` (e nas *Environment Variables* da Vercel) | É pública por definição; só faz falta se o checkout passar a rodar dentro do app (Checkout Bricks). Com os links acima, nem é necessária. |
+| **Access token de produção** | **Nunca** no front. Secret de servidor: `supabase secrets set MP_ACCESS_TOKEN="APP_USR-..."` | Tudo que começa com `VITE_` é embutido no JavaScript e fica visível para qualquer visitante. O token dá acesso à sua conta. |
+
+Enquanto a cobrança for por **link de pagamento**, o app não precisa de token:
+ele só abre a página do Mercado Pago. O token passa a ser necessário quando a
+liberação do plano tiver de ser automática — aí entra um **webhook** do Mercado
+Pago numa Edge Function, que consulta o pagamento com o token (no servidor) e
+marca o campeonato como pago.
 
 ## 🔔 Notificações push
 

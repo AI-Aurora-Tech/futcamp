@@ -68,6 +68,8 @@ input, select, textarea { font-family: inherit; font-size: 1rem; }
   align-items: center;
   gap: 0.4rem;
 }
+/* Botão que na verdade é um link (checkout, contato): mesmo visual. */
+a.btn { text-decoration: none; cursor: pointer; }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn--primary { background: var(--brand); color: #fff; box-shadow: 0 6px 16px rgba(22, 163, 74, 0.28); }
