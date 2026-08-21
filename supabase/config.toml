@@ -42,3 +42,7 @@ verify_jwt = false
 # formato novo (sb_publishable_...).
 [functions.asaas-checkout]
 verify_jwt = false
+
+# Consulta de pagamento sob demanda (botão "Já paguei").
+[functions.asaas-status]
+verify_jwt = false

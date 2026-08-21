@@ -195,6 +195,12 @@ pago (fora do `service_role`, o gatilho restaura os campos de pagamento).
    **reconsulta o pagamento na API oficial** (a notificação sozinha não prova
    nada), confere o valor e libera o campeonato. O painel abre sozinho.
 
+Webhook falha — não configurado, evento não marcado, entrega perdida. Por isso
+existe a `asaas-status`, que **pergunta ao Asaas sob demanda**: o app consulta a
+cada 20 s enquanto a tela de cobrança está aberta, e na hora quando o
+organizador clica em "Já paguei". Quem decide continua sendo a API do Asaas; o
+app nunca diz que pagou.
+
 Plano **Grátis** não passa por cobrança nenhuma (`payment_status = 'free'`), e
 **Diamante** abre o e-mail de contato quando `VITE_CONTACT_EMAIL` está
 definido. No **modo demo** (sem Supabase) o pagamento é simulado na hora, para
@@ -213,6 +219,7 @@ supabase secrets set ASAAS_API_KEY="$aact_..." \
                      APP_URL="https://tabelaco.auroratech.app.br"
 supabase functions deploy asaas-checkout --no-verify-jwt
 supabase functions deploy asaas-webhook  --no-verify-jwt
+supabase functions deploy asaas-status   --no-verify-jwt
 ```
 
 E no painel do Asaas (**Integrações → Webhooks**) aponte para

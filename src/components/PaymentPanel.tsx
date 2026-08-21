@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { refreshPayment, startCheckout } from '../services/payments'
+import { checkPayment, refreshPayment, startCheckout } from '../services/payments'
 import { breakdown, formatBRL } from '../lib/pricing'
 import type { Championship } from '../types'
 import { Button, Spinner } from './ui'
@@ -8,8 +8,9 @@ import { Button, Spinner } from './ui'
  * Cobrança do campeonato: mostra a conta (plano + categorias adicionais),
  * gera o link do Asaas e espera a confirmação.
  *
- * Enquanto o pagamento não é confirmado, o campeonato fica bloqueado — quem
- * libera é o webhook, então aqui a gente só reconsulta até virar `paid`.
+ * Enquanto o pagamento não é confirmado, o campeonato fica bloqueado. A espera
+ * automática só relê o banco (quem libera é o webhook); já o botão "Já paguei"
+ * pergunta direto ao Asaas, para o organizador não ficar refém do webhook.
  */
 export function PaymentPanel({
   champ,
@@ -26,17 +27,23 @@ export function PaymentPanel({
   const [error, setError] = useState<string | null>(null)
   const [link, setLink] = useState<string | null>(null)
   const timer = useRef<number | null>(null)
+  const ticks = useRef(0)
 
   const check = useCallback(
-    async (quiet = false) => {
+    async (quiet = false, perguntarAoAsaas = true) => {
       if (!quiet) setChecking(true)
       try {
-        const fresh = await refreshPayment(champ.id)
+        const fresh = perguntarAoAsaas ? await checkPayment(champ.id) : await refreshPayment(champ.id)
         if (fresh && fresh.paymentStatus !== 'pending') {
           onPaid(fresh)
           return true
         }
-        if (!quiet) setError('O pagamento ainda não foi confirmado pelo Asaas.')
+        if (!quiet) {
+          setError(
+            'O Asaas ainda não registrou este pagamento. Pix costuma cair em segundos; ' +
+              'boleto leva até 2 dias úteis. Se você acabou de pagar, tente de novo em um minuto.',
+          )
+        }
       } catch {
         if (!quiet) setError('Não foi possível consultar o pagamento agora.')
       } finally {
@@ -47,11 +54,16 @@ export function PaymentPanel({
     [champ.id, onPaid],
   )
 
-  // Depois que o organizador abre o checkout, fica conferindo sozinho: a
-  // confirmação chega pelo webhook, sem o app precisar fazer nada.
+  // Depois que o organizador abre o checkout, fica conferindo sozinho. A cada
+  // 5 s relê o banco (barato — é o webhook que libera); a cada 20 s pergunta ao
+  // Asaas, para a liberação acontecer mesmo se o webhook não vier.
   useEffect(() => {
     if (!link) return
-    timer.current = window.setInterval(() => void check(true), 5000)
+    ticks.current = 0
+    timer.current = window.setInterval(() => {
+      ticks.current += 1
+      void check(true, ticks.current % 4 === 0)
+    }, 5000)
     return () => {
       if (timer.current) window.clearInterval(timer.current)
     }
@@ -67,7 +79,7 @@ export function PaymentPanel({
       return
     }
     if (res.simulated) {
-      await check(true)
+      await check(true, false)
       return
     }
     if (res.url) {
@@ -115,7 +127,7 @@ export function PaymentPanel({
           {busy ? 'Gerando link…' : link ? '↻ Abrir pagamento de novo' : '💳 Pagar com Pix, boleto ou cartão'}
         </Button>
         <Button variant="ghost" onClick={() => void check()} disabled={checking}>
-          {checking ? 'Conferindo…' : 'Já paguei — conferir'}
+          {checking ? 'Perguntando ao Asaas…' : 'Já paguei — conferir'}
         </Button>
       </div>
 
@@ -128,7 +140,8 @@ export function PaymentPanel({
 
       <p className="muted small pay__note">
         Pagou e não liberou? A confirmação do Asaas pode levar alguns minutos (Pix é quase
-        imediato; boleto leva até 2 dias úteis). O campeonato fica guardado como está.
+        imediato; boleto leva até 2 dias úteis). O campeonato fica guardado como está — e
+        o botão acima confere direto com o Asaas, quantas vezes você quiser.
       </p>
     </section>
   )

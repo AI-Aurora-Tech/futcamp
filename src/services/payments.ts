@@ -65,10 +65,28 @@ export async function startCheckout(championshipId: string): Promise<CheckoutRes
 
 /**
  * Reconsulta o campeonato para ver se o pagamento já foi confirmado — usado
- * pelo botão "Já paguei" e pela espera automática depois do checkout.
+ * pela espera automática depois do checkout (o webhook é quem libera).
  */
 export async function refreshPayment(championshipId: string): Promise<Championship | null> {
   return getChampionship(championshipId)
+}
+
+/**
+ * Pergunta ao Asaas, na hora, se o campeonato já foi pago — e libera se já
+ * foi. É o que o botão "Já paguei" faz.
+ *
+ * Existe porque webhook falha: não configurado, evento não marcado, entrega
+ * perdida. Sem esta consulta, quem pagou ficaria travado esperando um aviso
+ * que talvez nunca chegue. Quem decide continua sendo a API do Asaas — o app
+ * só pergunta.
+ */
+export async function checkPayment(championshipId: string): Promise<Championship | null> {
+  if (authMode === 'supabase' && supabase) {
+    // Se a função não estiver publicada, não é motivo para falhar: relê o
+    // campeonato, que é o comportamento antigo.
+    await supabase.functions.invoke('asaas-status', { body: { championshipId } }).catch(() => null)
+  }
+  return refreshPayment(championshipId)
 }
 
 /**
