@@ -233,13 +233,31 @@ export async function createChampionship(
   })
 }
 
+/**
+ * Recusa da RLS. O caso mais comum é o master estar cadastrado só no
+ * `VITE_MASTER_ADMINS` (que vale no navegador) e não na tabela `master_admins`
+ * (que é quem vale no banco) — aí o app mostra os botões de master mas o
+ * Postgres não deixa escrever.
+ */
+const RECUSADO = (acao: string) =>
+  `O banco não deixou ${acao} este campeonato. Se você é o administrador master, ` +
+  `confira se o seu e-mail está na tabela master_admins do Supabase (migration 0015).`
+
 export async function updateChampionship(
   id: string,
   patch: Partial<Championship>,
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.from('championships').update(toRow(patch)).eq('id', id)
+    // `.select()` para saber quantas linhas mudaram: quando a RLS recusa, o
+    // Postgres não devolve erro — ele simplesmente não altera nada, e a tela
+    // ficaria dizendo que salvou.
+    const { data, error } = await supabase
+      .from('championships')
+      .update(toRow(patch))
+      .eq('id', id)
+      .select('id')
     if (error) throw error
+    if (!data?.length) throw new Error(RECUSADO('editar'))
     return
   }
   mutate((d) => {
@@ -257,8 +275,9 @@ export async function updateChampionship(
 
 export async function deleteChampionship(id: string): Promise<void> {
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.from('championships').delete().eq('id', id)
+    const { data, error } = await supabase.from('championships').delete().eq('id', id).select('id')
     if (error) throw error
+    if (!data?.length) throw new Error(RECUSADO('excluir'))
     return
   }
   mutate((d) => {

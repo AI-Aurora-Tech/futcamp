@@ -34,7 +34,7 @@ import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
 import { PaymentPanel } from './PaymentPanel'
-import { isLocked } from '../lib/pricing'
+import { formatBRL, isLocked } from '../lib/pricing'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
 
@@ -123,7 +123,12 @@ export function ManageChampionship({
       return
     }
     if (!confirm(`Excluir o campeonato "${champ.name}"? Esta ação não pode ser desfeita.`)) return
-    await deleteChampionship(championshipId)
+    try {
+      await deleteChampionship(championshipId)
+    } catch (e) {
+      alert((e as Error).message)
+      return
+    }
     onBack()
   }
 
@@ -146,8 +151,9 @@ export function ManageChampionship({
   }
 
   // Pagamento pendente: o campeonato existe, mas fica fechado até o Mercado
-  // Pago confirmar. O organizador vê só a cobrança.
-  if (isLocked(champ)) {
+  // Pago confirmar. O organizador vê só a cobrança — o master não: ele
+  // administra qualquer campeonato, em qualquer situação.
+  if (isLocked(champ) && !isMaster) {
     return (
       <div className="container pad-lg">
         <button className="back-link" onClick={onBack}>← Meus campeonatos</button>
@@ -175,6 +181,11 @@ export function ManageChampionship({
               <ChampionTag podium={computePodium(champ, teams, matches, events)} teams={teams} />
             </div>
             <div className="manage__actions">
+              {isMaster && isLocked(champ) && (
+                <span className="master-tag master-tag--pay" title="O organizador ainda não pagou este campeonato">
+                  🔒 pagamento pendente
+                </span>
+              )}
               {isMaster && organizer && champ.ownerId !== organizer.id && (
                 <span className="master-tag" title="Você está administrando o campeonato de outro organizador">
                   👑 modo master
@@ -234,6 +245,18 @@ export function ManageChampionship({
                 </p>
               )}
             </div>
+
+            {isMaster && isLocked(champ) && (
+              <div className="settings-block">
+                <h3>Pagamento</h3>
+                <p className="muted small">
+                  🔒 Este campeonato está com o pagamento pendente
+                  {champ.amountCents ? ` (${formatBRL(champ.amountCents)})` : ''} — para o
+                  organizador ele fica fechado até o Mercado Pago confirmar. Como master,
+                  você continua podendo editar e excluir normalmente.
+                </p>
+              </div>
+            )}
 
             <div className="settings-block">
               <h3>Notificações</h3>

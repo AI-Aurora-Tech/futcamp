@@ -89,7 +89,9 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
             <button
               key={c.id}
               className={`champ-card ${isLocked(c) ? 'champ-card--locked' : ''}`}
-              onClick={() => (isLocked(c) ? setPaying(c) : onOpen(c.id))}
+              // O master entra em qualquer campeonato, pago ou não — quem é
+              // parado pela cobrança é o organizador dono.
+              onClick={() => (isLocked(c) && !isMaster ? setPaying(c) : onOpen(c.id))}
               style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}
             >
               <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>

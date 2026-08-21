@@ -97,6 +97,17 @@ Como definir quem é master:
    insert into public.master_admins (email) values ('fulano@exemplo.com');
    ```
 
+O master administra **em qualquer situação**: rascunho, em andamento,
+encerrado — e também campeonato com **pagamento pendente**, que para o
+organizador dono fica fechado na tela de cobrança. Ele abre o painel completo,
+edita as informações e exclui normalmente; um aviso 🔒 no topo lembra que a
+cobrança ainda não foi confirmada.
+
+> Os dois cadastros precisam bater. Se o e-mail estiver só no
+> `VITE_MASTER_ADMINS` e não na tabela `master_admins`, o app mostra os botões
+> de master mas o banco recusa a escrita — o app agora avisa isso em vez de
+> fingir que salvou.
+
 No **modo demo** basta entrar com um e-mail da lista `VITE_MASTER_ADMINS`
 (padrão: `master@tabelaco.app`) para navegar como master.
 

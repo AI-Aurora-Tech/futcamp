@@ -1075,3 +1075,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .plan-total { border: 1px dashed var(--line-strong); border-radius: 12px; padding: 0.8rem 0.9rem; background: var(--bg); }
 .plan-total__lines { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .plan-total__val { font-size: 1.2rem; color: var(--brand-dark); }
+
+/* Master vendo um campeonato com cobrança pendente. */
+.master-tag--pay {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
