@@ -48,7 +48,10 @@ serve(async (req) => {
   const token = Deno.env.get('MP_ACCESS_TOKEN')
   if (!token) return json({ error: 'MP_ACCESS_TOKEN não configurado' }, 500)
 
-  const appUrl = (Deno.env.get('APP_URL') ?? '').replace(/\/+$/, '')
+  // O Mercado Pago só aceita `auto_return` com back_urls https públicas —
+  // com http, localhost ou APP_URL vazio ele recusa a preferência inteira.
+  const appUrl = (Deno.env.get('APP_URL') ?? '').trim().replace(/\/+$/, '')
+  const podeVoltar = /^https:\/\//i.test(appUrl) && !/localhost|127\.0\.0\.1/i.test(appUrl)
 
   let championshipId = ''
   try {
@@ -103,14 +106,14 @@ serve(async (req) => {
     external_reference: champ.id,
     statement_descriptor: 'TABELACO',
     metadata: { championship_id: champ.id, owner_id: champ.owner_id, plan: champ.plan },
-    back_urls: appUrl
+    back_urls: podeVoltar
       ? {
           success: `${appUrl}/#/pagamento/${champ.id}?status=sucesso`,
           pending: `${appUrl}/#/pagamento/${champ.id}?status=pendente`,
           failure: `${appUrl}/#/pagamento/${champ.id}?status=falha`,
         }
       : undefined,
-    auto_return: appUrl ? 'approved' : undefined,
+    auto_return: podeVoltar ? 'approved' : undefined,
     notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-webhook`,
   }
 
@@ -125,10 +128,41 @@ serve(async (req) => {
     body: JSON.stringify(pref),
   })
 
-  const out = await res.json().catch(() => ({}))
+  const bruto = await res.text()
+  let out: Record<string, unknown> = {}
+  try {
+    out = JSON.parse(bruto)
+  } catch {
+    out = {}
+  }
+
   if (!res.ok) {
-    console.error('mp-checkout: preferência recusada', res.status, out)
-    return json({ error: out?.message ?? 'O Mercado Pago recusou a cobrança' }, 502)
+    // Devolve o motivo do Mercado Pago (inclusive o `cause`, que é onde ele diz
+    // qual campo recusou) — sem isso quem está configurando fica no escuro.
+    const causa = Array.isArray(out?.cause)
+      ? (out.cause as { code?: unknown; description?: unknown }[])
+          .map((c) => [c?.code, c?.description].filter(Boolean).join(': '))
+          .filter(Boolean)
+          .join(' | ')
+      : ''
+    const motivo =
+      [out?.message, out?.error, causa].filter(Boolean).join(' — ') ||
+      bruto.slice(0, 300) ||
+      'O Mercado Pago recusou a cobrança'
+    console.error('mp-checkout: preferência recusada', res.status, bruto)
+    const ajuda =
+      res.status === 401
+        ? ' (o MP_ACCESS_TOKEN parece inválido ou não é o de produção)'
+        : /back_url|auto_return/i.test(motivo)
+          ? ' (confira o secret APP_URL — precisa ser o endereço https do app)'
+          : ''
+    return json({ error: `Mercado Pago ${res.status}: ${motivo}${ajuda}` }, 502)
+  }
+
+  const init = (out?.init_point ?? out?.sandbox_init_point) as string | undefined
+  if (!init) {
+    console.error('mp-checkout: resposta sem init_point', bruto)
+    return json({ error: 'O Mercado Pago não devolveu o link de pagamento.' }, 502)
   }
 
   // Registra a tentativa (útil para conferir depois).
@@ -142,5 +176,5 @@ serve(async (req) => {
     { onConflict: 'preference_id' },
   )
 
-  return json({ url: out.init_point ?? out.sandbox_init_point, preferenceId: out.id })
+  return json({ url: init, preferenceId: out.id })
 })

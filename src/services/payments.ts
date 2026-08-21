@@ -39,7 +39,10 @@ export async function startCheckout(championshipId: string): Promise<CheckoutRes
     const { data, error } = await supabase.functions.invoke('mp-checkout', {
       body: { championshipId },
     })
-    if (error) return { ok: false, error: traduz(error.message) }
+    // O SDK devolve sempre "Edge Function returned a non-2xx status code" e
+    // esconde o corpo da resposta em `error.context`. Sem ler esse corpo, quem
+    // está configurando o Mercado Pago fica sem saber o que deu errado.
+    if (error) return { ok: false, error: await motivo(error) }
     const url = (data as { url?: string } | null)?.url
     if (!url) return { ok: false, error: 'O Mercado Pago não devolveu o link de pagamento.' }
     return { ok: true, url }
@@ -68,13 +71,55 @@ export async function refreshPayment(championshipId: string): Promise<Championsh
   return getChampionship(championshipId)
 }
 
-function traduz(msg: string | undefined): string {
-  const m = (msg ?? '').toLowerCase()
-  if (m.includes('not found') || m.includes('404')) {
-    return 'Cobrança indisponível: a função mp-checkout ainda não foi publicada no Supabase.'
+/**
+ * Abre a resposta que o SDK escondeu e devolve um motivo que dê para agir.
+ *
+ * `FunctionsHttpError.context` é a `Response` original — é lá que está o
+ * `{ error: "..." }` que a Edge Function devolveu, junto com o status HTTP.
+ */
+export async function motivo(error: unknown): Promise<string> {
+  const ctx = (error as { context?: unknown })?.context
+  const res = ctx instanceof Response ? ctx : undefined
+  let corpo = ''
+  if (res) {
+    try {
+      const txt = await res.clone().text()
+      try {
+        const j = JSON.parse(txt)
+        corpo = String(j?.error ?? j?.message ?? txt)
+      } catch {
+        corpo = txt
+      }
+    } catch {
+      /* corpo já consumido — segue só com o status */
+    }
   }
-  if (m.includes('token')) {
-    return 'O Mercado Pago recusou as credenciais. Confira o secret MP_ACCESS_TOKEN.'
+
+  const status = res?.status ?? 0
+  const dica = pista(status, corpo)
+  const detalhe = corpo.trim().slice(0, 300)
+  if (dica) return detalhe && !dica.includes(detalhe) ? `${dica} (${detalhe})` : dica
+  if (detalhe) return detalhe
+  return (error as { message?: string })?.message || 'Não foi possível gerar o link de pagamento.'
+}
+
+function pista(status: number, corpo: string): string {
+  const m = corpo.toLowerCase()
+  if (m.includes('mp_access_token')) {
+    return 'Falta o secret MP_ACCESS_TOKEN no Supabase (Project Settings → Edge Functions → Secrets).'
   }
-  return msg || 'Não foi possível gerar o link de pagamento.'
+  if (status === 401 || status === 403) {
+    return 'O Supabase recusou a chamada (401). Entre de novo na sua conta e confira se a função mp-checkout foi publicada neste projeto.'
+  }
+  if (status === 404) {
+    return 'A função mp-checkout ainda não foi publicada no Supabase (supabase functions deploy mp-checkout).'
+  }
+  if (status === 409) return corpo || 'Este campeonato não tem valor a cobrar.'
+  if (status === 502) {
+    return 'O Mercado Pago recusou a cobrança. Confira o MP_ACCESS_TOKEN de produção e o APP_URL (precisa ser https).'
+  }
+  if (status >= 500) {
+    return 'A função mp-checkout falhou. Veja o log em Supabase → Edge Functions → mp-checkout → Logs.'
+  }
+  return ''
 }
