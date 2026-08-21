@@ -46,6 +46,13 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
+/**
+ * Versão desta função. Vai em toda resposta de erro e no GET de conferência —
+ * é assim que se sabe, sem adivinhar, qual código está publicado no Supabase.
+ * Suba este número a cada mudança.
+ */
+export const VERSAO = '3'
+
 /** Produção ou sandbox. A chave de homologação traz "hmlg" no meio. */
 export function asaasBase(env: string | undefined, key: string): string {
   const sandbox = (env ?? '').toLowerCase() === 'sandbox' || /hmlg/i.test(key)
@@ -72,14 +79,27 @@ export function tiposDeCobranca(env: string | undefined): string[] {
 }
 
 /**
- * Ordem de tentativas. Conta sem chave Pix cadastrada recusa a cobrança
- * inteira — em vez de travar o organizador, a função tenta de novo sem o Pix.
+ * Ordem de tentativas para o `billingTypes`.
+ *
+ * O Asaas recusa a cobrança INTEIRA quando uma das formas não está disponível
+ * na conta — boleto que depende de aprovação, Pix sem chave cadastrada. Como
+ * não dá para saber de fora o que a conta tem, a função tenta a lista
+ * completa, depois tira uma forma de cada vez e, por fim, cada uma sozinha.
+ * Na prática: a primeira combinação que a conta aceitar é a que vale.
+ *
+ * A ordem de remoção começa pelo boleto porque é o mais comum de faltar.
  */
 export function escadaDeTipos(tipos: string[]): string[][] {
-  const semPix = tipos.filter((t) => t !== 'PIX')
-  const escada = [tipos, semPix, ['CREDIT_CARD']]
+  const combos: string[][] = [tipos]
+  for (const fora of ['BOLETO', 'PIX', 'CREDIT_CARD']) {
+    if (tipos.includes(fora)) combos.push(tipos.filter((t) => t !== fora))
+  }
+  for (const unico of ['CREDIT_CARD', 'PIX', 'BOLETO']) {
+    if (tipos.includes(unico)) combos.push([unico])
+  }
+
   const vistos = new Set<string>()
-  return escada.filter((t) => {
+  return combos.filter((t) => {
     const k = t.join(',')
     if (!t.length || vistos.has(k)) return false
     vistos.add(k)
@@ -108,7 +128,10 @@ export interface TentativaCheckout {
   out: Record<string, unknown>
   status: number
   motivo: string
+  /** Formas usadas na tentativa que valeu (ou na última que falhou). */
   tipos: string[]
+  /** Todas as combinações tentadas, para a mensagem de erro fazer sentido. */
+  tentadas: string[][]
 }
 
 /**
@@ -122,10 +145,12 @@ export async function criarCheckout(
   corpo: Record<string, unknown>,
   escada: string[][],
 ): Promise<TentativaCheckout> {
-  let ultimo: TentativaCheckout = { ok: false, out: {}, status: 0, motivo: '', tipos: [] }
+  let ultimo: TentativaCheckout = { ok: false, out: {}, status: 0, motivo: '', tipos: [], tentadas: [] }
+  const tentadas: string[][] = []
 
   for (let i = 0; i < escada.length; i++) {
     const tipos = escada[i]
+    tentadas.push(tipos)
     const res = await buscar(`${base}/checkouts`, {
       method: 'POST',
       headers: { access_token: key, 'Content-Type': 'application/json', 'User-Agent': 'Tabelaco' },
@@ -140,9 +165,12 @@ export async function criarCheckout(
       out = {}
     }
 
-    if (res.ok) return { ok: true, out, status: res.status, motivo: '', tipos }
+    if (res.ok) {
+      if (i > 0) console.log('asaas-checkout: aceito com', tipos.join(','), '— considere fixar em ASAAS_BILLING_TYPES')
+      return { ok: true, out, status: res.status, motivo: '', tipos, tentadas }
+    }
 
-    ultimo = { ok: false, out, status: res.status, motivo: motivoAsaas(out, bruto), tipos }
+    ultimo = { ok: false, out, status: res.status, motivo: motivoAsaas(out, bruto), tipos, tentadas }
     console.error('asaas-checkout: checkout recusado', res.status, tipos.join(','), bruto)
 
     // Só insiste quando a recusa foi pela forma de pagamento (ex.: conta sem
@@ -166,10 +194,25 @@ interface ChampRow {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
-  if (req.method !== 'POST') return json({ error: 'Método não suportado' }, 405)
 
   const key = Deno.env.get('ASAAS_API_KEY')
-  if (!key) return json({ error: 'ASAAS_API_KEY não configurado' }, 500)
+
+  // GET = conferência: diz qual versão está publicada e como está configurada,
+  // sem revelar nada da chave além de estar (ou não) presente.
+  if (req.method === 'GET') {
+    return json({
+      ok: true,
+      versao: VERSAO,
+      chave: key ? `${key.slice(0, 10)}…(${key.length} caracteres)` : 'AUSENTE',
+      ambiente: key ? asaasBase(Deno.env.get('ASAAS_ENV'), key) : null,
+      appUrl: (Deno.env.get('APP_URL') ?? '') || 'AUSENTE',
+      formas: escadaDeTipos(tiposDeCobranca(Deno.env.get('ASAAS_BILLING_TYPES'))),
+    })
+  }
+
+  if (req.method !== 'POST') return json({ error: 'Método não suportado', versao: VERSAO }, 405)
+
+  if (!key) return json({ error: 'ASAAS_API_KEY não configurado', versao: VERSAO }, 500)
   const base = asaasBase(Deno.env.get('ASAAS_ENV'), key)
 
   // O Asaas só aceita callback com endereço https público — com http,
@@ -182,9 +225,9 @@ serve(async (req) => {
     const body = await req.json()
     championshipId = String(body?.championshipId ?? '')
   } catch {
-    return json({ error: 'Corpo inválido' }, 400)
+    return json({ error: 'Corpo inválido', versao: VERSAO }, 400)
   }
-  if (!championshipId) return json({ error: 'championshipId é obrigatório' }, 400)
+  if (!championshipId) return json({ error: 'championshipId é obrigatório', versao: VERSAO }, 400)
 
   const db = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -197,10 +240,10 @@ serve(async (req) => {
     .select('id, name, plan, amount_cents, payment_status, categories, owner_id')
     .eq('id', championshipId)
     .maybeSingle()
-  if (error) return json({ error: error.message }, 500)
+  if (error) return json({ error: error.message, versao: VERSAO }, 500)
 
   const champ = data as ChampRow | null
-  if (!champ) return json({ error: 'Campeonato não encontrado' }, 404)
+  if (!champ) return json({ error: 'Campeonato não encontrado', versao: VERSAO }, 404)
 
   // Quem chamou? Se veio uma sessão válida, ela precisa ser do dono do
   // campeonato (ou de um master). Sem sessão reconhecível a cobrança segue: o
@@ -217,16 +260,16 @@ serve(async (req) => {
         .select('email')
         .ilike('email', email)
         .maybeSingle()
-      if (!master) return json({ error: 'Este campeonato é de outro organizador' }, 403)
+      if (!master) return json({ error: 'Este campeonato é de outro organizador', versao: VERSAO }, 403)
     }
   }
 
   if (champ.payment_status === 'paid' || champ.payment_status === 'free') {
-    return json({ error: 'Este campeonato já está liberado' }, 409)
+    return json({ error: 'Este campeonato já está liberado', versao: VERSAO }, 409)
   }
 
   const cents = champ.amount_cents ?? 0
-  if (cents <= 0) return json({ error: 'Campeonato sem valor a cobrar' }, 409)
+  if (cents <= 0) return json({ error: 'Campeonato sem valor a cobrar', versao: VERSAO }, 409)
 
   const nCats = Array.isArray(champ.categories) ? champ.categories.length : 1
   const extra = Math.max(0, nCats - 1)
@@ -276,13 +319,20 @@ serve(async (req) => {
           : /pix/i.test(tentativa.motivo)
             ? ' (cadastre uma chave Pix no Asaas ou ajuste o secret ASAAS_BILLING_TYPES)'
             : ''
-    return json({ error: `Asaas ${tentativa.status}: ${tentativa.motivo}${ajuda}` }, 502)
+    return json(
+      {
+        error: `Asaas ${tentativa.status}: ${tentativa.motivo}${ajuda}`,
+        tentadas: tentativa.tentadas.map((t) => t.join('+')).join(' → '),
+        versao: VERSAO,
+      },
+      502,
+    )
   }
 
   const link = (out?.link ?? out?.url) as string | undefined
   if (!link) {
     console.error('asaas-checkout: resposta sem link', JSON.stringify(out).slice(0, 300))
-    return json({ error: 'O Asaas não devolveu o link de pagamento.' }, 502)
+    return json({ error: 'O Asaas não devolveu o link de pagamento.', versao: VERSAO }, 502)
   }
 
   // Guarda a tentativa. É por aqui que o webhook reencontra o campeonato caso

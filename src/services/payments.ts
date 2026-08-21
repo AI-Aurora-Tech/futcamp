@@ -81,12 +81,19 @@ export async function motivo(error: unknown): Promise<string> {
   const ctx = (error as { context?: unknown })?.context
   const res = ctx instanceof Response ? ctx : undefined
   let corpo = ''
+  /** Rastro da função: versão publicada e combinações tentadas. */
+  let rastro = ''
   if (res) {
     try {
       const txt = await res.clone().text()
       try {
         const j = JSON.parse(txt)
         corpo = String(j?.error ?? j?.message ?? txt)
+        const partes = [
+          j?.versao ? `função v${j.versao}` : '',
+          j?.tentadas ? `tentou ${j.tentadas}` : '',
+        ].filter(Boolean)
+        rastro = partes.length ? ` · ${partes.join(' · ')}` : ''
       } catch {
         corpo = txt
       }
@@ -98,8 +105,8 @@ export async function motivo(error: unknown): Promise<string> {
   const status = res?.status ?? 0
   const dica = pista(status, corpo)
   const detalhe = corpo.trim().slice(0, 300)
-  if (dica) return detalhe && !dica.includes(detalhe) ? `${dica} (${detalhe})` : dica
-  if (detalhe) return detalhe
+  if (dica) return (detalhe && !dica.includes(detalhe) ? `${dica} (${detalhe})` : dica) + rastro
+  if (detalhe) return detalhe + rastro
   return (error as { message?: string })?.message || 'Não foi possível gerar o link de pagamento.'
 }
 
