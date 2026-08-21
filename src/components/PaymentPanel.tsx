@@ -6,7 +6,7 @@ import { Button, Spinner } from './ui'
 
 /**
  * Cobrança do campeonato: mostra a conta (plano + categorias adicionais),
- * gera o link do Mercado Pago e espera a confirmação.
+ * gera o link do Asaas e espera a confirmação.
  *
  * Enquanto o pagamento não é confirmado, o campeonato fica bloqueado — quem
  * libera é o webhook, então aqui a gente só reconsulta até virar `paid`.
@@ -36,7 +36,7 @@ export function PaymentPanel({
           onPaid(fresh)
           return true
         }
-        if (!quiet) setError('O pagamento ainda não foi confirmado pelo Mercado Pago.')
+        if (!quiet) setError('O pagamento ainda não foi confirmado pelo Asaas.')
       } catch {
         if (!quiet) setError('Não foi possível consultar o pagamento agora.')
       } finally {
@@ -112,7 +112,7 @@ export function PaymentPanel({
 
       <div className="pay__actions">
         <Button onClick={() => void pay()} disabled={busy}>
-          {busy ? 'Gerando link…' : link ? '↻ Abrir pagamento de novo' : '💳 Pagar com Mercado Pago'}
+          {busy ? 'Gerando link…' : link ? '↻ Abrir pagamento de novo' : '💳 Pagar com Pix, boleto ou cartão'}
         </Button>
         <Button variant="ghost" onClick={() => void check()} disabled={checking}>
           {checking ? 'Conferindo…' : 'Já paguei — conferir'}
@@ -121,13 +121,13 @@ export function PaymentPanel({
 
       {link && (
         <p className="pay__waiting">
-          <Spinner /> Esperando a confirmação do Mercado Pago… pode fechar a aba do pagamento, a
+          <Spinner /> Esperando a confirmação do Asaas… pode fechar a aba do pagamento, a
           liberação é automática.
         </p>
       )}
 
       <p className="muted small pay__note">
-        Pagou e não liberou? A confirmação do Mercado Pago pode levar alguns minutos (Pix é quase
+        Pagou e não liberou? A confirmação do Asaas pode levar alguns minutos (Pix é quase
         imediato; boleto leva até 2 dias úteis). O campeonato fica guardado como está.
       </p>
     </section>

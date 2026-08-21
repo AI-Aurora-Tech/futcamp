@@ -17,7 +17,7 @@ export type PlanKey = 'gratis' | 'bronze' | 'prata' | 'ouro' | 'diamante'
  * Situação da cobrança do campeonato:
  *  • `free`    — plano grátis (ou Diamante, acertado fora do app): liberado;
  *  • `pending` — criado, aguardando o pagamento: fica bloqueado;
- *  • `paid`    — pagamento confirmado pelo Mercado Pago: liberado.
+ *  • `paid`    — pagamento confirmado pelo Asaas: liberado.
  */
 export type PaymentStatus = 'free' | 'pending' | 'paid'
 
@@ -241,7 +241,7 @@ export interface Championship {
   paymentStatus?: PaymentStatus
   /** Valor cobrado (centavos): plano + categorias adicionais. */
   amountCents?: number
-  /** Identificador do pagamento no Mercado Pago, quando aprovado. */
+  /** Identificador do pagamento no Asaas, quando confirmado. */
   paymentRef?: string
   /** Momento da confirmação do pagamento. */
   paidAt?: string

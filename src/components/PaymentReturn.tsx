@@ -6,7 +6,7 @@ import { Button, ChampLogo, Spinner } from './ui'
 import { PaymentPanel } from './PaymentPanel'
 
 /**
- * Volta do Mercado Pago (`#/pagamento/<id>`).
+ * Volta do Asaas (`#/pagamento/<id>`).
  *
  * A liberação vem pelo webhook, não por esta tela — aqui a gente só confere o
  * campeonato e mostra o resultado. Se ainda estiver pendente (Pix caindo,
@@ -70,7 +70,7 @@ export function PaymentReturn({
       )}
       {status === 'pendente' && (
         <p className="muted">
-          O Mercado Pago ainda está processando (boleto e alguns Pix levam alguns minutos).
+          O Asaas ainda está processando (boleto e alguns Pix levam alguns minutos).
         </p>
       )}
       <PaymentPanel champ={champ} onPaid={(c) => setChamp(c)} />

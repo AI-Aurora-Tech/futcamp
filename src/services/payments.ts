@@ -1,17 +1,17 @@
 // ---------------------------------------------------------------------------
-// Cobrança do campeonato (Mercado Pago).
+// Cobrança do campeonato (Asaas).
 //
 // Fluxo:
 //   1. o organizador cria o campeonato escolhendo o plano;
 //   2. o banco calcula o valor (plano + categorias adicionais) e grava o
 //      campeonato como `pending` — bloqueado;
-//   3. `startCheckout` chama a Edge Function `mp-checkout`, que cria a
-//      preferência no Mercado Pago com o ACCESS TOKEN (que fica só no servidor)
-//      e devolve o link de pagamento;
-//   4. o Mercado Pago avisa a Edge Function `mp-webhook` quando o pagamento é
-//      aprovado, e ela libera o campeonato (`paid`).
+//   3. `startCheckout` chama a Edge Function `asaas-checkout`, que cria o
+//      checkout no Asaas com a CHAVE DE API (que fica só no servidor) e
+//      devolve o link de pagamento — Pix, boleto ou cartão, o pagador escolhe;
+//   4. o Asaas avisa a Edge Function `asaas-webhook` quando o pagamento é
+//      confirmado, e ela libera o campeonato (`paid`).
 //
-// Nada de token aqui: este arquivo roda no navegador.
+// Nada de chave aqui: este arquivo roda no navegador.
 // ---------------------------------------------------------------------------
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
@@ -21,7 +21,7 @@ import type { Championship } from '../types'
 
 export interface CheckoutResult {
   ok: boolean
-  /** Link do Mercado Pago para concluir o pagamento. */
+  /** Link do Asaas para concluir o pagamento. */
   url?: string
   /** Modo demo: não há cobrança real, o campeonato já foi liberado. */
   simulated?: boolean
@@ -31,20 +31,20 @@ export interface CheckoutResult {
 /**
  * Gera (ou recupera) o link de pagamento do campeonato.
  *
- * No modo demo — sem Supabase — não existe servidor para falar com o Mercado
- * Pago: o campeonato é liberado na hora, para dar para testar o app inteiro.
+ * No modo demo — sem Supabase — não existe servidor para falar com o Asaas: o
+ * campeonato é liberado na hora, para dar para testar o app inteiro.
  */
 export async function startCheckout(championshipId: string): Promise<CheckoutResult> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase.functions.invoke('mp-checkout', {
+    const { data, error } = await supabase.functions.invoke('asaas-checkout', {
       body: { championshipId },
     })
     // O SDK devolve sempre "Edge Function returned a non-2xx status code" e
     // esconde o corpo da resposta em `error.context`. Sem ler esse corpo, quem
-    // está configurando o Mercado Pago fica sem saber o que deu errado.
+    // está configurando o Asaas fica sem saber o que deu errado.
     if (error) return { ok: false, error: await motivo(error) }
     const url = (data as { url?: string } | null)?.url
-    if (!url) return { ok: false, error: 'O Mercado Pago não devolveu o link de pagamento.' }
+    if (!url) return { ok: false, error: 'O Asaas não devolveu o link de pagamento.' }
     return { ok: true, url }
   }
 
@@ -105,23 +105,23 @@ export async function motivo(error: unknown): Promise<string> {
 
 function pista(status: number, corpo: string): string {
   const m = corpo.toLowerCase()
-  if (m.includes('mp_access_token')) {
-    return 'Falta o secret MP_ACCESS_TOKEN no Supabase (Project Settings → Edge Functions → Secrets).'
+  if (m.includes('asaas_api_key')) {
+    return 'Falta o secret ASAAS_API_KEY no Supabase (Project Settings → Edge Functions → Secrets).'
   }
   if (status === 403) return corpo || 'Este campeonato é de outro organizador.'
   if (status === 401) {
     // Quem devolve isso é o portão do Supabase, antes da função rodar.
-    return 'O Supabase recusou a chamada antes de chegar na função. Publique de novo com: supabase functions deploy mp-checkout --no-verify-jwt'
+    return 'O Supabase recusou a chamada antes de chegar na função. Publique de novo com: supabase functions deploy asaas-checkout --no-verify-jwt'
   }
   if (status === 404) {
-    return 'A função mp-checkout ainda não foi publicada no Supabase (supabase functions deploy mp-checkout).'
+    return 'A função asaas-checkout ainda não foi publicada no Supabase (supabase functions deploy asaas-checkout --no-verify-jwt).'
   }
   if (status === 409) return corpo || 'Este campeonato não tem valor a cobrar.'
   if (status === 502) {
-    return 'O Mercado Pago recusou a cobrança. Confira o MP_ACCESS_TOKEN de produção e o APP_URL (precisa ser https).'
+    return 'O Asaas recusou a cobrança. Confira a ASAAS_API_KEY (e o ASAAS_ENV) e o APP_URL, que precisa ser https.'
   }
   if (status >= 500) {
-    return 'A função mp-checkout falhou. Veja o log em Supabase → Edge Functions → mp-checkout → Logs.'
+    return 'A função asaas-checkout falhou. Veja o log em Supabase → Edge Functions → asaas-checkout → Logs.'
   }
   return ''
 }

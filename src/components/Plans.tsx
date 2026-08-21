@@ -107,7 +107,7 @@ export function Plans({ onHome }: { onHome: () => void }) {
             </div>
             <div className="plan-note">
               <h3>3. Pague e comece</h3>
-              <p>O pagamento é feito pelo Mercado Pago (Pix, cartão ou boleto). Confirmado o pagamento, o campeonato é liberado automaticamente para você administrar.</p>
+              <p>O pagamento é feito pelo Asaas (Pix, cartão ou boleto). Confirmado o pagamento, o campeonato é liberado automaticamente para você administrar.</p>
             </div>
           </div>
         </section>

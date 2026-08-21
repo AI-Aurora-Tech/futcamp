@@ -45,7 +45,7 @@ function readCreateTeamRoute(): { championshipId: string; token: string } | null
   return { championshipId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
 }
 
-/** Extrai `#/pagamento/<championshipId>?status=…` (volta do Mercado Pago). */
+/** Extrai `#/pagamento/<championshipId>?status=…` (volta do Asaas). */
 function readPaymentRoute(): { championshipId: string; status: string | null } | null {
   const m = window.location.hash.match(/^#\/pagamento\/([^?]+)(?:\?(.*))?$/)
   if (!m) return null

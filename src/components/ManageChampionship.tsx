@@ -252,7 +252,7 @@ export function ManageChampionship({
                 <p className="muted small">
                   🔒 Este campeonato está com o pagamento pendente
                   {champ.amountCents ? ` (${formatBRL(champ.amountCents)})` : ''} — para o
-                  organizador ele fica fechado até o Mercado Pago confirmar. Como master,
+                  organizador ele fica fechado até o Asaas confirmar. Como master,
                   você continua podendo editar e excluir normalmente.
                 </p>
               </div>

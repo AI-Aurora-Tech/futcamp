@@ -84,7 +84,7 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.plan !== undefined) row.plan = c.plan
   if (c.amountCents !== undefined) row.amount_cents = c.amountCents
   // `payment_status`, `payment_ref` e `paid_at` NÃO são escritos pelo app: quem
-  // confirma pagamento é a Edge Function `mp-webhook` (service role). Um gatilho
+  // confirma pagamento é a Edge Function `asaas-webhook` (service role). Um gatilho
   // no banco (migration 0021) rejeita a tentativa vinda do cliente.
   return row
 }

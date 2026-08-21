@@ -1028,7 +1028,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .penalties__x { font-weight: 800; color: var(--muted); }
 .penalties__result { margin: 0.5rem 0 0; font-size: 0.8rem; font-weight: 700; color: var(--brand-dark); text-align: center; }
 
-/* ---------- Cobrança do campeonato (Mercado Pago) ---------- */
+/* ---------- Cobrança do campeonato (Asaas) ---------- */
 .pill--pay { background: rgba(217, 119, 6, 0.16); color: #92400e; }
 .champ-card--locked { border-left-color: #d97706; background: linear-gradient(180deg, #fffbeb 0%, var(--surface) 60%); }
 .champ-card__pay { color: #b45309; font-weight: 600; }

@@ -27,8 +27,9 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0019_penalty_shootout.sql` | **Disputa por pênaltis**: colunas `matches.penalty_home`/`penalty_away`, `match_winner()` ciente das cobranças (o vencedor dos pênaltis avança em `advance_bracket`) e `mesa_update_match` com os dois novos parâmetros. |
 | `migrations/0020_finished_at.sql` | **Campeão em cartaz**: `championships.finished_at` carimbado por gatilho no encerramento — a vitrine pública mantém o campeonato (e o campeão) por 10 dias. |
 | `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
-| `functions/mp-checkout/` | Cria a preferência de pagamento no Mercado Pago e devolve o link do Checkout Pro. Confere o dono do campeonato internamente. Secrets: `MP_ACCESS_TOKEN`, `APP_URL`. Publique com `--no-verify-jwt`. |
-| `functions/mp-webhook/` | Recebe a notificação do Mercado Pago, reconsulta o pagamento na API oficial e libera o campeonato quando aprovado. Secret: `MP_ACCESS_TOKEN`. Publique com `--no-verify-jwt`. |
+| `migrations/0022_asaas.sql` | **Troca do provedor de pagamento** (Mercado Pago → Asaas): `payments.provider` e `payments.checkout_id`. O histórico antigo fica marcado como `mercadopago`. |
+| `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`. Publique com `--no-verify-jwt`. |
+| `functions/asaas-webhook/` | Recebe a notificação do Asaas, reconsulta o pagamento na API oficial e libera o campeonato quando confirmado. Secrets: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
@@ -61,6 +62,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0019_penalty_shootout.sql`
    - `migrations/0020_finished_at.sql`
    - `migrations/0021_payments.sql`
+   - `migrations/0022_asaas.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');
@@ -81,7 +83,7 @@ supabase start
 supabase db reset      # aplica as migrations e o seed
 ```
 
-## Pagamento do campeonato (Mercado Pago)
+## Pagamento do campeonato (Asaas)
 
 O valor é **calculado no banco**: o gatilho `set_championship_price()` roda o
 `plan_price_cents(plan, nº de categorias)` a cada inserção e grava
@@ -91,35 +93,42 @@ gatilho restaura os campos de pagamento em qualquer `update`.
 
 1. **Secrets** (Project Settings → Edge Functions → Secrets, ou pelo CLI):
    ```bash
-   supabase secrets set MP_ACCESS_TOKEN="APP_USR-..." APP_URL="https://seu-app.vercel.app"
+   supabase secrets set ASAAS_API_KEY="$aact_..." \
+                        ASAAS_ENV="producao" \
+                        ASAAS_WEBHOOK_TOKEN="uma-senha-sua" \
+                        APP_URL="https://seu-app.com.br"
    ```
-   O access token **nunca** vai para o `.env` do front nem para a Vercel: tudo
-   que começa com `VITE_` é embutido no JavaScript e fica visível para
-   qualquer visitante.
+   A chave **nunca** vai para o `.env` do front nem para a Vercel: tudo que
+   começa com `VITE_` é embutido no JavaScript e fica visível para qualquer
+   visitante. Use `ASAAS_ENV=sandbox` para testar (a chave de homologação, com
+   `hmlg` no meio, também é detectada sozinha).
 2. **Publique as funções**:
    ```bash
-   supabase functions deploy mp-checkout --no-verify-jwt
-   supabase functions deploy mp-webhook --no-verify-jwt
+   supabase functions deploy asaas-checkout --no-verify-jwt
+   supabase functions deploy asaas-webhook  --no-verify-jwt
    ```
    O `--no-verify-jwt` é obrigatório nas duas: no webhook porque quem chama é
-   o Mercado Pago, sem sessão de usuário; na cobrança porque o portão do
-   Supabase devolve `401 Invalid credentials` sem explicação em projetos com
-   chave de API do formato novo (`sb_publishable_...`) ou com as chaves
-   legadas desativadas. A `mp-checkout` confere o dono do campeonato dentro da
+   o Asaas, sem sessão de usuário; na cobrança porque o portão do Supabase
+   devolve `401 Invalid credentials` sem explicação em projetos com chave de
+   API do formato novo (`sb_publishable_...`) ou com as chaves legadas
+   desativadas. A `asaas-checkout` confere o dono do campeonato dentro da
    própria função, com `auth.getUser()` — a autorização não some, só muda de
    lugar.
-3. **Notificações**: no painel do Mercado Pago (Suas integrações → Webhooks),
-   aponte para
-   `https://<project-ref>.supabase.co/functions/v1/mp-webhook` e marque o
-   evento **Pagamentos**. A `mp-checkout` também manda essa URL em
-   `notification_url`, então o passo é só um reforço.
+3. **Notificações**: no painel do Asaas (Integrações → Webhooks), aponte para
+   `https://<project-ref>.supabase.co/functions/v1/asaas-webhook`, marque os
+   eventos de **Cobranças** (`PAYMENT_RECEIVED` e `PAYMENT_CONFIRMED`) e
+   informe no campo de token o mesmo valor de `ASAAS_WEBHOOK_TOKEN`.
 
 **Fluxo:** o organizador escolhe o plano → cria o campeonato (nasce
-`pending`) → `mp-checkout` gera a preferência e devolve o `init_point` → ele
-paga → o Mercado Pago avisa a `mp-webhook`, que **reconsulta**
-`GET /v1/payments/<id>` (a notificação sozinha não é prova de nada), confere se
-o valor cobre o devido e chama `mark_championship_paid()`. O campeonato passa a
+`pending`) → `asaas-checkout` cria o Checkout e devolve o `link` → ele paga por
+Pix, boleto ou cartão → o Asaas avisa a `asaas-webhook`, que **reconsulta**
+`GET /payments/<id>` (a notificação sozinha não é prova de nada), confere se o
+valor cobre o devido e chama `mark_championship_paid()`. O campeonato passa a
 `paid` e o painel abre.
+
+O CPF do pagador é pedido pelo Asaas, na página dele: por isso a integração usa
+o **Checkout hospedado** e não a cobrança direta, que exigiria `cpfCnpj` na
+chamada da API — o Tabelaço não coleta nem guarda dado fiscal do organizador.
 
 ## Modelo de acesso (RLS)
 
