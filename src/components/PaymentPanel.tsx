@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { checkPayment, refreshPayment, startCheckout } from '../services/payments'
+import { checkPayment, masterRelease, refreshPayment, startCheckout } from '../services/payments'
+import { useAuth } from '../context/AuthContext'
 import { breakdown, formatBRL } from '../lib/pricing'
 import type { Championship } from '../types'
 import { Button, Spinner } from './ui'
@@ -22,7 +23,9 @@ export function PaymentPanel({
   const b = breakdown(champ.plan, champ.categories.length)
   const total = champ.amountCents ?? b.totalCents
 
+  const { isMaster } = useAuth()
   const [busy, setBusy] = useState(false)
+  const [liberando, setLiberando] = useState(false)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [link, setLink] = useState<string | null>(null)
@@ -33,15 +36,23 @@ export function PaymentPanel({
     async (quiet = false, perguntarAoAsaas = true) => {
       if (!quiet) setChecking(true)
       try {
-        const fresh = perguntarAoAsaas ? await checkPayment(champ.id) : await refreshPayment(champ.id)
+        const r = perguntarAoAsaas
+          ? await checkPayment(champ.id)
+          : { champ: await refreshPayment(champ.id), consultou: false as const, erro: undefined }
+        const fresh = r.champ
         if (fresh && fresh.paymentStatus !== 'pending') {
           onPaid(fresh)
           return true
         }
         if (!quiet) {
+          // Distingue "perguntei e ele não achou" de "não consegui perguntar".
+          // Confundir os dois foi o que fez este problema demorar a aparecer.
           setError(
-            'O Asaas ainda não registrou este pagamento. Pix costuma cair em segundos; ' +
-              'boleto leva até 2 dias úteis. Se você acabou de pagar, tente de novo em um minuto.',
+            perguntarAoAsaas && !r.consultou
+              ? `Não consegui perguntar ao Asaas: ${r.erro ?? 'falha na consulta'}. ` +
+                  'Confira se a função asaas-status foi publicada (supabase functions deploy asaas-status --no-verify-jwt).'
+              : 'O Asaas ainda não registrou este pagamento. Pix costuma cair em segundos; ' +
+                  'boleto leva até 2 dias úteis. Se você acabou de pagar, tente de novo em um minuto.',
           )
         }
       } catch {
@@ -68,6 +79,27 @@ export function PaymentPanel({
       if (timer.current) window.clearInterval(timer.current)
     }
   }, [link, check])
+
+  /** Liberação manual: só o master, e quem valida é o banco. */
+  async function liberar() {
+    const nota = prompt(
+      'Liberar este campeonato SEM cobrança pelo app.\n\n' +
+        'Use quando o pagamento entrou por fora (dinheiro, transferência, cortesia).\n' +
+        'Anote o motivo — fica registrado no campeonato:',
+      'recebido em dinheiro',
+    )
+    if (nota === null) return
+    setLiberando(true)
+    setError(null)
+    try {
+      const fresh = await masterRelease(champ.id, nota)
+      if (fresh) onPaid(fresh)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLiberando(false)
+    }
+  }
 
   async function pay() {
     setBusy(true)
@@ -130,6 +162,18 @@ export function PaymentPanel({
           {checking ? 'Perguntando ao Asaas…' : 'Já paguei — conferir'}
         </Button>
       </div>
+
+      {isMaster && (
+        <div className="pay__master">
+          <p className="muted small">
+            👑 <b>Administrador master:</b> se o pagamento entrou por fora do app — dinheiro,
+            transferência, cortesia — você pode liberar na mão. Fica registrado no campeonato.
+          </p>
+          <Button variant="soft" onClick={() => void liberar()} disabled={liberando}>
+            {liberando ? 'Liberando…' : '👑 Liberar sem cobrança'}
+          </Button>
+        </div>
+      )}
 
       {link && (
         <p className="pay__waiting">

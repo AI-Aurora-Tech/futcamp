@@ -19,6 +19,14 @@ import { getChampionship } from './championships'
 import { mutate } from './demo'
 import type { Championship } from '../types'
 
+export interface CheckResult {
+  champ: Championship | null
+  /** A pergunta ao Asaas realmente aconteceu? */
+  consultou: boolean
+  /** Por que não deu para perguntar (função não publicada, rede, etc.). */
+  erro?: string
+}
+
 export interface CheckoutResult {
   ok: boolean
   /** Link do Asaas para concluir o pagamento. */
@@ -80,12 +88,61 @@ export async function refreshPayment(championshipId: string): Promise<Championsh
  * que talvez nunca chegue. Quem decide continua sendo a API do Asaas — o app
  * só pergunta.
  */
-export async function checkPayment(championshipId: string): Promise<Championship | null> {
+export async function checkPayment(championshipId: string): Promise<CheckResult> {
+  let consultou = true
+  let erro: string | undefined
+
   if (authMode === 'supabase' && supabase) {
-    // Se a função não estiver publicada, não é motivo para falhar: relê o
-    // campeonato, que é o comportamento antigo.
-    await supabase.functions.invoke('asaas-status', { body: { championshipId } }).catch(() => null)
+    try {
+      const { error } = await supabase.functions.invoke('asaas-status', { body: { championshipId } })
+      if (error) {
+        consultou = false
+        erro = await motivo(error)
+      }
+    } catch (e) {
+      consultou = false
+      erro = (e as Error)?.message
+    }
   }
+
+  // Mesmo sem conseguir perguntar, relê o campeonato: o webhook pode ter
+  // liberado enquanto isso.
+  return { champ: await refreshPayment(championshipId), consultou, erro }
+}
+
+/**
+ * Libera o campeonato sem pagamento pelo app — exclusivo do administrador
+ * master (dinheiro na mão, transferência direta, cortesia, ou uma confirmação
+ * que o Asaas não entregou). Quem valida é o banco, na
+ * `master_release_championship`: o navegador não decide isso.
+ */
+export async function masterRelease(championshipId: string, nota?: string): Promise<Championship | null> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('master_release_championship', {
+      p_champ: championshipId,
+      p_nota: nota ?? null,
+    })
+    if (error) {
+      throw new Error(
+        /function .* does not exist/i.test(error.message)
+          ? 'A migration 0023_master_release.sql ainda não foi aplicada no Supabase.'
+          : error.message,
+      )
+    }
+    return refreshPayment(championshipId)
+  }
+
+  mutate((d) => {
+    const i = d.championships.findIndex((c) => c.id === championshipId)
+    if (i >= 0) {
+      d.championships[i] = {
+        ...d.championships[i],
+        paymentStatus: 'paid',
+        paidAt: new Date().toISOString(),
+        paymentRef: nota || 'liberado pelo master',
+      }
+    }
+  })
   return refreshPayment(championshipId)
 }
 

@@ -34,6 +34,7 @@ import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
 import { PaymentPanel } from './PaymentPanel'
+import { masterRelease } from '../services/payments'
 import { formatBRL, isLocked } from '../lib/pricing'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
@@ -66,6 +67,7 @@ export function ManageChampionship({
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [liberando, setLiberando] = useState(false)
 
   const reload = useCallback(async () => {
     // Carrega o campeonato (crítico) e os demais dados de forma resiliente:
@@ -108,6 +110,26 @@ export function ManageChampionship({
     await updateChampionship(championshipId, data)
     setEditing(false)
     await reload()
+  }
+
+  /** Liberação manual do master — quem valida é o banco, não o navegador. */
+  async function liberar() {
+    const nota = prompt(
+      'Liberar este campeonato SEM cobrança pelo app.\n\n' +
+        'Use quando o pagamento entrou por fora (dinheiro, transferência, cortesia).\n' +
+        'Anote o motivo — fica registrado no campeonato:',
+      'recebido em dinheiro',
+    )
+    if (nota === null) return
+    setLiberando(true)
+    try {
+      await masterRelease(championshipId, nota)
+      await reload()
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setLiberando(false)
+    }
   }
 
   async function changeStatus(status: Championship['status']) {
@@ -255,6 +277,15 @@ export function ManageChampionship({
                   organizador ele fica fechado até o Asaas confirmar. Como master,
                   você continua podendo editar e excluir normalmente.
                 </p>
+                <div className="pay__master">
+                  <p className="muted small">
+                    Recebeu por fora do app — dinheiro, transferência, cortesia? Libere na mão.
+                    O motivo fica registrado no campeonato.
+                  </p>
+                  <Button variant="soft" onClick={() => void liberar()} disabled={liberando}>
+                    {liberando ? 'Liberando…' : '👑 Liberar sem cobrança'}
+                  </Button>
+                </div>
               </div>
             )}
 

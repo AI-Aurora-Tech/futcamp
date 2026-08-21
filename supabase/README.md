@@ -29,7 +29,8 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
 | `migrations/0022_asaas.sql` | **Troca do provedor de pagamento** (Mercado Pago → Asaas): `payments.provider` e `payments.checkout_id`. O histórico antigo fica marcado como `mercadopago`. |
 | `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente e refaz o pedido sem Pix quando a conta não tem chave cadastrada. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`, `ASAAS_BILLING_TYPES` (opcional). Publique com `--no-verify-jwt`. |
-| `functions/asaas-status/` | Pergunta ao Asaas se o campeonato já foi pago e libera na hora — é o que o botão "Já paguei" chama. Rede de segurança para quando o webhook falha. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`. Publique com `--no-verify-jwt`. |
+| `migrations/0023_master_release.sql` | **Liberação manual pelo master**: `master_release_championship()`, a única exceção à trava de pagamento — e ela exige `is_master()`, verificado no banco. Para quando o pagamento entra por fora (dinheiro, transferência, cortesia). |
+| `functions/asaas-status/` | Pergunta ao Asaas se o campeonato já foi pago e libera na hora — é o que o botão "Já paguei" chama. Rede de segurança para quando o webhook falha. Um `GET ?championshipId=…` mostra onde a busca parou. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`. Publique com `--no-verify-jwt`. |
 | `functions/asaas-webhook/` | Recebe a notificação do Asaas, reconsulta o pagamento na API oficial e libera o campeonato quando confirmado. Secrets: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
@@ -64,6 +65,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0020_finished_at.sql`
    - `migrations/0021_payments.sql`
    - `migrations/0022_asaas.sql`
+   - `migrations/0023_master_release.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');

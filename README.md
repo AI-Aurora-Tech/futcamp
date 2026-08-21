@@ -252,6 +252,26 @@ Se a `versao` não for a esperada, o deploy não pegou — republique antes de
 investigar qualquer outra coisa. A versão também aparece no fim de toda
 mensagem de erro que o app mostra.
 
+**Saída de emergência.** O administrador master libera qualquer campeonato sem
+cobrança — em *Ajustes → Pagamento*, ou no próprio painel de cobrança. Serve
+para pagamento em dinheiro, transferência direta, cortesia, ou uma confirmação
+que o Asaas não entregou. O motivo fica registrado em `payment_ref`. Quem
+valida é o banco (`master_release_championship`, migration `0023`): o navegador
+não decide isso.
+
+**Pagou e não liberou?** A `asaas-status` conta onde a procura parou:
+
+```bash
+curl -s "https://SEU_REF.supabase.co/functions/v1/asaas-status?championshipId=<uuid-do-campeonato>"
+```
+
+A resposta mostra, em ordem: o que o banco guardou (`registroLocal` — se vier
+`ERRO`, a migration `0022` não foi aplicada), o que o Asaas devolve para
+`payments?externalReference`, para `checkouts?externalReference` e para cada
+checkout guardado. Acrescentando `&token=<ASAAS_WEBHOOK_TOKEN>` ela também
+lista as últimas cobranças da conta — é a parte que mostra movimento alheio ao
+campeonato, por isso pede o token.
+
 ### Onde vai cada credencial
 
 | Credencial | Onde | Por quê |
