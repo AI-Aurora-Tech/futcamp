@@ -222,6 +222,13 @@ mesmo `ASAAS_WEBHOOK_TOKEN` no campo de token de autenticação.
 
 Para testar sem dinheiro real, use a chave de sandbox e `ASAAS_ENV=sandbox`.
 
+> **Pix precisa de chave cadastrada.** Sem uma chave Pix na conta, o Asaas
+> recusa a cobrança inteira — não só o Pix. A `asaas-checkout` percebe essa
+> recusa e refaz o pedido sem Pix (boleto e cartão continuam funcionando), mas
+> o certo é cadastrar a chave no painel (**Pix → Minhas chaves**). Para fixar
+> as formas aceitas, use o secret opcional
+> `ASAAS_BILLING_TYPES="BOLETO,CREDIT_CARD"`.
+
 ### Onde vai cada credencial
 
 | Credencial | Onde | Por quê |

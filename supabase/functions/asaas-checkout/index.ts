@@ -18,6 +18,8 @@
 // Secrets (Supabase → Edge Functions → Secrets):
 //   ASAAS_API_KEY   chave de API do Asaas ($aact_...)
 //   ASAAS_ENV       "sandbox" para testar; qualquer outra coisa = produção
+//   ASAAS_BILLING_TYPES  (opcional) formas aceitas, separadas por vírgula
+//                        (padrão: PIX,BOLETO,CREDIT_CARD)
 //   APP_URL         endereço https do app, p/ voltar depois do pagamento
 //                   (ex.: https://tabelaco.auroratech.app.br)
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY  (injetados automaticamente)
@@ -48,6 +50,108 @@ const json = (body: unknown, status = 200) =>
 export function asaasBase(env: string | undefined, key: string): string {
   const sandbox = (env ?? '').toLowerCase() === 'sandbox' || /hmlg/i.test(key)
   return sandbox ? 'https://api-sandbox.asaas.com/v3' : 'https://api.asaas.com/v3'
+}
+
+/**
+ * Nome do item na cobrança. O Asaas aceita no máximo **30 caracteres** aqui —
+ * o nome do campeonato vai na descrição, que é folgada.
+ */
+export function nomeItem(plan: string | null): string {
+  const p = (plan ?? 'pago').trim()
+  const tier = p.charAt(0).toUpperCase() + p.slice(1)
+  return `Tabelaço — Plano ${tier}`.slice(0, 30)
+}
+
+/** Formas de pagamento aceitas (secret `ASAAS_BILLING_TYPES` sobrescreve). */
+export function tiposDeCobranca(env: string | undefined): string[] {
+  const tipos = (env ?? 'PIX,BOLETO,CREDIT_CARD')
+    .split(',')
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean)
+  return tipos.length ? [...new Set(tipos)] : ['CREDIT_CARD']
+}
+
+/**
+ * Ordem de tentativas. Conta sem chave Pix cadastrada recusa a cobrança
+ * inteira — em vez de travar o organizador, a função tenta de novo sem o Pix.
+ */
+export function escadaDeTipos(tipos: string[]): string[][] {
+  const semPix = tipos.filter((t) => t !== 'PIX')
+  const escada = [tipos, semPix, ['CREDIT_CARD']]
+  const vistos = new Set<string>()
+  return escada.filter((t) => {
+    const k = t.join(',')
+    if (!t.length || vistos.has(k)) return false
+    vistos.add(k)
+    return true
+  })
+}
+
+/** A recusa é por forma de pagamento indisponível (vale tentar sem ela)? */
+export function ehRecusaDeTipo(motivo: string): boolean {
+  return /pix|billingtypes|forma de (pagamento|cobran)/i.test(motivo)
+}
+
+/** Junta os `errors: [{ code, description }]` que o Asaas devolve. */
+export function motivoAsaas(out: Record<string, unknown>, bruto: string): string {
+  const erros = Array.isArray(out?.errors)
+    ? (out.errors as { code?: unknown; description?: unknown }[])
+        .map((e) => [e?.code, e?.description].filter(Boolean).join(': '))
+        .filter(Boolean)
+        .join(' | ')
+    : ''
+  return erros || bruto.slice(0, 300) || 'O Asaas recusou a cobrança'
+}
+
+export interface TentativaCheckout {
+  ok: boolean
+  out: Record<string, unknown>
+  status: number
+  motivo: string
+  tipos: string[]
+}
+
+/**
+ * Cria o checkout tentando as formas de pagamento em ordem. Recebe o `fetch`
+ * por parâmetro para dar para testar sem rede.
+ */
+export async function criarCheckout(
+  buscar: typeof fetch,
+  base: string,
+  key: string,
+  corpo: Record<string, unknown>,
+  escada: string[][],
+): Promise<TentativaCheckout> {
+  let ultimo: TentativaCheckout = { ok: false, out: {}, status: 0, motivo: '', tipos: [] }
+
+  for (let i = 0; i < escada.length; i++) {
+    const tipos = escada[i]
+    const res = await buscar(`${base}/checkouts`, {
+      method: 'POST',
+      headers: { access_token: key, 'Content-Type': 'application/json', 'User-Agent': 'Tabelaco' },
+      body: JSON.stringify({ ...corpo, billingTypes: tipos }),
+    })
+
+    const bruto = await res.text()
+    let out: Record<string, unknown> = {}
+    try {
+      out = JSON.parse(bruto)
+    } catch {
+      out = {}
+    }
+
+    if (res.ok) return { ok: true, out, status: res.status, motivo: '', tipos }
+
+    ultimo = { ok: false, out, status: res.status, motivo: motivoAsaas(out, bruto), tipos }
+    console.error('asaas-checkout: checkout recusado', res.status, tipos.join(','), bruto)
+
+    // Só insiste quando a recusa foi pela forma de pagamento (ex.: conta sem
+    // chave Pix). Qualquer outro erro para aqui.
+    if (!ehRecusaDeTipo(ultimo.motivo)) return ultimo
+    if (i < escada.length - 1) console.log('asaas-checkout: tentando sem', tipos.join(','))
+  }
+
+  return ultimo
 }
 
 interface ChampRow {
@@ -126,75 +230,58 @@ serve(async (req) => {
 
   const nCats = Array.isArray(champ.categories) ? champ.categories.length : 1
   const extra = Math.max(0, nCats - 1)
-  const nome =
-    `Tabelaço — ${champ.name} · plano ${champ.plan ?? 'pago'}` +
-    (extra > 0 ? ` + ${extra} categoria(s)` : '')
+  const descricao = (
+    `Campeonato "${champ.name}" · ${nCats} categoria(s)` +
+    (extra > 0 ? ` (1 inclusa + ${extra})` : '')
+  ).slice(0, 200)
+
+  const item = {
+    name: nomeItem(champ.plan),
+    description: descricao,
+    quantity: 1,
+    value: Number((cents / 100).toFixed(2)),
+  }
+
+  const callback = podeVoltar
+    ? {
+        successUrl: `${appUrl}/#/pagamento/${champ.id}?status=sucesso`,
+        cancelUrl: `${appUrl}/#/pagamento/${champ.id}?status=falha`,
+        expiredUrl: `${appUrl}/#/pagamento/${champ.id}?status=pendente`,
+      }
+    : undefined
 
   // `externalReference` é o que amarra o pagamento ao campeonato quando o
-  // webhook chegar. O valor vai em reais, com dois decimais.
-  const checkout = {
-    billingTypes: ['PIX', 'BOLETO', 'CREDIT_CARD'],
-    chargeTypes: ['DETACHED'],
-    minutesToExpire: 1440,
-    externalReference: champ.id,
-    items: [
-      {
-        name: nome.slice(0, 100),
-        description: `Campeonato "${champ.name}" com ${nCats} categoria(s)`.slice(0, 500),
-        quantity: 1,
-        value: Number((cents / 100).toFixed(2)),
-      },
-    ],
-    callback: podeVoltar
-      ? {
-          successUrl: `${appUrl}/#/pagamento/${champ.id}?status=sucesso`,
-          cancelUrl: `${appUrl}/#/pagamento/${champ.id}?status=falha`,
-          expiredUrl: `${appUrl}/#/pagamento/${champ.id}?status=pendente`,
-        }
-      : undefined,
-  }
-
-  const res = await fetch(`${base}/checkouts`, {
-    method: 'POST',
-    headers: {
-      access_token: key,
-      'Content-Type': 'application/json',
-      'User-Agent': 'Tabelaco',
+  // webhook chegar.
+  const tentativa = await criarCheckout(
+    fetch,
+    base,
+    key,
+    {
+      chargeTypes: ['DETACHED'],
+      minutesToExpire: 1440,
+      externalReference: champ.id,
+      items: [item],
+      callback,
     },
-    body: JSON.stringify(checkout),
-  })
+    escadaDeTipos(tiposDeCobranca(Deno.env.get('ASAAS_BILLING_TYPES'))),
+  )
 
-  const bruto = await res.text()
-  let out: Record<string, unknown> = {}
-  try {
-    out = JSON.parse(bruto)
-  } catch {
-    out = {}
-  }
-
-  if (!res.ok) {
-    // O Asaas devolve os problemas em `errors: [{ code, description }]` — é
-    // ali que ele diz qual campo recusou.
-    const erros = Array.isArray(out?.errors)
-      ? (out.errors as { code?: unknown; description?: unknown }[])
-          .map((e) => [e?.code, e?.description].filter(Boolean).join(': '))
-          .filter(Boolean)
-          .join(' | ')
-      : ''
-    const motivo = erros || bruto.slice(0, 300) || 'O Asaas recusou a cobrança'
-    console.error('asaas-checkout: checkout recusado', res.status, bruto)
+  const out = tentativa.out
+  if (!tentativa.ok) {
     const ajuda =
-      res.status === 401
+      tentativa.status === 401
         ? ' (a ASAAS_API_KEY parece inválida ou é de outro ambiente — confira ASAAS_ENV)'
-        : /callback|url/i.test(motivo)
+        : /callback|url/i.test(tentativa.motivo)
           ? ' (confira o secret APP_URL — precisa ser o endereço https do app)'
-          : ''
-    return json({ error: `Asaas ${res.status}: ${motivo}${ajuda}` }, 502)
+          : /pix/i.test(tentativa.motivo)
+            ? ' (cadastre uma chave Pix no Asaas ou ajuste o secret ASAAS_BILLING_TYPES)'
+            : ''
+    return json({ error: `Asaas ${tentativa.status}: ${tentativa.motivo}${ajuda}` }, 502)
   }
 
   const link = (out?.link ?? out?.url) as string | undefined
   if (!link) {
-    console.error('asaas-checkout: resposta sem link', bruto)
+    console.error('asaas-checkout: resposta sem link', JSON.stringify(out).slice(0, 300))
     return json({ error: 'O Asaas não devolveu o link de pagamento.' }, 502)
   }
 

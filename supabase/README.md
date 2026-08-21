@@ -28,7 +28,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0020_finished_at.sql` | **Campeão em cartaz**: `championships.finished_at` carimbado por gatilho no encerramento — a vitrine pública mantém o campeonato (e o campeão) por 10 dias. |
 | `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
 | `migrations/0022_asaas.sql` | **Troca do provedor de pagamento** (Mercado Pago → Asaas): `payments.provider` e `payments.checkout_id`. O histórico antigo fica marcado como `mercadopago`. |
-| `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`. Publique com `--no-verify-jwt`. |
+| `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente e refaz o pedido sem Pix quando a conta não tem chave cadastrada. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`, `ASAAS_BILLING_TYPES` (opcional). Publique com `--no-verify-jwt`. |
 | `functions/asaas-webhook/` | Recebe a notificação do Asaas, reconsulta o pagamento na API oficial e libera o campeonato quando confirmado. Secrets: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
@@ -114,7 +114,11 @@ gatilho restaura os campos de pagamento em qualquer `update`.
    desativadas. A `asaas-checkout` confere o dono do campeonato dentro da
    própria função, com `auth.getUser()` — a autorização não some, só muda de
    lugar.
-3. **Notificações**: no painel do Asaas (Integrações → Webhooks), aponte para
+3. **Chave Pix**: cadastre uma no painel do Asaas (**Pix → Minhas chaves**).
+   Sem ela o Asaas recusa a cobrança inteira, não só a forma Pix. A função
+   contorna sozinha (refaz o pedido só com boleto e cartão), e o secret
+   opcional `ASAAS_BILLING_TYPES="BOLETO,CREDIT_CARD"` fixa as formas aceitas.
+4. **Notificações**: no painel do Asaas (Integrações → Webhooks), aponte para
    `https://<project-ref>.supabase.co/functions/v1/asaas-webhook`, marque os
    eventos de **Cobranças** (`PAYMENT_RECEIVED` e `PAYMENT_CONFIRMED`) e
    informe no campo de token o mesmo valor de `ASAAS_WEBHOOK_TOKEN`.
