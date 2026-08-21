@@ -192,7 +192,7 @@ dar para testar o fluxo inteiro sem backend.
 
 ```bash
 supabase secrets set MP_ACCESS_TOKEN="APP_USR-..." APP_URL="https://seu-app.vercel.app"
-supabase functions deploy mp-checkout
+supabase functions deploy mp-checkout --no-verify-jwt
 supabase functions deploy mp-webhook --no-verify-jwt
 ```
 

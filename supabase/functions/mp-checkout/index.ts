@@ -17,6 +17,15 @@
 //                     (ex.: https://futcamp.vercel.app)
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY  (injetados automaticamente)
 //
+// Publique com --no-verify-jwt:
+//   supabase functions deploy mp-checkout --no-verify-jwt
+//
+// A conferência de quem chamou é feita AQUI DENTRO (`db.auth.getUser`), não no
+// portão do Supabase: o portão devolve 401 "Invalid credentials" sem explicar
+// nada quando a chave do projeto é do formato novo (sb_publishable_...) ou
+// quando as chaves legadas foram desativadas — e o organizador fica sem
+// conseguir pagar sem saber por quê.
+//
 // O token fica SÓ aqui. Nunca em `src/`, nunca com prefixo VITE_.
 // ===========================================================================
 import { serve } from 'https://deno.land/std@0.203.0/http/server.ts'
@@ -77,6 +86,25 @@ serve(async (req) => {
 
   const champ = data as ChampRow | null
   if (!champ) return json({ error: 'Campeonato não encontrado' }, 404)
+
+  // Quem chamou? Se veio uma sessão válida, ela precisa ser do dono do
+  // campeonato (ou de um master). Sem sessão reconhecível a cobrança segue: o
+  // link só permite PAGAR por este campeonato — não abre nada nem revela dado
+  // que a página pública já não mostre.
+  const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  if (jwt) {
+    const { data: quem } = await db.auth.getUser(jwt)
+    const user = quem?.user
+    if (user && user.id !== champ.owner_id) {
+      const email = (user.email ?? '').toLowerCase()
+      const { data: master } = await db
+        .from('master_admins')
+        .select('email')
+        .ilike('email', email)
+        .maybeSingle()
+      if (!master) return json({ error: 'Este campeonato é de outro organizador' }, 403)
+    }
+  }
   if (champ.payment_status === 'paid' || champ.payment_status === 'free') {
     return json({ error: 'Este campeonato já está liberado' }, 409)
   }

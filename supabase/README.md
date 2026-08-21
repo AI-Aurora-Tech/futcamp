@@ -27,7 +27,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0019_penalty_shootout.sql` | **Disputa por pênaltis**: colunas `matches.penalty_home`/`penalty_away`, `match_winner()` ciente das cobranças (o vencedor dos pênaltis avança em `advance_bracket`) e `mesa_update_match` com os dois novos parâmetros. |
 | `migrations/0020_finished_at.sql` | **Campeão em cartaz**: `championships.finished_at` carimbado por gatilho no encerramento — a vitrine pública mantém o campeonato (e o campeão) por 10 dias. |
 | `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
-| `functions/mp-checkout/` | Cria a preferência de pagamento no Mercado Pago e devolve o link do Checkout Pro. Secrets: `MP_ACCESS_TOKEN`, `APP_URL`. |
+| `functions/mp-checkout/` | Cria a preferência de pagamento no Mercado Pago e devolve o link do Checkout Pro. Confere o dono do campeonato internamente. Secrets: `MP_ACCESS_TOKEN`, `APP_URL`. Publique com `--no-verify-jwt`. |
 | `functions/mp-webhook/` | Recebe a notificação do Mercado Pago, reconsulta o pagamento na API oficial e libera o campeonato quando aprovado. Secret: `MP_ACCESS_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
@@ -98,11 +98,16 @@ gatilho restaura os campos de pagamento em qualquer `update`.
    qualquer visitante.
 2. **Publique as funções**:
    ```bash
-   supabase functions deploy mp-checkout
+   supabase functions deploy mp-checkout --no-verify-jwt
    supabase functions deploy mp-webhook --no-verify-jwt
    ```
-   O `--no-verify-jwt` é obrigatório no webhook: quem chama é o Mercado Pago,
-   sem sessão de usuário.
+   O `--no-verify-jwt` é obrigatório nas duas: no webhook porque quem chama é
+   o Mercado Pago, sem sessão de usuário; na cobrança porque o portão do
+   Supabase devolve `401 Invalid credentials` sem explicação em projetos com
+   chave de API do formato novo (`sb_publishable_...`) ou com as chaves
+   legadas desativadas. A `mp-checkout` confere o dono do campeonato dentro da
+   própria função, com `auth.getUser()` — a autorização não some, só muda de
+   lugar.
 3. **Notificações**: no painel do Mercado Pago (Suas integrações → Webhooks),
    aponte para
    `https://<project-ref>.supabase.co/functions/v1/mp-webhook` e marque o

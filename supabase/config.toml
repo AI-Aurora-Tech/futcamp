@@ -32,3 +32,13 @@ enable_confirmations = false
 # A validação de atleta é usada na página pública de inscrição (sem login).
 [functions.validate-athlete]
 verify_jwt = false
+
+# Quem avisa do pagamento é o Mercado Pago, que não tem sessão do Supabase.
+[functions.mp-webhook]
+verify_jwt = false
+
+# A cobrança confere o dono do campeonato dentro da própria função — o portão
+# do Supabase rejeitaria a chamada antes disso em projetos com chave de API do
+# formato novo (sb_publishable_...).
+[functions.mp-checkout]
+verify_jwt = false

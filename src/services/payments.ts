@@ -108,8 +108,10 @@ function pista(status: number, corpo: string): string {
   if (m.includes('mp_access_token')) {
     return 'Falta o secret MP_ACCESS_TOKEN no Supabase (Project Settings → Edge Functions → Secrets).'
   }
-  if (status === 401 || status === 403) {
-    return 'O Supabase recusou a chamada (401). Entre de novo na sua conta e confira se a função mp-checkout foi publicada neste projeto.'
+  if (status === 403) return corpo || 'Este campeonato é de outro organizador.'
+  if (status === 401) {
+    // Quem devolve isso é o portão do Supabase, antes da função rodar.
+    return 'O Supabase recusou a chamada antes de chegar na função. Publique de novo com: supabase functions deploy mp-checkout --no-verify-jwt'
   }
   if (status === 404) {
     return 'A função mp-checkout ainda não foi publicada no Supabase (supabase functions deploy mp-checkout).'
