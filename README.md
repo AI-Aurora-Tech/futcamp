@@ -293,6 +293,39 @@ campeonato, por isso pede o token.
 | **Chave de API do Asaas** (`$aact_...`) | **Nunca** no front. Só como secret de servidor: Supabase → *Project Settings → Edge Functions → Secrets* → `ASAAS_API_KEY` | Tudo que começa com `VITE_` é embutido no JavaScript e fica visível para qualquer visitante. A chave movimenta a sua conta — ela só é lida no servidor, com `Deno.env.get('ASAAS_API_KEY')`. |
 | **Token do webhook** | Secret `ASAAS_WEBHOOK_TOKEN` + o mesmo valor no painel do Asaas | Garante que a notificação veio mesmo do Asaas. É opcional, mas sem ele qualquer um que descubra a URL pode tentar um "pagou" falso — que ainda assim não libera nada, porque a função reconsulta a API antes. |
 
+## 🎽 Atletas federados (base)
+
+Campeonato **infantil** tem um bloco a mais no cadastro: permitir ou não
+**atletas federados** (campo/futsal) e, se permitir, **quantos por time**.
+
+A regra aparece com destaque no link de inscrição — verde quando aceita
+("até 2 atleta(s) federado(s) por time · marcados: 1 de 2"), vermelha quando
+não aceita. O time marca cada atleta federado e escolhe a modalidade (campo,
+futsal ou ambos); na lista do elenco eles ficam com a etiqueta `FEDERADO`.
+
+Quando as vagas acabam, a caixa fica desabilitada com o motivo. Mas quem
+**barra de verdade** é o banco: `assert_federated_allowed` (migration `0025`)
+roda dentro da RPC de inscrição. O portal do time é uma página aberta no
+navegador de quem se inscreve — validar só lá seria pedir para burlar.
+
+## 📄 Regulamento em PDF
+
+O organizador não escreve regulamento: ele é **montado a partir do que já está
+cadastrado** — formato, categorias e faixas de idade, pontuação, ordem de
+desempate, prazo de inscrição, mata-mata e atletas federados. Baixam o PDF:
+
+- o **organizador**, em *Ajustes → Regulamento*;
+- os **times**, pelo próprio link de inscrição.
+
+O documento carimba a data de emissão, porque é derivado do cadastro: mudou uma
+regra no app, o próximo download já sai diferente.
+
+O gerador é próprio ([`src/lib/pdf.ts`](src/lib/pdf.ts), ~250 linhas) em vez de
+uma biblioteca. As bibliotecas de PDF pesam centenas de KB — mais que o app
+inteiro — para produzir um documento de texto. Aqui é Helvetica, normal e
+negrito, com acentuação por WinAnsiEncoding. Sem imagens e sem tabelas: se um
+dia o regulamento precisar disso, aí vale reconsiderar.
+
 ## 🔔 Notificações push
 
 Dois avisos automáticos, cada um ligado por quem quer recebê-lo (por

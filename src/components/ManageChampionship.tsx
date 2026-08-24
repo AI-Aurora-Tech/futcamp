@@ -35,6 +35,7 @@ import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
 import { PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
+import { RegulamentoButton } from './RegulamentoButton'
 import { formatBRL, isLocked } from '../lib/pricing'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
@@ -288,6 +289,16 @@ export function ManageChampionship({
                 </div>
               </div>
             )}
+
+            <div className="settings-block">
+              <h3>Regulamento</h3>
+              <p className="muted small">
+                Gerado a partir das informações do campeonato — formato, categorias, pontuação,
+                desempate, prazo de inscrição{champ.audience === 'infantil' ? ' e atletas federados' : ''}.
+                Os times também podem baixá-lo pelo link de inscrição.
+              </p>
+              <RegulamentoButton champ={champ} />
+            </div>
 
             <div className="settings-block">
               <h3>Notificações</h3>

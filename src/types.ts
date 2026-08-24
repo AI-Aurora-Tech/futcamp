@@ -175,6 +175,12 @@ export interface Championship {
   /** Emoji ou data URL usado como brasão do campeonato. */
   logo?: string
   primaryColor?: string
+  /**
+   * Campeonato infantil: aceita atletas federados (campo/futsal)?
+   * Quantos por time fica em `maxFederated` — ausente significa sem limite.
+   */
+  allowFederated?: boolean
+  maxFederated?: number | null
   /** Pontuação por vitória (padrão 3). */
   pointsWin: number
   /** Pontuação por empate (padrão 1). */
@@ -313,6 +319,10 @@ export interface Player {
   categoryId?: string
   /** Atleta (jogador) ou membro da comissão técnica. */
   role?: 'atleta' | 'comissao'
+  /** Atleta federado (campeonatos infantis, quando o regulamento permite). */
+  federated?: boolean
+  /** Em qual modalidade é federado. */
+  federatedIn?: 'campo' | 'futsal' | 'ambos'
   createdAt: string
 }
 

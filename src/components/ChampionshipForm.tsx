@@ -120,6 +120,13 @@ export function ChampionshipForm({
   const [plan, setPlan] = useState<PlanKey>(initial?.plan ?? planFromPlans ?? 'gratis')
   const [sport, setSport] = useState<Sport>(initial?.sport ?? 'futebol')
   const [audience, setAudience] = useState<Audience>(initial?.audience ?? 'adulto')
+  const [allowFederated, setAllowFederated] = useState(Boolean(initial?.allowFederated))
+  // Vazio = sem limite. Guardado como texto para o campo aceitar ser apagado.
+  const [maxFederated, setMaxFederated] = useState(
+    initial?.maxFederated === null || initial?.maxFederated === undefined
+      ? ''
+      : String(initial.maxFederated),
+  )
   const [cats, setCats] = useState<CatDraft[]>(
     initial?.categories?.length ? initial.categories.map(toDraft) : [emptyDraft()],
   )
@@ -305,6 +312,11 @@ export function ChampionshipForm({
       name: name.trim(),
       sport,
       audience,
+      allowFederated: audience === 'infantil' ? allowFederated : false,
+      maxFederated:
+        audience === 'infantil' && allowFederated && maxFederated.trim()
+          ? Math.max(1, Number(maxFederated))
+          : null,
       categories,
       format,
       season: season.trim(),
@@ -399,6 +411,38 @@ export function ChampionshipForm({
             ))}
           </div>
         </Field>
+
+        {/* Atletas federados — só faz sentido na base */}
+        {audience === 'infantil' && (
+          <div className="fed-box">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={allowFederated}
+                onChange={(e) => setAllowFederated(e.target.checked)}
+              />
+              <span>Permitir atletas <b>federados</b> (campo / futsal)</span>
+            </label>
+            {allowFederated ? (
+              <label className="mini-field fed-box__qtd">
+                <span className="mini-field__label">Quantos por time?</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={maxFederated}
+                  onChange={(e) => setMaxFederated(e.target.value)}
+                  placeholder="sem limite"
+                />
+                <small className="mini-field__hint">Deixe em branco para não limitar.</small>
+              </label>
+            ) : (
+              <p className="field__hint">
+                Os times verão, no link de inscrição, que atletas federados não são aceitos.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Categorias */}
         <div className="cats">

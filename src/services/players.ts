@@ -20,6 +20,8 @@ function fromRow(r: any): Player {
     cpf: r.cpf ?? undefined,
     categoryId: r.category_id ?? undefined,
     role: r.role ?? undefined,
+    federated: r.federated ?? false,
+    federatedIn: r.federated_in ?? undefined,
     createdAt: r.created_at,
   }
 }
@@ -36,6 +38,8 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
   if (p.cpf !== undefined) row.cpf = p.cpf
   if (p.categoryId !== undefined) row.category_id = p.categoryId
   if (p.role !== undefined) row.role = p.role
+  if (p.federated !== undefined) row.federated = p.federated
+  if (p.federatedIn !== undefined) row.federated_in = p.federatedIn
   return row
 }
 

@@ -1114,3 +1114,51 @@ html, body { max-width: 100%; overflow-x: hidden; }
 }
 
 .pub-vitrine__vazio { margin-top: 16px; }
+
+/* ---------- Atletas federados (formulário do campeonato) ------------------ */
+.fed-box {
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 12px;
+  background: #f8fafc;
+  display: grid;
+  gap: 8px;
+}
+
+.fed-box .check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.fed-box__qtd { max-width: 220px; }
+
+/* Aviso da regra no portal do time. */
+.fed-note {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.92rem;
+}
+
+.fed-note--no { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+
+.fed-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Botão do regulamento no cabeçalho do portal do time. */
+.reg__doc { margin-left: auto; }
+
+@media (max-width: 640px) {
+  .reg__doc { margin: 10px 0 0; width: 100%; }
+  .reg__doc .btn { width: 100%; }
+}
