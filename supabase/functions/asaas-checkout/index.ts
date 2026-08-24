@@ -51,7 +51,7 @@ const json = (body: unknown, status = 200) =>
  * é assim que se sabe, sem adivinhar, qual código está publicado no Supabase.
  * Suba este número a cada mudança.
  */
-export const VERSAO = '3'
+export const VERSAO = '5'
 
 /** Produção ou sandbox. A chave de homologação traz "hmlg" no meio. */
 export function asaasBase(env: string | undefined, key: string): string {
@@ -337,7 +337,7 @@ serve(async (req) => {
 
   // Guarda a tentativa. É por aqui que o webhook reencontra o campeonato caso
   // o evento não traga o `externalReference`.
-  await db.from('payments').upsert(
+  const { error: erroRegistro } = await db.from('payments').upsert(
     {
       championship_id: champ.id,
       provider: 'asaas',
@@ -348,5 +348,33 @@ serve(async (req) => {
     { onConflict: 'checkout_id' },
   )
 
-  return json({ url: link, checkoutId: out.id })
+  // Falhar aqui não impede o pagamento, mas atrapalharia a confirmação depois —
+  // e o motivo mais comum é a migration 0022 não ter sido aplicada.
+  if (erroRegistro) {
+    console.error(
+      'asaas-checkout: NÃO consegui registrar o checkout em payments —',
+      erroRegistro.message,
+      '— a migration 0022_asaas.sql foi aplicada?',
+    )
+  }
+
+  // Guarda o checkout TAMBÉM no próprio campeonato, em `payment_ref` (coluna
+  // da migration 0021, que certamente existe). Depender só da tabela
+  // `payments` deixava o vínculo refém da 0022: sem ela, o registro acima
+  // falha calado e o pagamento fica órfão — ninguém consegue reencontrá-lo.
+  // Só a service role escreve aqui; o gatilho da 0021 barra o resto.
+  const { error: erroVinculo } = await db
+    .from('championships')
+    .update({ payment_ref: `checkout:${out.id}` })
+    .eq('id', champ.id)
+    .eq('payment_status', 'pending')
+  if (erroVinculo) console.error('asaas-checkout: falha ao gravar o vínculo', erroVinculo.message)
+
+  return json({
+    url: link,
+    checkoutId: out.id,
+    formas: tentativa.tipos,
+    aviso: erroRegistro ? `checkout não registrado: ${erroRegistro.message}` : undefined,
+    versao: VERSAO,
+  })
 })

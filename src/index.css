@@ -1094,3 +1094,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
   gap: 10px;
   justify-items: start;
 }
+
+/* ---------- Vitrine pública em dois blocos (em andamento / encerrados) ---- */
+.pub-vitrine { margin-top: 22px; }
+.pub-vitrine:first-of-type { margin-top: 6px; }
+
+.pub-vitrine__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+
+.pub-vitrine__head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+}
+
+.pub-vitrine__vazio { margin-top: 16px; }

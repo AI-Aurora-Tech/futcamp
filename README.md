@@ -139,6 +139,13 @@ inicial** por **10 dias** (`PUBLIC_FINISHED_DAYS`), num cartão dourado com
 quantos dias ainda faltam. Depois desse prazo o campeonato sai da vitrine,
 mas **o link direto continua funcionando** — e ainda mostra o campeão.
 
+A home mostra os **5 campeonatos em andamento mais recentes** e os **5
+encerrados mais recentes**, em blocos separados — ela é a porta de entrada do
+app, não um catálogo. Encerrado ordena pela data de **encerramento**, não pela
+de criação: quem terminou por último aparece primeiro. A busca por nome ou
+temporada levanta esse teto, porque quem digitou um nome quer achar aquele
+campeonato.
+
 A contagem começa no momento em que o organizador marca o status como
 *Encerrado* (`championships.finished_at`, carimbado por gatilho). Reabrir o
 campeonato limpa a data e ele volta a aparecer como *em andamento*.
@@ -264,6 +271,13 @@ não decide isso.
 ```bash
 curl -s "https://SEU_REF.supabase.co/functions/v1/asaas-status?championshipId=<uuid-do-campeonato>"
 ```
+
+> O vínculo entre o checkout e o campeonato é gravado em **dois** lugares: na
+> tabela `payments` e em `championships.payment_ref` (`checkout:<id>`). O
+> segundo existe porque o primeiro depende da migration `0022`: sem ela o
+> registro falha em silêncio e o pagamento fica órfão, impossível de
+> reencontrar. Um vínculo só, numa coluna que pode não existir, é um vínculo
+> que se perde.
 
 A resposta mostra, em ordem: o que o banco guardou (`registroLocal` — se vier
 `ERRO`, a migration `0022` não foi aplicada), o que o Asaas devolve para
