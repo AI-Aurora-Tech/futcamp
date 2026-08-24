@@ -306,7 +306,12 @@ No link de inscrição o time vê a regra de todas as categorias, uma por linha:
 > ⛔ **Sub-11**: não aceita atletas federados (campo ou futsal).
 
 O time marca cada atleta federado e escolhe a modalidade (campo, futsal ou
-ambos); na lista do elenco eles ficam com a etiqueta `FEDERADO`. Trocar o
+ambos); na lista do elenco eles ficam com a etiqueta `FEDERADO`. O
+**organizador** tem a mesma marcação ao inscrever pela aba *Elencos* — ele
+também cadastra atletas, e a regra vale igual. Na
+**importação por planilha** vale uma coluna **Federado** — `sim`, `x` ou `1`
+marcam o atleta, e quem passar do limite da categoria é recusado com o motivo,
+sem entrar pela metade. Trocar o
 atleta para uma categoria que não aceita **desmarca** a federação — a regra
 acompanha a categoria escolhida, não o atleta.
 
