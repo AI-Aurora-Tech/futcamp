@@ -33,6 +33,18 @@ export function asaasBase(env: string | undefined, key: string): string {
 /** Situações em que o dinheiro é do organizador do Tabelaço. */
 export const PAGOS = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']
 
+export const VERSAO = '2'
+
+/**
+ * O campeonato guarda o último checkout em `payment_ref`, como `checkout:<id>`.
+ * É o vínculo que não depende da migration 0022 — e sem ele o webhook ficava
+ * cego exatamente quando a tabela `payments` não estava em dia.
+ */
+export function checkoutDoCampeonato(paymentRef: string | null | undefined): string | null {
+  const m = /^checkout:(.+)$/.exec((paymentRef ?? '').trim())
+  return m ? m[1] : null
+}
+
 /** É um uuid? Só assim vale como id de campeonato. */
 export function ehUuid(v: unknown): boolean {
   return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
@@ -78,26 +90,49 @@ serve(async (req) => {
 
   const api = (caminho: string) => fetch(`${base}${caminho}`, { headers: { access_token: key } })
 
-  /** Descobre o campeonato: primeiro pelo Asaas, depois pelo nosso registro. */
+  /**
+   * Descobre o campeonato, em três caminhos independentes — nenhum deles
+   * suficiente sozinho:
+   *   1. a referência que o Asaas devolve (cobrança de checkout não a herda);
+   *   2. a tabela `payments` (só existe com a migration 0022 aplicada);
+   *   3. o `payment_ref` do próprio campeonato (coluna da 0021, sempre existe).
+   */
   async function acharCampeonato(ref: unknown, checkoutId: unknown, payId: unknown): Promise<string | null> {
     if (ehUuid(ref)) return String(ref)
+
     const chave = checkoutId ? 'checkout_id' : payId ? 'payment_id' : null
     const valor = checkoutId ?? payId
-    if (!chave || !valor) return null
-    const { data } = await db
-      .from('payments')
-      .select('championship_id')
-      .eq(chave, String(valor))
-      .maybeSingle()
-    return data?.championship_id ?? null
+    if (chave && valor) {
+      const { data, error } = await db
+        .from('payments')
+        .select('championship_id')
+        .eq(chave, String(valor))
+        .maybeSingle()
+      if (error) console.error('asaas-webhook: payments indisponível —', error.message)
+      if (data?.championship_id) return data.championship_id
+    }
+
+    if (checkoutId) {
+      const { data } = await db
+        .from('championships')
+        .select('id')
+        .eq('payment_ref', `checkout:${checkoutId}`)
+        .maybeSingle()
+      if (data?.id) return data.id
+    }
+
+    return null
   }
 
   let champId: string | null = null
   let cents = 0
   let referencia = ''
   let situacao = ''
+  /** Veio de uma cobrança (tem valor a conferir) ou de um checkout (não tem)? */
+  let porCobranca = false
 
   if (pagamento?.id) {
+    porCobranca = true
     // Fonte da verdade: a própria API do Asaas.
     const res = await api(`/payments/${pagamento.id}`)
     if (!res.ok) {
@@ -111,7 +146,7 @@ serve(async (req) => {
     champId = await acharCampeonato(pay?.externalReference, pay?.checkoutSession, pay?.id)
 
     if (champId) {
-      await db.from('payments').upsert(
+      const { error: erroRegistro } = await db.from('payments').upsert(
         {
           championship_id: champId,
           provider: 'asaas',
@@ -123,6 +158,13 @@ serve(async (req) => {
         },
         { onConflict: 'payment_id' },
       )
+      if (erroRegistro) {
+        console.error(
+          'asaas-webhook: não consegui registrar o pagamento —',
+          erroRegistro.message,
+          '— a migration 0022_asaas.sql foi aplicada?',
+        )
+      }
     }
 
     if (!PAGOS.includes(situacao)) return json({ ok: true, status: situacao })
@@ -153,10 +195,16 @@ serve(async (req) => {
   if (!champ) return json({ ok: true, skipped: 'campeonato inexistente' })
   if (champ.payment_status === 'paid') return json({ ok: true, status: 'já liberado' })
 
-  // Confere o valor: só libera se pagou pelo menos o que era devido. (O
-  // checkout não traz valor — ali a conferência é o próprio status do Asaas.)
+  // Confere o valor: só libera se pagou pelo menos o que era devido.
+  //
+  // O `cents > 0` que estava aqui abria um buraco: uma cobrança cujo valor não
+  // desse para ler (campo ausente, formato inesperado) virava cents = 0 e
+  // passava batido — liberando de graça. Agora, quando o aviso é de cobrança,
+  // o valor É a prova e precisa cobrir o devido. Só o caminho do checkout
+  // dispensa a conferência, porque ali o valor foi definido por nós na criação
+  // e o Asaas não tem como cobrar diferente.
   const devido = champ.amount_cents ?? 0
-  if (cents > 0 && cents + 1 < devido) {
+  if (porCobranca && devido > 0 && cents + 1 < devido) {
     console.error('asaas-webhook: valor menor que o devido', { champId, cents, devido })
     return json({ ok: true, status: 'valor insuficiente' })
   }
