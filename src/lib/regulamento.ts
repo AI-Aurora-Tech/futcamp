@@ -16,7 +16,7 @@ import {
   TIEBREAKER_LABELS,
   type Championship,
 } from '../types'
-import { textoRegra } from './federated'
+import { algumaPermite, textoRegra } from './federated'
 import type { Linha } from './pdf'
 
 /** Data por extenso, para o rodapé do documento. */
@@ -63,18 +63,31 @@ export function descreverPrazo(c: Championship): string {
   )
 }
 
-/** As categorias e suas regras de idade. */
+/**
+ * As categorias, com a regra de idade e — na base — a de atletas federados.
+ * Elas ficam juntas de propósito: quem lê a categoria precisa ver as duas
+ * condições no mesmo lugar.
+ */
 export function descreverCategorias(c: Championship): string[] {
   return (c.categories ?? []).map((cat) => {
-    if (!cat.birthYear) return `${cat.name}: sem restrição de idade.`
-    if (cat.birthYearMode === 'min') {
-      return `${cat.name}: nascidos em ${cat.birthYear} ou depois.`
+    let idade: string
+    if (!cat.birthYear) {
+      idade = 'sem restrição de idade'
+    } else if (cat.birthYearMode === 'min') {
+      idade = `nascidos em ${cat.birthYear} ou depois`
+    } else {
+      const excecoes = cat.exceptions
+        ? `, com até ${cat.exceptions} atleta(s) por equipe de ${cat.birthYear - 1}`
+        : ''
+      idade = `nascidos em ${cat.birthYear} ou antes${excecoes}`
     }
-    const excecoes = cat.exceptions
-      ? ` Até ${cat.exceptions} atleta(s) por equipe podem ser de ${cat.birthYear - 1}.`
-      : ''
-    return `${cat.name}: nascidos em ${cat.birthYear} ou antes.${excecoes}`
+    const federados = c.audience === 'infantil' ? ` ${maiuscula(textoRegra(cat))}` : ''
+    return `${cat.name}: ${idade}.${federados}`
   })
+}
+
+function maiuscula(frase: string): string {
+  return frase.charAt(0).toUpperCase() + frase.slice(1)
 }
 
 /**
@@ -121,7 +134,11 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
       'A inscrição é feita pelo responsável da equipe, pelo link enviado pelo organizador.',
       'São exigidos nome completo, CPF e data de nascimento de cada atleta.',
       'Um mesmo CPF não pode ser inscrito em duas equipes do mesmo campeonato.',
-      ...(c.audience === 'infantil' ? [`Atletas federados: ${textoRegra(c)}`] : []),
+      ...(algumaPermite(c, c.categories)
+        ? ['A equipe deve indicar, na inscrição, quais atletas são federados e em qual modalidade (campo ou futsal). O limite de federados é por categoria — veja a seção 2.']
+        : c.audience === 'infantil'
+          ? ['Nenhuma categoria deste campeonato aceita atletas federados.']
+          : []),
     ]),
   )
 

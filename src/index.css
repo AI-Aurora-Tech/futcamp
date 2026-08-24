@@ -1115,7 +1115,19 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 .pub-vitrine__vazio { margin-top: 16px; }
 
-/* ---------- Atletas federados (formulário do campeonato) ------------------ */
+/* ---------- Atletas federados ------------------------------------------- */
+/* Dentro do cartão da categoria, no formulário do campeonato. */
+.fed-cat {
+  border-top: 1px dashed var(--line, #e5e7eb);
+  padding-top: 10px;
+  margin-top: 2px;
+  display: grid;
+  gap: 8px;
+}
+
+.fed-cat .check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; }
+.fed-cat__qtd { display: grid; gap: 2px; max-width: 200px; }
+
 .fed-box {
   margin: 14px 0 4px;
   padding: 12px 14px;
@@ -1129,7 +1141,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .fed-box .check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .fed-box__qtd { max-width: 220px; }
 
-/* Aviso da regra no portal do time. */
+/* Aviso da regra no portal do time — uma linha por categoria. */
+.fed-note__list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
 .fed-note {
   margin: 0 0 14px;
   padding: 10px 14px;

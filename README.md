@@ -295,18 +295,26 @@ campeonato, por isso pede o token.
 
 ## 🎽 Atletas federados (base)
 
-Campeonato **infantil** tem um bloco a mais no cadastro: permitir ou não
-**atletas federados** (campo/futsal) e, se permitir, **quantos por time**.
+Em campeonato **infantil**, cada **categoria** decide se aceita **atletas
+federados** (campo/futsal) e **quantos por time**. A permissão é da categoria,
+não do campeonato: o mesmo torneio costuma proibir no Sub-11 e liberar dois no
+Sub-15.
 
-A regra aparece com destaque no link de inscrição — verde quando aceita
-("até 2 atleta(s) federado(s) por time · marcados: 1 de 2"), vermelha quando
-não aceita. O time marca cada atleta federado e escolhe a modalidade (campo,
-futsal ou ambos); na lista do elenco eles ficam com a etiqueta `FEDERADO`.
+No link de inscrição o time vê a regra de todas as categorias, uma por linha:
 
-Quando as vagas acabam, a caixa fica desabilitada com o motivo. Mas quem
-**barra de verdade** é o banco: `assert_federated_allowed` (migration `0025`)
-roda dentro da RPC de inscrição. O portal do time é uma página aberta no
-navegador de quem se inscreve — validar só lá seria pedir para burlar.
+> ✅ **Sub-13**: aceita até 2 atleta(s) federado(s) por time. Marcados: **2** de 2.
+> ⛔ **Sub-11**: não aceita atletas federados (campo ou futsal).
+
+O time marca cada atleta federado e escolhe a modalidade (campo, futsal ou
+ambos); na lista do elenco eles ficam com a etiqueta `FEDERADO`. Trocar o
+atleta para uma categoria que não aceita **desmarca** a federação — a regra
+acompanha a categoria escolhida, não o atleta.
+
+Quando as vagas de uma categoria acabam, a caixa fica desabilitada com o
+motivo — e lotar o Sub-13 não trava o Sub-15. Mas quem **barra de verdade** é
+o banco: `assert_federated_allowed` (migration `0026`) roda dentro da RPC de
+inscrição. O portal do time é uma página aberta no navegador de quem se
+inscreve — validar só lá seria pedir para burlar.
 
 ## 📄 Regulamento em PDF
 

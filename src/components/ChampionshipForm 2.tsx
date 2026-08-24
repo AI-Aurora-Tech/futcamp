@@ -42,10 +42,6 @@ interface CatDraft {
   exceptionYear: string
   maxAthletes: string
   maxStaff: string
-  /** Atletas federados: a permissão é desta categoria, não do campeonato. */
-  allowFederated: boolean
-  /** Vazio = sem limite. Texto para o campo aceitar ser apagado. */
-  maxFederated: string
 }
 
 function toDraft(c: Category): CatDraft {
@@ -57,16 +53,11 @@ function toDraft(c: Category): CatDraft {
     exceptionYear: c.exceptionYear != null ? String(c.exceptionYear) : '',
     maxAthletes: c.maxAthletes != null ? String(c.maxAthletes) : '',
     maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
-    allowFederated: Boolean(c.allowFederated),
-    maxFederated: c.maxFederated != null ? String(c.maxFederated) : '',
   }
 }
 
 function emptyDraft(): CatDraft {
-  return {
-    id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
-    maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
-  }
+  return { id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '', maxAthletes: '', maxStaff: '' }
 }
 
 /** Seleciona uma vaga do chaveamento: "Nº X do grupo Y" (ou vaga livre/bye). */
@@ -199,12 +190,6 @@ export function ChampionshipForm({
           exceptionYear: audience === 'adulto' && c.exceptionYear ? Number(c.exceptionYear) : undefined,
           maxAthletes: c.maxAthletes ? Number(c.maxAthletes) : undefined,
           maxStaff: c.maxStaff ? Number(c.maxStaff) : undefined,
-          // Federados só existem na base.
-          allowFederated: audience === 'infantil' && c.allowFederated,
-          maxFederated:
-            audience === 'infantil' && c.allowFederated && c.maxFederated.trim()
-              ? Math.max(1, Number(c.maxFederated))
-              : null,
         }
       })
   }
@@ -467,33 +452,6 @@ export function ChampionshipForm({
                       {audience === 'infantil' ? 'nascidos neste ano ou depois' : 'nascidos neste ano ou antes'}
                     </small>
                   </label>
-
-                  {audience === 'infantil' && (
-                    <div className="mini-field mini-field--wide fed-cat">
-                      <label className="check">
-                        <input
-                          type="checkbox"
-                          checked={c.allowFederated}
-                          onChange={(e) => updateCat(c.id, { allowFederated: e.target.checked })}
-                        />
-                        <span>Aceita atletas <b>federados</b> (campo / futsal)</span>
-                      </label>
-                      {c.allowFederated && (
-                        <label className="fed-cat__qtd">
-                          <span className="mini-field__label">Quantos por time?</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={99}
-                            value={c.maxFederated}
-                            onChange={(e) => updateCat(c.id, { maxFederated: e.target.value })}
-                            placeholder="sem limite"
-                          />
-                          <small className="mini-field__hint">Em branco = sem limite.</small>
-                        </label>
-                      )}
-                    </div>
-                  )}
 
                   {audience === 'adulto' && (
                     <label className="mini-field">

@@ -37,6 +37,13 @@ export type Audience = 'infantil' | 'adulto'
 export interface Category {
   id: string
   name: string
+  /**
+   * Atletas federados (campo/futsal): a permissão é DE CATEGORIA, não do
+   * campeonato — o mesmo torneio de base costuma proibir no Sub-11 e liberar
+   * dois no Sub-15. `maxFederated` ausente ou nulo = sem limite.
+   */
+  allowFederated?: boolean
+  maxFederated?: number | null
   birthYear?: number
   birthYearMode?: 'min' | 'max'
   /** Nº de atletas por time que podem furar a regra de ano de nascimento. */
@@ -175,12 +182,6 @@ export interface Championship {
   /** Emoji ou data URL usado como brasão do campeonato. */
   logo?: string
   primaryColor?: string
-  /**
-   * Campeonato infantil: aceita atletas federados (campo/futsal)?
-   * Quantos por time fica em `maxFederated` — ausente significa sem limite.
-   */
-  allowFederated?: boolean
-  maxFederated?: number | null
   /** Pontuação por vitória (padrão 3). */
   pointsWin: number
   /** Pontuação por empate (padrão 1). */

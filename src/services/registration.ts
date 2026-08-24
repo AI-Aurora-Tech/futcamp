@@ -28,10 +28,6 @@ export interface RegistrationData {
   championshipName: string
   championshipLogo?: string
   audience: 'infantil' | 'adulto'
-  /** O campeonato aceita atletas federados? (infantil) */
-  allowFederated: boolean
-  /** Quantos por time. `null` = sem limite. */
-  maxFederated: number | null
   categories: Category[]
   players: Player[]
   hasAccount: boolean
@@ -132,8 +128,6 @@ function champFromRow(r: any): Championship {
     leagueQualifiers: r.league_qualifiers ?? undefined,
     thirdPlace: r.third_place ?? undefined,
     tiebreakers: r.tiebreakers ?? undefined,
-    allowFederated: Boolean(r.allow_federated),
-    maxFederated: r.max_federated ?? null,
     createdAt: new Date().toISOString(),
   }
 }
@@ -167,8 +161,6 @@ export async function loadRegistration(
       championshipName: data.championship_name ?? 'Campeonato',
       championshipLogo: data.championship_logo ?? undefined,
       audience: data.audience ?? 'adulto',
-      allowFederated: Boolean(data.allow_federated),
-      maxFederated: data.max_federated ?? null,
       categories: Array.isArray(data.categories) ? data.categories : [],
       players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
       hasAccount: Boolean(data.has_account),
@@ -190,8 +182,6 @@ export async function loadRegistration(
       championshipName: champ?.name ?? 'Campeonato',
       championshipLogo: champ?.logo,
       audience: champ?.audience ?? 'adulto',
-      allowFederated: Boolean(champ?.allowFederated),
-      maxFederated: champ?.maxFederated ?? null,
       championship: champ ?? undefined,
       categories: champ?.categories ?? [],
       players: d.players
@@ -451,14 +441,8 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   // Federados: no Supabase quem barra é a `assert_federated_allowed` (0025);
   // no modo demo não há servidor, então a regra vale aqui.
   if (input.federated) {
-    const { champ, doTime } = query((d) => {
-      const t = d.teams.find((x) => x.id === teamId)
-      return {
-        champ: d.championships.find((c) => c.id === t?.championshipId) ?? null,
-        doTime: d.players.filter((p) => p.teamId === teamId),
-      }
-    })
-    const v = podeMarcarFederado(champ, doTime, excludePlayerId)
+    const doTime = query((d) => d.players.filter((p) => p.teamId === teamId))
+    const v = podeMarcarFederado(category, doTime, excludePlayerId)
     if (!v.ok) throw new Error(v.motivo ?? 'Atleta federado não permitido.')
   }
 }

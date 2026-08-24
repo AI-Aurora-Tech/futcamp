@@ -39,8 +39,6 @@ function fromRow(r: any): Championship {
     referees: Array.isArray(r.referees) ? r.referees : [],
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
-    allowFederated: r.allow_federated ?? false,
-    maxFederated: r.max_federated ?? null,
     plan: r.plan ?? undefined,
     // Campeonato antigo (antes da cobrança) não tem situação: vale como pago.
     paymentStatus: r.payment_status ?? undefined,
@@ -65,8 +63,6 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.description !== undefined) row.description = c.description
   if (c.logo !== undefined) row.logo = c.logo
   if (c.primaryColor !== undefined) row.primary_color = c.primaryColor
-  if (c.allowFederated !== undefined) row.allow_federated = c.allowFederated
-  if (c.maxFederated !== undefined) row.max_federated = c.maxFederated
   if (c.pointsWin !== undefined) row.points_win = c.pointsWin
   if (c.pointsDraw !== undefined) row.points_draw = c.pointsDraw
   if (c.registrationCutoffHours !== undefined) row.registration_cutoff_hours = c.registrationCutoffHours
