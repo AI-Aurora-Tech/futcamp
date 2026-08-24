@@ -1116,17 +1116,61 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .pub-vitrine__vazio { margin-top: 16px; }
 
 /* ---------- Atletas federados ------------------------------------------- */
-/* Dentro do cartão da categoria, no formulário do campeonato. */
+/*
+ * Dentro do cartão da categoria, no formulário do campeonato.
+ *
+ * Sem a classe `mini-field`: a regra `.mini-field input { width: 100% }` vale
+ * para QUALQUER input, inclusive a caixa de seleção — que esticava até a
+ * largura do cartão e empurrava o texto para fora da tela.
+ */
 .fed-cat {
-  border-top: 1px dashed var(--line, #e5e7eb);
+  grid-column: 1 / -1;
+  border-top: 1px dashed var(--line-strong);
   padding-top: 10px;
   margin-top: 2px;
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
-.fed-cat .check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; }
+.fed-cat .check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+/* Tamanho fixo: a caixa não acompanha a largura do campo. */
+.fed-cat .check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-top: 2px;
+  accent-color: var(--brand);
+}
+
+/* O texto ocupa o resto e quebra em vez de transbordar. */
+.fed-cat .check span { min-width: 0; }
+
 .fed-cat__qtd { display: grid; gap: 2px; max-width: 200px; }
+.fed-cat__label { font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); }
+.fed-cat__hint { font-size: 0.72rem; color: var(--muted); }
+
+.fed-cat__qtd input {
+  border: 1.5px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  background: var(--surface);
+  width: 100%;
+}
+
+.fed-cat__qtd input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
 
 .fed-box {
   margin: 14px 0 4px;

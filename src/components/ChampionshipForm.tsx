@@ -469,7 +469,7 @@ export function ChampionshipForm({
                   </label>
 
                   {audience === 'infantil' && (
-                    <div className="mini-field mini-field--wide fed-cat">
+                    <div className="fed-cat">
                       <label className="check">
                         <input
                           type="checkbox"
@@ -480,7 +480,7 @@ export function ChampionshipForm({
                       </label>
                       {c.allowFederated && (
                         <label className="fed-cat__qtd">
-                          <span className="mini-field__label">Quantos por time?</span>
+                          <span className="fed-cat__label">Quantos por time?</span>
                           <input
                             type="number"
                             min={1}
@@ -489,7 +489,7 @@ export function ChampionshipForm({
                             onChange={(e) => updateCat(c.id, { maxFederated: e.target.value })}
                             placeholder="sem limite"
                           />
-                          <small className="mini-field__hint">Em branco = sem limite.</small>
+                          <small className="fed-cat__hint">Em branco = sem limite.</small>
                         </label>
                       )}
                     </div>
