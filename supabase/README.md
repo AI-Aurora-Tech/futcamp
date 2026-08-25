@@ -29,7 +29,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
 | `migrations/0022_asaas.sql` | **Troca do provedor de pagamento** (Mercado Pago → Asaas): `payments.provider` e `payments.checkout_id`. O histórico antigo fica marcado como `mercadopago`. |
 | `migrations/0025_federated_athletes.sql` | **Atletas federados** (infantil): `championships.allow_federated` / `max_federated`, `players.federated` / `federated_in`, e o limite conferido no banco (`assert_federated_allowed`) dentro das RPCs de inscrição — validar só no navegador do time seria pedir para burlar. A `team_registration` passa a devolver também as regras do campeonato, para o time baixar o regulamento (lista fechada de campos: nada de dono, cobrança ou token). |
-| `migrations/0026_federated_per_category.sql` | **Federados viram regra de categoria**: a permissão e o limite passam para dentro de `championships.categories` (jsonb) e as colunas da 0025 saem — o valor delas é copiado para as categorias antes. `assert_federated_allowed` passa a receber a categoria e contar só os federados dela. |
+| `migrations/0026_federated_per_category.sql` | **Federados viram regra de categoria**: a permissão e o limite passam para dentro de `championships.categories` (jsonb) e as colunas da 0025 saem — o valor delas é copiado para as categorias antes. `assert_federated_allowed` passa a receber a categoria e contar só os federados dela. **Roda sozinha e pode ser repetida**: a cópia só acontece se as colunas da 0025 existirem, e as colunas do atleta são criadas com `if not exists`. |
 | `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente, refaz o pedido sem Pix quando a conta não tem chave cadastrada, e grava o vínculo do checkout em `championships.payment_ref` (`checkout:<id>`) além da tabela `payments`. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`, `ASAAS_BILLING_TYPES` (opcional). Publique com `--no-verify-jwt`. |
 | `migrations/0023_master_release.sql` | **Liberação manual pelo master**: `master_release_championship()`, a única exceção à trava de pagamento — e ela exige `is_master()`, verificado no banco. Para quando o pagamento entra por fora (dinheiro, transferência, cortesia). |
 | `migrations/0024_push_outbox_cascade.sql` | **Corrige a exclusão de campeonato**: o gatilho de avisos disparava na cascata (times e atletas removidos junto) e tentava enfileirar notificação de um campeonato que já não existia — a chave estrangeira recusava e a exclusão inteira falhava. Agora o gatilho confere se o campeonato ainda existe antes de enfileirar. |
@@ -170,6 +170,25 @@ chamada da API — o Tabelaço não coleta nem guarda dado fiscal do organizador
   dados (validado por `owns_championship()`).
 
 ## Solução de problemas
+
+**Portal do time diz "Link inválido ou expirado" com o link certo** — o time é
+criado normalmente, mas a página de inscrição recusa. Quase sempre é a
+`team_registration` quebrada por migration aplicada pela metade: se a `0026`
+parou depois de remover `championships.allow_federated` e antes de recriar a
+função, a versão que ficou no banco aponta para uma coluna que não existe mais.
+
+Conferir:
+
+```sql
+select public.team_registration(
+  (select id from public.teams order by created_at desc limit 1),
+  (select token from public.team_invites order by created_at desc limit 1)
+);
+```
+
+Se o erro citar uma coluna inexistente, **rode a `0026` de novo** — ela é
+idempotente e recria a função. A tela do time também passou a mostrar o motivo
+técnico da recusa, em vez de só "link inválido".
 
 **`ERROR: function crypt(text, text) does not exist`** — o `pgcrypto` no Supabase
 fica no schema `extensions`. As funções que usam `crypt`/`gen_salt`/`gen_random_bytes`

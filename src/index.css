@@ -1225,3 +1225,12 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .reg__doc { margin: 10px 0 0; width: 100%; }
   .reg__doc .btn { width: 100%; }
 }
+
+/* Detalhe técnico na tela de link inválido — discreto, mas presente. */
+.reg__motivo {
+  max-width: 520px;
+  margin: 4px auto 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  word-break: break-word;
+}

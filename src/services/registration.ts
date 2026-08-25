@@ -147,14 +147,42 @@ function teamFromRow(r: any): Team {
   }
 }
 
+/**
+ * Por que o portal do time não abriu.
+ *
+ * Guardado fora do retorno porque `loadRegistration` devolve `null` em todos
+ * os casos de falha, e "link inválido" e "a RPC quebrou" pedem conversas
+ * completamente diferentes com quem está tentando se inscrever.
+ */
+let ultimoMotivo: string | null = null
+
+/** O motivo da última falha de `loadRegistration` (vazio quando deu certo). */
+export function motivoDaFalha(): string | null {
+  return ultimoMotivo
+}
+
 /** Carrega os dados de inscrição se o token conferir; caso contrário, null. */
 export async function loadRegistration(
   teamId: string,
   token: string,
 ): Promise<RegistrationData | null> {
+  ultimoMotivo = null
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.rpc('team_registration', { p_team: teamId, p_token: token })
-    if (error || !data) return null
+    if (error) {
+      // A RPC existe e falhou: quase sempre é migration pendente. Sem mostrar
+      // isso, o organizador procura o problema no link — que está correto.
+      ultimoMotivo = /does not exist|PGRST202/i.test(error.message)
+        ? `A função team_registration não está no banco ou está desatualizada (${error.message}). Aplique as migrations pendentes.`
+        : error.message
+      return null
+    }
+    if (!data) {
+      ultimoMotivo = !token
+        ? 'O endereço veio sem o código do link (?k=…).'
+        : 'O código do link não confere com este time.'
+      return null
+    }
     return {
       team: teamFromRow(data.team),
       championshipId: data.team?.championship_id,
@@ -174,7 +202,14 @@ export async function loadRegistration(
 
   return query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
-    if (!team || !team.accessToken || team.accessToken !== token) return null
+    if (!team) {
+      ultimoMotivo = 'Time não encontrado.'
+      return null
+    }
+    if (!team.accessToken || team.accessToken !== token) {
+      ultimoMotivo = 'O código do link não confere com este time.'
+      return null
+    }
     const champ = d.championships.find((c) => c.id === team.championshipId)
     return {
       team,

@@ -12,21 +12,57 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. Leva a regra do campeonato para dentro de cada categoria.
+-- 0. Colunas do atleta.
+--
+-- Repetidas da 0025 de propósito: assim esta migration roda sozinha, mesmo em
+-- um banco que pulou a anterior. Rodar as duas em ordem também funciona — o
+-- `if not exists` não reclama.
 -- ---------------------------------------------------------------------------
-update public.championships c
-   set categories = (
-     select jsonb_agg(
-       cat || jsonb_build_object(
-         'allowFederated', true,
-         'maxFederated', to_jsonb(c.max_federated)
-       )
-     )
-     from jsonb_array_elements(c.categories) cat
-   )
- where coalesce(c.allow_federated, false)
-   and jsonb_typeof(c.categories) = 'array'
-   and jsonb_array_length(c.categories) > 0;
+alter table public.players add column if not exists federated boolean not null default false;
+alter table public.players add column if not exists federated_in text;
+
+alter table public.players drop constraint if exists players_federated_in_check;
+alter table public.players add constraint players_federated_in_check
+  check (federated_in is null or federated_in in ('campo', 'futsal', 'ambos'));
+
+create index if not exists players_federated_idx
+  on public.players (team_id) where federated;
+
+-- ---------------------------------------------------------------------------
+-- 1. Leva a regra do campeonato para dentro de cada categoria.
+--
+-- Dentro de um bloco porque as colunas podem não existir: num banco que nunca
+-- rodou a 0025 não há nada para copiar, e referenciar a coluna ausente
+-- abortaria a migration no meio — deixando o banco com a função antiga
+-- apontando para colunas já removidas. Foi assim que o portal do time
+-- quebrou: o campeonato existe, mas `team_registration` para de responder.
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'championships'
+       and column_name = 'allow_federated'
+  ) then
+    execute $mig$
+      update public.championships c
+         set categories = (
+           select jsonb_agg(
+             cat || jsonb_build_object(
+               'allowFederated', true,
+               'maxFederated', to_jsonb(c.max_federated)
+             )
+           )
+           from jsonb_array_elements(c.categories) cat
+         )
+       where coalesce(c.allow_federated, false)
+         and jsonb_typeof(c.categories) = 'array'
+         and jsonb_array_length(c.categories) > 0
+    $mig$;
+  end if;
+end
+$$;
 
 alter table public.championships drop column if exists allow_federated;
 alter table public.championships drop column if exists max_federated;

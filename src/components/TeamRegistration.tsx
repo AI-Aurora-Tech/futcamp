@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  motivoDaFalha,
   addRegPlayer,
   createTeamAccount,
   loadRegistration,
@@ -46,6 +47,7 @@ export function TeamRegistration({
   const [data, setData] = useState<RegistrationData | null>(null)
   const [loading, setLoading] = useState(true)
   const [invalid, setInvalid] = useState(false)
+  const [motivo, setMotivo] = useState<string | null>(null)
   const [authed, setAuthed] = useState(false)
 
   const reload = async () => {
@@ -66,8 +68,17 @@ export function TeamRegistration({
     }
     setLoading(true)
     loadRegistration(teamId, token)
-      .then((d) => (d ? setData(d) : setInvalid(true)))
-      .catch(() => setInvalid(true))
+      .then((d) => {
+        if (d) setData(d)
+        else {
+          setMotivo(motivoDaFalha())
+          setInvalid(true)
+        }
+      })
+      .catch((e) => {
+        setMotivo((e as Error)?.message ?? null)
+        setInvalid(true)
+      })
       .finally(() => setLoading(false))
   }, [teamId, token])
 
@@ -88,6 +99,7 @@ export function TeamRegistration({
         <div className="empty__icon">🔒</div>
         <h2>Link inválido ou expirado</h2>
         <p className="muted">Peça ao organizador um novo link de inscrição do time.</p>
+        {motivo && <p className="muted small reg__motivo">Detalhe técnico: {motivo}</p>}
         <button className="btn btn--primary" onClick={onHome}>Ir para o início</button>
       </div>
     )
