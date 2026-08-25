@@ -37,10 +37,11 @@ import {
   type Position,
 } from '../types'
 import { RegulamentoButton } from './RegulamentoButton'
-import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, TeamBadge } from './ui'
+import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
+import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
 
 
 export function TeamRegistration({
@@ -100,7 +101,10 @@ export function TeamRegistration({
         <h2>Link inválido ou expirado</h2>
         <p className="muted">Peça ao organizador um novo link de inscrição do time.</p>
         {motivo && <p className="muted small reg__motivo">Detalhe técnico: {motivo}</p>}
-        <button className="btn btn--primary" onClick={onHome}>Ir para o início</button>
+        <div className="reg__acoes">
+          <button className="btn btn--primary" onClick={onHome}>Ir para o início</button>
+          <SuporteLink href={LINK_SUPORTE_TIME} variant="botao">Falar com o suporte</SuporteLink>
+        </div>
       </div>
     )
   }
@@ -132,7 +136,10 @@ export function TeamRegistration({
             <TeamCard teamId={teamId} token={token} data={data} onSaved={reload} />
             <ManagersCard teamId={teamId} token={token} data={data} onChanged={reload} />
             <RosterCard teamId={teamId} token={token} data={data} onChanged={reload} />
-            <p className="reg__foot">Suas alterações são salvas para o organizador do campeonato.</p>
+            <p className="reg__foot">
+              Suas alterações são salvas para o organizador do campeonato.
+              {' '}Alguma dúvida? <SuporteLink href={LINK_SUPORTE_TIME}>Fale com o suporte</SuporteLink>.
+            </p>
           </>
         )}
       </div>

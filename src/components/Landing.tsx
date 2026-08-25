@@ -12,7 +12,7 @@ import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
 import { vitrine } from '../lib/vitrine'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
-import { Button, ChampLogo, Field, TeamBadge } from './ui'
+import { Button, ChampLogo, Field, SuporteLink, TeamBadge } from './ui'
 
 /** Campeão de cada campeonato encerrado, para a vitrine pública. */
 interface ChampionInfo {
@@ -255,6 +255,7 @@ export function Landing() {
         <div className="landing__links">
           <a className="landing__plans" href="#/planos">Ver planos e preços →</a>
           <a className="landing__plans" href="#/instalar">📲 Instalar o app</a>
+          <SuporteLink className="landing__plans">Suporte</SuporteLink>
         </div>
       </div>
 
@@ -351,6 +352,7 @@ export function Landing() {
           </p>
           <a className="auth-plans-link" href="#/planos">💳 Ver planos e preços</a>
           <a className="auth-plans-link" href="#/instalar">📲 Como instalar o app</a>
+          <SuporteLink className="auth-plans-link">Falar com o suporte</SuporteLink>
         </div>
         )}
       </div>

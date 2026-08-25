@@ -49,7 +49,7 @@ echo "▶ cenário"
 $PSQL -d tabelaco -f "$AQUI/01_cenario.sql" >/dev/null
 
 echo "▶ regras"
-SAIDA=$(psql -h "$SOCK" -p "$PORTA" -U tabelaco -d tabelaco -f "$AQUI/02_regras.sql" 2>&1)
+SAIDA=$(psql -h "$SOCK" -p "$PORTA" -U tabelaco -d tabelaco -v raiz="$RAIZ" -f "$AQUI/02_regras.sql" 2>&1)
 echo "$SAIDA" | grep -oE "(✅|❌ FALHOU) ?.*" | sed 's/^/  /'
 
 if echo "$SAIDA" | grep -q "FALHOU"; then

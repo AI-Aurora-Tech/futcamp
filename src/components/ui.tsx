@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import type { Team } from '../types'
+import { LINK_SUPORTE } from '../lib/whatsapp'
 
 /** Escudo do time: usa emoji/data URL em `logo` ou as iniciais como fallback. */
 export function TeamBadge({
@@ -267,4 +268,40 @@ export function StatusPill({ status }: { status: string }) {
   }
   const info = map[status] ?? { label: status, cls: '' }
   return <span className={`pill ${info.cls}`}>{info.label}</span>
+}
+
+/**
+ * Link de suporte — abre a conversa no WhatsApp.
+ *
+ * Some quando não há número configurado (`VITE_WHATSAPP` vazio): um "Suporte"
+ * que não leva a lugar nenhum é pior do que nenhum suporte.
+ *
+ * `variant` só escolhe a aparência: 'link' no rodapé e na barra de topo,
+ * 'botao' onde ele precisa ter peso de ação (portal do time, página de erro).
+ */
+export function SuporteLink({
+  href = LINK_SUPORTE,
+  children = 'Falar com o suporte',
+  variant = 'link',
+  className = '',
+}: {
+  href?: string
+  children?: ReactNode
+  variant?: 'link' | 'botao'
+  className?: string
+}) {
+  if (!href) return null
+  const cls = variant === 'botao' ? 'btn btn--soft btn--sm' : 'suporte-link'
+  return (
+    <a
+      className={`${cls} ${className}`.trim()}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Abre uma conversa no WhatsApp"
+      aria-label="Falar com o suporte pelo WhatsApp"
+    >
+      <span aria-hidden>💬</span> <span className="suporte-link__txt">{children}</span>
+    </a>
+  )
 }

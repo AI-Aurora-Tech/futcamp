@@ -1,4 +1,5 @@
 import { useAuth } from '../context/AuthContext'
+import { SuporteLink } from './ui'
 
 export function Header({ onHome }: { onHome: () => void }) {
   const { organizer, signOut, mode, isMaster } = useAuth()
@@ -9,6 +10,7 @@ export function Header({ onHome }: { onHome: () => void }) {
         <span className="logo-word">Tabela<b>ço</b></span>
       </button>
       <div className="topbar__right">
+        <SuporteLink className="topbar__suporte">Suporte</SuporteLink>
         {mode === 'demo' && <span className="mode-tag" title="Dados salvos apenas neste navegador">modo demo</span>}
         {isMaster && <span className="master-tag" title="Administrador master: administra e exclui qualquer campeonato">👑 master</span>}
         {organizer && (

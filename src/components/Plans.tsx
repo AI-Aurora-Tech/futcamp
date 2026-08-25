@@ -1,25 +1,10 @@
 import { PLANS, formatBRL, type PlanInfo } from '../lib/pricing'
 import { rememberPlan } from '../lib/planChoice'
-import { ChampLogo } from './ui'
+import { LINK_DIAMANTE } from '../lib/whatsapp'
+import { ChampLogo, SuporteLink } from './ui'
 
-/**
- * WhatsApp do consultor, para o plano Diamante (preço sob consulta).
- *
- * `wa.me` resolve os dois casos sem gambiarra: no celular abre o aplicativo,
- * no computador abre o WhatsApp Web. O número vai com o código do país (55) e
- * só dígitos — é o formato que o link exige.
- *
- * Trocar de número sem mexer no código: `VITE_WHATSAPP` no .env.
- */
-const WHATSAPP =
-  ((import.meta.env.VITE_WHATSAPP as string | undefined) ?? '5511992835438').replace(/\D/g, '')
-
-const MENSAGEM_DIAMANTE =
-  'Olá! Vi o plano Diamante no Tabelaço e gostaria de falar com um consultor.'
-
-export const whatsappDiamante = WHATSAPP
-  ? `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(MENSAGEM_DIAMANTE)}`
-  : ''
+/** WhatsApp do consultor, para o plano Diamante (preço sob consulta). */
+export const whatsappDiamante = LINK_DIAMANTE
 
 const Check = () => (
   <svg className="plan-feats__ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
@@ -135,6 +120,7 @@ export function Plans({ onHome }: { onHome: () => void }) {
 
       <footer className="public__footer">
         <span className="logo-word">Tabela<b>ço</b></span> · Preços por campeonato · Diamante é anual, sob consulta
+        {' · '}<SuporteLink>Suporte</SuporteLink>
       </footer>
     </div>
   )

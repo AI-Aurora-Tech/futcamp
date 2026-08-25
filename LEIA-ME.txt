@@ -1,70 +1,40 @@
-Tabelaço — trocar o plano de um campeonato já criado
-=====================================================
+Tabelaço — projeto completo, estado atual
+==========================================
 
-Continuação do pacote do limite de equipes. Aplique aquele primeiro.
+Use este pacote se preferir não caçar arquivo por arquivo. Substituindo
+as pastas abaixo, seu projeto fica idêntico ao meu — sem chance de
+sobrar arquivo de uma versão antiga (foi isso que quebrou o deploy).
 
-1) BANCO — Supabase → SQL Editor:
+SUBSTITUA:
+  src/          (pasta inteira)
+  supabase/     (pasta inteira)
+  public/
+  index.html
+  package.json
+  package-lock.json
+  vite.config.ts
+  tsconfig.json
+  tsconfig.node.json
+  vercel.json
 
-     supabase/migrations/0032_change_plan.sql
+NÃO copie node_modules nem dist — o Vercel gera os dois.
 
-   Rode DEPOIS da 0031. Idempotente.
-
-2) FRONT — copie por cima, mantendo os caminhos:
-
-     src/types.ts
-     src/index.css
-     src/services/championships.ts
-     src/components/PlanoBlock.tsx          (NOVO)
-     src/components/ManageChampionship.tsx
-     src/components/PaymentPanel.tsx
-     src/components/Dashboard.tsx
-
-   Depois: npm run build
-
-
-ONDE FICA
----------
-Em DOIS lugares, de propósito:
-
-  • Ajustes do campeonato → bloco "Plano do campeonato".
-  • Na própria tela de cobrança. Esse é o que importa para quem
-    escolheu um plano grande demais e travou: de lá dá para descer de
-    plano e liberar o campeonato na hora.
+Depois: npm install && npm run build
 
 
-COMO FUNCIONA
--------------
-Trocar de plano NÃO APAGA NADA. Times, elencos, tabela e súmulas
-continuam exatamente onde estão, nas duas direções.
+MIGRATIONS
+----------
+No Supabase → SQL Editor, na ordem, as que ainda não rodou:
 
-SUBIR de plano (ex.: Grátis → Ouro)
-  Cobra o valor do novo plano e o campeonato volta para "pagamento
-  pendente" até o Asaas confirmar — o painel fecha, os dados ficam.
-  Enquanto não estiver pago, aparece o botão "↩ Desfazer e voltar para
-  <plano anterior>", que devolve tudo ao que era, sem cobrar.
+  0026_federated_per_category.sql   (corrigida)
+  0027_release_bypass.sql
+  0028_team_login_email.sql
+  0029_game_rules.sql
+  0030_send_off_per_category.sql
+  0031_plan_team_limit.sql
+  0032_change_plan.sql
 
-DESCER de plano (ex.: Ouro → Bronze, ou → Grátis)
-  Vale na hora e o campeonato continua liberado. NÃO há devolução do
-  que já foi pago — a tela diz isso antes do clique.
+Todas são idempotentes: rodar de novo uma que já rodou não faz mal.
 
-Se você descer para um plano que não comporta as equipes já
-cadastradas (20 equipes → Grátis, que permite 8), nenhuma equipe é
-apagada. Você só não conseguirá cadastrar novas enquanto estiver acima
-do limite. A tela avisa com o número exato antes de confirmar.
-
-
-SEGURANÇA
----------
-Quem troca é o BANCO, não o app. O gatilho de preço continua recusando
-qualquer mexida do cliente nos campos de cobrança — ninguém se promove
-para Ouro pelo navegador. A função confere o dono do campeonato e
-recalcula o valor no servidor.
-
-
-CONFERÊNCIA
------------
-A suíte SQL cobre: subir cobra e bloqueia sem apagar time nem atleta;
-desfazer devolve plano, valor e liberação; pagar limpa a troca pendente
-e o "desfazer" some; descer vale na hora sem bloquear; plano inventado
-é recusado; campeonato de outro organizador não pode ser trocado; e o
-app escrevendo direto na tabela continua sem conseguir se promover.
+Para conferir o banco depois, supabase/tests/ tem a suíte que uso aqui
+(precisa de um Postgres local; veja o README de lá).
