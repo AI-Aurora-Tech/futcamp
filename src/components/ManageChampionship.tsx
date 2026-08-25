@@ -38,6 +38,17 @@ import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
 import { PlanoBlock } from './PlanoBlock'
 import { formatBRL, isLocked } from '../lib/pricing'
+import {
+  atletaDaCategoria,
+  categoriaInicial,
+  categoriaPadrao,
+  competicaoDaCategoria,
+  elencoDeTimes,
+  partidasDaCategoria,
+  statusDaCategoria,
+  temVariasCategorias,
+} from '../lib/categorias'
+import { setCategoryStatus } from '../services/championships'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
 
@@ -67,6 +78,8 @@ export function ManageChampionship({
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [officials, setOfficials] = useState<Official[]>([])
   const [tab, setTab] = useState<Tab>('overview')
+  /** Categoria escolhida nas abas. Nula = ainda não escolheu; abre na sugerida. */
+  const [catId, setCatId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [liberando, setLiberando] = useState(false)
@@ -134,8 +147,15 @@ export function ManageChampionship({
     }
   }
 
+  /**
+   * Muda a situação — do campeonato inteiro ou só da categoria aberta.
+   *
+   * Com várias categorias, a situação é DE CADA UMA: encerrar o Sub-11 não
+   * pode encerrar o Sub-17, que ainda está na semifinal.
+   */
   async function changeStatus(status: Championship['status']) {
-    await updateChampionship(championshipId, { status })
+    if (varias && catAtual) await setCategoryStatus(championshipId, catAtual, status)
+    else await updateChampionship(championshipId, { status })
     await reload()
   }
 
@@ -186,6 +206,29 @@ export function ManageChampionship({
     )
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* A categoria escolhida — cada uma é uma competição                        */
+  /*                                                                          */
+  /* Tudo o que as abas mostram passa por aqui: os clubes inscritos, os       */
+  /* atletas daquela idade, as partidas com os seus locais e horários, e a    */
+  /* própria estrutura (grupos, classificados). O campeonato entregue aos     */
+  /* painéis é o `comp`, que já vem com os números da categoria.              */
+  /* ---------------------------------------------------------------------- */
+  const varias = temVariasCategorias(champ)
+  const padraoCat = categoriaPadrao(champ)
+  const catAtual = varias ? catId ?? categoriaInicial(champ) : padraoCat
+  const comp = competicaoDaCategoria(champ, catAtual)
+  const nomeCatAtual = champ.categories.find((c) => c.id === catAtual)?.name ?? 'categoria'
+  const timesCat = elencoDeTimes(teams, varias ? catAtual : undefined)
+  const partidasCat = partidasDaCategoria(matches, varias ? catAtual : undefined, padraoCat)
+  const atletasCat = players.filter((p) =>
+    atletaDaCategoria(p.categoryId, varias ? catAtual : undefined, padraoCat),
+  )
+  // Eventos seguem as partidas: cartão do Sub-11 não entra na artilharia do
+  // Sub-15, porque o jogo não é daquela competição.
+  const idsCat = new Set(partidasCat.map((m) => m.id))
+  const eventosCat = events.filter((e) => idsCat.has(e.matchId))
+
   return (
     <div className="manage" style={{ '--accent': champ.primaryColor ?? '#16a34a' } as React.CSSProperties}>
       <div className="manage__hero">
@@ -196,13 +239,13 @@ export function ManageChampionship({
             <div>
               <div className="manage__title-row">
                 <h1>{champ.name}</h1>
-                <StatusPill status={champ.status} />
+                <StatusPill status={statusDaCategoria(champ, catAtual)} />
               </div>
               <p className="manage__meta">
                 {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[champ.format]}
                 {champ.season ? ` · ${champ.season}` : ''}
               </p>
-              <ChampionTag podium={computePodium(champ, teams, matches, events)} teams={teams} />
+              <ChampionTag podium={computePodium(comp, timesCat, partidasCat, eventosCat)} teams={timesCat} />
             </div>
             <div className="manage__actions">
               {isMaster && isLocked(champ) && (
@@ -218,6 +261,27 @@ export function ManageChampionship({
               <Button variant="soft" onClick={copyPublicLink}>🔗 Link público</Button>
             </div>
           </div>
+          {/* Cada categoria é uma competição: tabela, jogos, locais e
+              classificação próprios. A aba escolhe qual delas está na tela. */}
+          {varias && (
+            <nav className="cat-tabs" aria-label="Categorias">
+              {champ.categories.map((c) => {
+                const st = statusDaCategoria(champ, c.id)
+                return (
+                  <button
+                    key={c.id}
+                    className={`cat-tab ${catAtual === c.id ? 'is-active' : ''} cat-tab--${st}`}
+                    onClick={() => setCatId(c.id)}
+                  >
+                    {c.name}
+                    {st === 'finished' && <span className="cat-tab__mark" title="Categoria encerrada">🏁</span>}
+                    {st === 'draft' && <span className="cat-tab__mark" title="Ainda em rascunho">✎</span>}
+                  </button>
+                )
+              })}
+            </nav>
+          )}
+
           <nav className="tabs">
             {TABS.map((t) => (
               <button key={t.id} className={`tab ${tab === t.id ? 'is-active' : ''}`} onClick={() => setTab(t.id)}>
@@ -229,13 +293,13 @@ export function ManageChampionship({
       </div>
 
       <div className="container manage__content">
-        {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} players={players} events={events} />}
-        {tab === 'teams' && <TeamsPanel championship={champ} teams={teams} onChange={reload} />}
-        {tab === 'players' && <PlayersPanel championship={champ} teams={teams} players={players} onChange={reload} />}
-        {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} events={events} officials={officials} onChange={reload} />}
+        {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
+        {tab === 'teams' && <TeamsPanel championship={comp} teams={teams} categoryId={varias ? catAtual : undefined} onChange={reload} />}
+        {tab === 'players' && <PlayersPanel championship={comp} teams={timesCat} players={atletasCat} categoryId={varias ? catAtual : undefined} onChange={reload} />}
+        {tab === 'matches' && <MatchesPanel championship={comp} teams={timesCat} players={atletasCat} matches={partidasCat} events={eventosCat} officials={officials} categoryId={varias ? catAtual : undefined} onChange={reload} />}
         {tab === 'officials' && <OfficialsPanel championship={champ} officials={officials} matches={matches} onChange={reload} />}
         {tab === 'registries' && <RegistriesPanel championship={champ} onChange={reload} />}
-        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} categories={champ.categories} />}
+        {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
         {tab === 'settings' && (
           <section className="panel">
             <div className="panel__head">
@@ -247,20 +311,40 @@ export function ManageChampionship({
             </div>
 
             <div className="settings-block">
-              <h3>Status</h3>
-              <p className="muted small">Controle a fase atual da competição.</p>
+              <h3>{varias ? `Situação · ${nomeCatAtual}` : 'Status'}</h3>
+              <p className="muted small">
+                {varias
+                  ? `Cada categoria tem a sua fase. Isto vale só para o ${nomeCatAtual} — as outras seguem como estão.`
+                  : 'Controle a fase atual da competição.'}
+              </p>
               <div className="status-buttons">
                 {(['draft', 'active', 'finished'] as const).map((s) => (
                   <button
                     key={s}
-                    className={`status-btn ${champ.status === s ? 'is-active' : ''}`}
+                    className={`status-btn ${statusDaCategoria(champ, catAtual) === s ? 'is-active' : ''}`}
                     onClick={() => void changeStatus(s)}
                   >
                     {s === 'draft' ? 'Rascunho' : s === 'active' ? 'Em andamento' : 'Encerrado'}
                   </button>
                 ))}
               </div>
-              {champ.status === 'finished' && (
+              {varias && (
+                <ul className="cat-status">
+                  {champ.categories.map((c) => {
+                    const st = statusDaCategoria(champ, c.id)
+                    return (
+                      <li key={c.id}>
+                        <b>{c.name}</b>
+                        <span className={`pill pill--${st === 'active' ? 'active' : st === 'finished' ? 'finished' : 'draft'}`}>
+                          {st === 'draft' ? 'Rascunho' : st === 'active' ? 'Em andamento' : 'Encerrado'}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+
+              {statusDaCategoria(champ, catAtual) === 'finished' && (
                 <p className="muted small">
                   🏆 Campeonato encerrado{' '}
                   {daysLeftPublic(champ)

@@ -29,14 +29,35 @@ export function PlayersPanel({
   championship,
   teams,
   players,
+  categoryId,
   onChange,
 }: {
   championship: Championship
   teams: Team[]
   players: Player[]
+  /**
+   * Categoria em foco. Novos atletas nascem nela — o organizador está na aba
+   * do Sub-13, e cadastrar ali um atleta do Sub-15 seria um erro silencioso.
+   */
+  categoryId?: string
   onChange: () => void
 }) {
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.id ?? '')
+
+  /**
+   * Trocar de categoria troca a lista de clubes.
+   *
+   * O clube escolhido pode não jogar a categoria nova — e aí a tela ficaria
+   * mostrando "sem atletas" de um time que nem está ali. Quando isso acontece,
+   * cai no primeiro da lista.
+   */
+  useEffect(() => {
+    if (!teams.length) {
+      if (selectedTeam) setSelectedTeam('')
+      return
+    }
+    if (!teams.some((t) => t.id === selectedTeam)) setSelectedTeam(teams[0].id)
+  }, [teams, selectedTeam])
   const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -174,6 +195,7 @@ export function PlayersPanel({
       {(adding || editing) && (
         <PlayerForm
           championship={championship}
+          categoriaFoco={categoryId}
           teamId={selectedTeam}
           teamPlayers={teamPlayers}
           championshipPlayers={players}
@@ -193,7 +215,14 @@ export function PlayersPanel({
 
       {importing && (
         <ImportAthletesModal
-          categories={championship.categories}
+          categories={
+            // Na aba de uma categoria, a importação já entra nela: importar
+            // uma planilha do Sub-13 e ver os atletas caírem no Sub-11 seria
+            // um erro difícil de perceber e trabalhoso de desfazer.
+            categoryId
+              ? championship.categories.filter((c) => c.id === categoryId)
+              : championship.categories
+          }
           existing={teamPlayers}
           championshipPlayers={players}
           teamId={selectedTeam}
@@ -221,6 +250,7 @@ export function PlayersPanel({
 
 function PlayerForm({
   championship,
+  categoriaFoco,
   teamId,
   teamPlayers,
   championshipPlayers,
@@ -230,6 +260,8 @@ function PlayerForm({
   onSaved,
 }: {
   championship: Championship
+  /** Categoria da aba aberta — é nela que o atleta novo nasce. */
+  categoriaFoco?: string
   teamId: string
   teamPlayers: Player[]
   /** Todos os atletas do campeonato (regra "um CPF, um time"). */
@@ -248,7 +280,9 @@ function PlayerForm({
   const [position, setPosition] = useState<Position>(
     initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
   )
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
+  const [categoryId, setCategoryId] = useState(
+    initial?.categoryId ?? categoriaFoco ?? categories[0]?.id ?? '',
+  )
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)

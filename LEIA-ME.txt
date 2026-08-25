@@ -1,81 +1,76 @@
-Tabelaço — links por categoria + estrutura de cada categoria
-=============================================================
+Tabelaço — abas de categoria (passo 3)
+=======================================
 
-Continuação do passo 1. Aplique aquele primeiro (migration 0033).
+SÓ FRONT. Não tem migration nova — usa as 0033 e 0034, que você já
+aplicou nos passos 1 e 2.
 
-1) BANCO — Supabase → SQL Editor:
+Copie por cima, mantendo os caminhos:
 
-     supabase/migrations/0034_links_por_categoria.sql
+  src/index.css
+  src/services/matches.ts
+  src/components/ManageChampionship.tsx
+  src/components/TeamsPanel.tsx
+  src/components/PlayersPanel.tsx
+  src/components/MatchesPanel.tsx
 
-   Rode DEPOIS da 0033. Idempotente.
-
-2) FRONT — copie por cima, mantendo os caminhos:
-
-     src/types.ts
-     src/index.css
-     src/lib/categorias.ts
-     src/services/teams.ts
-     src/components/TeamsPanel.tsx
-     src/components/CreateTeamViaLink.tsx
-     src/components/ChampionshipForm.tsx
-
-   Depois: npm run build
+Depois: npm run build
 
 
-OS DOIS LINKS
--------------
-Na aba TIMES do campeonato, com mais de uma categoria, aparecem:
+COMO FICA
+---------
+Abrindo um campeonato com mais de uma categoria, aparece uma fileira de
+abas logo abaixo do nome:
 
-  🔗 Link para criar time          → ABERTO, para todas as categorias
-  🔗 Sub-11  🔗 Sub-13  🔗 Sub-15  → DIRECIONADO, um por categoria
+     [ Sub-11 ]  [ Sub-13 ]  [ Sub-15 🏁 ]
 
-LINK ABERTO: o responsável vê a pergunta "Em quais categorias o time vai
-jogar?" com uma caixa para cada uma, e marca as que o clube disputa.
-Não dá para criar o time sem marcar pelo menos uma.
+Ela fica ACIMA das abas de seção (Visão geral, Times, Elencos…) porque a
+categoria é o recorte maior: trocar de categoria troca o conteúdo de
+TODAS as seções.
 
-LINK DIRECIONADO: não pergunta nada. Mostra "🎯 Este link é da categoria
-Sub-13 — o time entra direto nela" e inscreve só nela.
+Separado por categoria:
+  • Times      — só os clubes inscritos nela, com o grupo daquela categoria
+  • Elencos    — o mesmo clube tem atletas diferentes em cada uma
+  • Partidas   — a tabela, com os locais, horários, árbitros e mesários
+  • Estatísticas — artilharia, cartões e suspensões
+  • Visão geral  — classificação e campeão
+  • Ajustes    — a SITUAÇÃO é de cada categoria
 
-O mesmo conjunto de categorias devolve sempre o MESMO link. Clicar duas
-vezes em "Sub-13" não cria dois links vivos para a mesma coisa.
+A aba abre na categoria EM ANDAMENTO — é onde há trabalho a fazer.
+Categoria encerrada leva 🏁, rascunho leva ✎.
 
-⚠️ A trava está no BANCO, não na tela: se alguém trocar o parâmetro no
-navegador para entrar numa categoria que o link não abriu, a inscrição é
-recusada. Validar só na tela seria pedir licença para burlar.
-
-
-ESTRUTURA POR CATEGORIA
------------------------
-No formulário do campeonato, dentro do bloco "⏱ Regras de jogo" de cada
-categoria, e só no formato de grupos + mata-mata:
-
-  Grupos nesta categoria    → em branco = como o campeonato
-  Equipes por grupo         → cada categoria tem a sua
-  Classificados por grupo   → já existia, agora vale de verdade
-
-Assim o Sub-11 pode ter 2 grupos classificando 2, e o Sub-17 ter 4 grupos
-classificando 1 — cada categoria com a sua condição, como você pediu.
-
-A FORMA de disputa (pontos corridos / grupos / mata-mata) continua sendo
-do campeonato, igual para todas. Campo em branco herda o número do
-campeonato: nada do que já existe precisa ser repreenchido.
+Campeonato de categoria única não mostra aba nenhuma: continua igual.
 
 
-O QUE AINDA FALTA (passo 3)
----------------------------
-  • Aba por categoria no topo do campeonato, filtrando times, elencos,
-    partidas e estatísticas
-  • "Gerar rodadas" e mata-mata por categoria
-  • Encerrar uma categoria sem encerrar as outras (o banco já aceita)
-  • Tela de conferência da conversão
+DUAS COISAS QUE VOCÊ VAI NOTAR
+------------------------------
+1. "Gerar / regerar tabela" agora vale só para a categoria aberta. Gerar
+   a tabela do Sub-11 não toca na do Sub-15. A trava de "jogos já
+   encerrados" também conta só os da categoria.
+
+2. Sortear grupos idem — o grupo é da inscrição, então sortear o Sub-11
+   não desmancha os grupos do Sub-15.
+
+Atleta novo e importação de planilha já nascem na categoria da aba
+aberta, para não cair na errada sem ninguém perceber.
+
+
+UM DEFEITO SÉRIO QUE ISTO CORRIGIU
+----------------------------------
+A função que apaga partidas para regerar a tabela apagava TODAS as do
+campeonato. Com categorias separadas, um clique em "regerar tabela" no
+Sub-11 teria levado junto a tabela inteira do Sub-15 — placares, gols,
+cartões e súmulas. Agora o apagar e o gerar são recortados pela
+categoria.
+
+
+O QUE AINDA FALTA
+-----------------
   • Página pública com abas e campeão por categoria
   • Portal do time mostrando as categorias do clube
+  • Tela de conferência da conversão (mover jogos antigos de categoria)
+  • Súmula nomeando a categoria
 
-
-CONFERÊNCIA
------------
-170 asserções SQL (34 migrations aplicando limpas), incluindo: link
-aberto libera as três categorias, link direcionado libera só a sua, a
-ordem das categorias não cria link novo, o link do Sub-13 não inscreve no
-Sub-17, e token inventado não cria time. Mais 45 asserções dos filtros e
-da estrutura por categoria no app, e o ciclo completo no navegador.
+Os locais de jogo continuam num cadastro só (aba Cadastros), reaproveitado
+por qualquer categoria — o que é separado é ONDE cada jogo acontece, que
+vai na partida. Se você quiser a lista de campos separada por categoria
+também, me diga.

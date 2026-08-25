@@ -7,6 +7,7 @@ import {
   ensureTeamToken,
   listTeamManagers,
   resetTeamManagerPassword,
+  setTeamCategories,
   updateTeam,
   type NewTeam,
   type TeamManager,
@@ -14,15 +15,20 @@ import {
 import type { Championship, Team } from '../types'
 import { fileToDataUrl } from '../lib/image'
 import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
+import { elencoDeTimes } from '../lib/categorias'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
 
 export function TeamsPanel({
   championship,
   teams,
+  categoryId,
   onChange,
 }: {
   championship: Championship
+  /** TODOS os clubes do campeonato — a inscrição é que diz quem joga o quê. */
   teams: Team[]
+  /** Categoria em foco. Indefinida = campeonato de categoria única. */
+  categoryId?: string
   onChange: () => void
 }) {
   const [editing, setEditing] = useState<Team | null>(null)
@@ -33,6 +39,10 @@ export function TeamsPanel({
   // Limite do plano contratado. O botão some quando não cabe mais — deixar
   // clicável para o banco recusar no fim do formulário é fazer o organizador
   // digitar à toa.
+  // Os clubes DESTA categoria — é o que a aba mostra. O limite do plano, porém,
+  // conta o campeonato inteiro: um clube em quatro categorias é um clube.
+  const daCategoria = elencoDeTimes(teams, categoryId)
+  const catNome = championship.categories.find((c) => c.id === categoryId)?.name
   const limite = limiteDeTimes(championship.plan)
   const vagas = vagasDeTime(championship.plan, teams.length)
   const semVagas = vagas <= 0
@@ -42,32 +52,53 @@ export function TeamsPanel({
   // Busca por nome do time, responsável ou grupo ("grupo b" / "b").
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return teams
-    return teams.filter((t) =>
+    if (!q) return daCategoria
+    return daCategoria.filter((t) =>
       [t.name, t.coach, t.phone, t.group, t.group ? `grupo ${t.group}` : '']
         .filter(Boolean)
         .some((v) => (v as string).toLowerCase().includes(q)),
     )
-  }, [teams, search])
+  }, [daCategoria, search])
 
+  /**
+   * Sorteia os grupos DESTA categoria.
+   *
+   * O grupo é da inscrição, não do clube: o mesmo Leões pode cair no A do
+   * Sub-11 e no C do Sub-15, e sortear uma categoria não pode desmanchar a
+   * outra.
+   */
   async function drawGroups() {
-    if (teams.length < 2) {
+    if (daCategoria.length < 2) {
       alert('Cadastre ao menos 2 times para sortear os grupos.')
       return
     }
-    if (!confirm(`Sortear ${teams.length} time(s) em ${numGroups} grupo(s)? Isso substitui a divisão atual.`)) return
+    const onde = catNome ? ` do ${catNome}` : ''
+    if (!confirm(`Sortear ${daCategoria.length} time(s)${onde} em ${numGroups} grupo(s)? Isso substitui a divisão atual.`)) return
     setDrawing(true)
     try {
       const labels = Array.from({ length: numGroups }, (_, i) => String.fromCharCode(65 + i))
       // Embaralhamento Fisher–Yates.
-      const shuffled = [...teams]
+      const shuffled = [...daCategoria]
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
         ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
       }
       // Distribui em rodízio (serpentina) para equilibrar os grupos.
       await Promise.all(
-        shuffled.map((t, idx) => updateTeam(t.id, { group: labels[idx % numGroups] })),
+        shuffled.map((t, idx) => {
+          const grupo = labels[idx % numGroups]
+          const original = teams.find((x) => x.id === t.id)
+          return categoryId
+            ? setTeamCategories(
+                t.id,
+                championship.id,
+                (original?.categoryIds ?? [categoryId]).map((c) => ({
+                  categoryId: c,
+                  group: c === categoryId ? grupo : original?.groupByCategory?.[c],
+                })),
+              )
+            : updateTeam(t.id, { group: grupo })
+        }),
       )
       onChange()
     } catch {
@@ -129,11 +160,13 @@ export function TeamsPanel({
       <div className="panel__head">
         <div>
           <h2>
-            Times ({teams.length}
-            {Number.isFinite(limite) ? ` de ${limite}` : ''})
+            {catNome ? `Times · ${catNome}` : 'Times'} ({daCategoria.length}
+            {Number.isFinite(limite) && !catNome ? ` de ${limite}` : ''})
           </h2>
           <p className="muted">
-            Cadastre os clubes participantes do campeonato.
+            {catNome
+              ? `Clubes inscritos no ${catNome}. Cada categoria tem os seus — o clube entra pela inscrição.`
+              : 'Cadastre os clubes participantes do campeonato.'}
             {Number.isFinite(limite) && !semVagas && ` Restam ${vagas} vaga(s) no plano ${planOf(championship.plan).tier}.`}
           </p>
         </div>
@@ -174,18 +207,18 @@ export function TeamsPanel({
         </p>
       )}
 
-      {teams.length > 0 && (
+      {daCategoria.length > 0 && (
         <SearchField
           value={search}
           onChange={setSearch}
           placeholder="Buscar time por nome, responsável ou grupo…"
           count={visible.length}
-          total={teams.length}
+          total={daCategoria.length}
           noun="time"
         />
       )}
 
-      {teams.length === 0 ? (
+      {daCategoria.length === 0 ? (
         <EmptyState icon="🛡️" title="Nenhum time cadastrado">
           <p>Adicione os times para depois gerar a tabela de jogos.</p>
         </EmptyState>

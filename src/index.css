@@ -703,6 +703,35 @@ table { border-collapse: collapse; width: 100%; }
   cursor: pointer; transition: border-color .15s, color .15s;
 }
 .cat-links__btn:hover { border-color: var(--brand); color: var(--brand-dark); }
+
+/* ---------- Abas de categoria ----------
+   Cada categoria é uma competição dentro do campeonato: tabela, jogos, locais
+   e classificação próprios. A aba escolhe qual está na tela. Ficam ACIMA das
+   abas de seção, porque a categoria é o recorte maior — trocar de categoria
+   troca o conteúdo de todas as seções. */
+.cat-tabs {
+  display: flex; gap: 0.4rem; overflow-x: auto; padding: 0.15rem 0 0;
+  margin-bottom: 0.35rem; scrollbar-width: thin;
+}
+.cat-tab {
+  flex: none; display: inline-flex; align-items: center; gap: 0.35rem;
+  border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.82); border-radius: 999px;
+  padding: 0.3rem 0.85rem; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s; white-space: nowrap;
+}
+.cat-tab:hover { background: rgba(255,255,255,0.16); color: #fff; }
+.cat-tab.is-active { background: #fff; color: var(--brand-dark); border-color: #fff; }
+.cat-tab--finished { opacity: 0.78; }
+.cat-tab__mark { font-size: 0.72rem; }
+
+/* Resumo das situações, nos Ajustes. */
+.cat-status { list-style: none; margin: 0.7rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
+.cat-status li {
+  display: flex; align-items: center; gap: 0.6rem; justify-content: space-between;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 0.4rem 0.7rem; font-size: 0.88rem;
+}
 .link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
 .link-btn--add:hover { color: var(--brand); }
 

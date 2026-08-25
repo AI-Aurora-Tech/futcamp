@@ -155,15 +155,30 @@ export async function deleteMatch(id: string): Promise<void> {
 }
 
 /** Remove todas as partidas de um campeonato (regerar tabela). */
-export async function deleteMatchesOf(championshipId: string): Promise<void> {
+/**
+ * Apaga as partidas do campeonato — ou só as de UMA categoria.
+ *
+ * O recorte por categoria não é detalhe: cada categoria é uma competição, e
+ * regerar a tabela do Sub-11 não pode levar junto a do Sub-15. Sem o filtro,
+ * um clique em "regerar" apagaria o campeonato inteiro.
+ */
+export async function deleteMatchesOf(
+  championshipId: string,
+  categoryId?: string,
+): Promise<void> {
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.from('matches').delete().eq('championship_id', championshipId)
+    let q = supabase.from('matches').delete().eq('championship_id', championshipId)
+    if (categoryId) q = q.eq('category_id', categoryId)
+    const { error } = await q
     if (error) throw error
     return
   }
   mutate((d) => {
-    d.matches = d.matches.filter((m) => m.championshipId !== championshipId)
-    d.events = d.events.filter((e) => e.championshipId !== championshipId)
+    const alvo = (m: { championshipId: string; categoryId?: string }) =>
+      m.championshipId === championshipId && (!categoryId || m.categoryId === categoryId)
+    const apagados = new Set(d.matches.filter(alvo).map((m) => m.id))
+    d.matches = d.matches.filter((m) => !apagados.has(m.id))
+    d.events = d.events.filter((e) => !apagados.has(e.matchId))
   })
 }
 
@@ -172,10 +187,16 @@ export async function deleteMatchesOf(championshipId: string): Promise<void> {
  * tudo levaria junto placares, gols, cartões e súmulas. Só passa com `force`
  * (administrador master, que confirma a perda explicitamente).
  */
-async function assertRegenerationAllowed(championshipId: string, force: boolean): Promise<void> {
+async function assertRegenerationAllowed(
+  championshipId: string,
+  force: boolean,
+  categoryId?: string,
+): Promise<void> {
   if (force) return
   const existing = await listMatches(championshipId)
-  const finished = existing.filter((m) => m.status === 'finished').length
+  const finished = existing.filter(
+    (m) => m.status === 'finished' && (!categoryId || m.categoryId === categoryId),
+  ).length
   if (finished > 0) {
     throw new Error(
       `Não é possível regerar a tabela: ${finished} jogo(s) já foram encerrados. ` +
@@ -193,12 +214,14 @@ export async function generateLeague(
   teamIds: string[],
   doubleRound: boolean,
   force = false,
+  categoryId?: string,
 ): Promise<void> {
-  await assertRegenerationAllowed(championshipId, force)
+  await assertRegenerationAllowed(championshipId, force, categoryId)
   const pairings = generateRoundRobin(teamIds, doubleRound)
-  await deleteMatchesOf(championshipId)
+  await deleteMatchesOf(championshipId, categoryId)
   const toInsert: NewMatch[] = pairings.map((p) => ({
     championshipId,
+    categoryId,
     round: p.round,
     phase: 'group' as MatchPhase,
     homeTeamId: p.homeTeamId,
@@ -216,12 +239,14 @@ export async function generateGroups(
   groups: Record<string, string[]>,
   doubleRound: boolean,
   force = false,
+  categoryId?: string,
 ): Promise<void> {
-  await assertRegenerationAllowed(championshipId, force)
+  await assertRegenerationAllowed(championshipId, force, categoryId)
   const pairings = generateGroupFixtures(groups, doubleRound)
-  await deleteMatchesOf(championshipId)
+  await deleteMatchesOf(championshipId, categoryId)
   const toInsert: NewMatch[] = pairings.map((p) => ({
     championshipId,
+    categoryId,
     round: p.round,
     phase: 'group' as MatchPhase,
     stage: 1,
@@ -299,8 +324,9 @@ export async function generateKnockout(
   seededTeamIds: string[],
   thirdPlace = false,
   force = false,
+  categoryId?: string,
 ): Promise<void> {
-  await assertRegenerationAllowed(championshipId, force)
+  await assertRegenerationAllowed(championshipId, force, categoryId)
   const size = Math.max(2, nextPowerOfTwo(seededTeamIds.length))
   const padded: (string | null)[] = [...seededTeamIds]
   while (padded.length < size) padded.push(null)
@@ -308,8 +334,14 @@ export async function generateKnockout(
     home: padded[i],
     away: padded[size - 1 - i],
   }))
-  await deleteMatchesOf(championshipId)
-  await bulkInsert(championshipId, plannedToMatches(championshipId, planKnockout(pairs, thirdPlace)))
+  await deleteMatchesOf(championshipId, categoryId)
+  await bulkInsert(
+    championshipId,
+    plannedToMatches(championshipId, planKnockout(pairs, thirdPlace)).map((m) => ({
+      ...m,
+      categoryId,
+    })),
+  )
 }
 
 function nextPowerOfTwo(n: number): number {

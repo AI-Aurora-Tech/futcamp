@@ -38,6 +38,7 @@ export function MatchesPanel({
   matches,
   events = [],
   officials,
+  categoryId,
   onChange,
 }: {
   championship: Championship
@@ -46,6 +47,11 @@ export function MatchesPanel({
   matches: Match[]
   events?: MatchEvent[]
   officials: Official[]
+  /**
+   * Categoria em foco. As partidas geradas nascem nela — é o que separa a
+   * tabela do Sub-11 da do Sub-15, com os seus próprios locais e horários.
+   */
+  categoryId?: string
   onChange: () => void
 }) {
   const { isMaster } = useAuth()
@@ -123,16 +129,16 @@ export function MatchesPanel({
     try {
       const force = isMaster
       if (isKnockout) {
-        await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace, force)
+        await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace, force, categoryId)
       } else if (isGroups) {
         const groups: Record<string, string[]> = {}
         for (const t of teams) {
           const g = t.group || 'A'
           ;(groups[g] ??= []).push(t.id)
         }
-        await generateGroups(championship.id, groups, championship.doubleRound, force)
+        await generateGroups(championship.id, groups, championship.doubleRound, force, categoryId)
       } else {
-        await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound, force)
+        await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound, force, categoryId)
       }
       onChange()
       setScheduling(true) // abre o agendador para informar data/hora jogo a jogo
@@ -272,6 +278,7 @@ export function MatchesPanel({
         <MatchResultModal
           championship={championship}
           match={editing}
+          allMatches={matches}
           teams={teams}
           players={players}
           officials={officials}
