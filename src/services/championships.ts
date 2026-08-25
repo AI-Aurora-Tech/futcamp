@@ -46,7 +46,6 @@ function fromRow(r: any): Championship {
     paymentRef: r.payment_ref ?? undefined,
     paidAt: r.paid_at ?? undefined,
     benchSize: r.bench_size ?? undefined,
-    sendOffPolicy: r.send_off_policy ?? undefined,
     finishedAt: r.finished_at ?? undefined,
     createdAt: r.created_at,
   }
@@ -85,7 +84,6 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.sponsors !== undefined) row.sponsors = c.sponsors
   if (c.plan !== undefined) row.plan = c.plan
   if (c.benchSize !== undefined) row.bench_size = c.benchSize
-  if (c.sendOffPolicy !== undefined) row.send_off_policy = c.sendOffPolicy
   if (c.amountCents !== undefined) row.amount_cents = c.amountCents
   // `payment_status`, `payment_ref` e `paid_at` NÃO são escritos pelo app: quem
   // confirma pagamento é a Edge Function `asaas-webhook` (service role). Um gatilho

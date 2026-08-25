@@ -140,7 +140,6 @@ function champFromRow(r: any): Championship {
     thirdPlace: r.third_place ?? undefined,
     tiebreakers: r.tiebreakers ?? undefined,
     benchSize: r.bench_size ?? undefined,
-    sendOffPolicy: r.send_off_policy ?? undefined,
     createdAt: new Date().toISOString(),
   }
 }

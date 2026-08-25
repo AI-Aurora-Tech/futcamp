@@ -55,6 +55,10 @@ interface CatDraft {
   periods: string
   substitutionMode: '' | SubstitutionMode
   maxSubstitutions: string
+  /** Penalidade da expulsão — cada categoria é um caso. */
+  sendOffPolicy: '' | SendOffPolicy
+  /** Quantas equipes se classificam nesta categoria. */
+  qualifiers: string
   yellowAccumulates: boolean
   yellowsForSuspension: string
   refereeFee: string
@@ -76,6 +80,8 @@ function toDraft(c: Category): CatDraft {
     periods: String(c.periods ?? 2),
     substitutionMode: c.substitutionMode ?? '',
     maxSubstitutions: c.maxSubstitutions != null ? String(c.maxSubstitutions) : '',
+    sendOffPolicy: c.sendOffPolicy ?? '',
+    qualifiers: c.qualifiers != null ? String(c.qualifiers) : '',
     yellowAccumulates: c.yellowAccumulates !== false,
     yellowsForSuspension: c.yellowsForSuspension != null ? String(c.yellowsForSuspension) : '',
     refereeFee: textoDeCentavos(c.refereeFeeCents),
@@ -88,6 +94,7 @@ function emptyDraft(): CatDraft {
     id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
     maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
     periodMinutes: '', periods: '2', substitutionMode: '', maxSubstitutions: '',
+    sendOffPolicy: '', qualifiers: '',
     yellowAccumulates: true, yellowsForSuspension: '3', refereeFee: '', refereePix: '',
   }
 }
@@ -172,13 +179,9 @@ export function ChampionshipForm({
     const existing = initial?.format === 'groups_knockout' ? groupStagesOf(initial) : []
     return existing.length ? existing : [{ id: uid('gs'), numGroups: 2, advancePerGroup: 2 }]
   })
-  const [leagueQualifiers, setLeagueQualifiers] = useState<string>(initial?.leagueQualifiers != null ? String(initial.leagueQualifiers) : '')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
   const [benchSize, setBenchSize] = useState(
     initial?.benchSize != null ? String(initial.benchSize) : '',
-  )
-  const [sendOffPolicy, setSendOffPolicy] = useState<'' | SendOffPolicy>(
-    initial?.sendOffPolicy ?? '',
   )
   const [tiebreakers, setTiebreakers] = useState<TiebreakerId[]>(
     initial?.tiebreakers?.length ? initial.tiebreakers : DEFAULT_TIEBREAKERS,
@@ -244,6 +247,8 @@ export function ChampionshipForm({
             c.substitutionMode === 'limitada' && c.maxSubstitutions
               ? Math.max(1, Number(c.maxSubstitutions))
               : undefined,
+          sendOffPolicy: c.sendOffPolicy || undefined,
+          qualifiers: c.qualifiers ? Math.max(1, Number(c.qualifiers)) : undefined,
           yellowAccumulates: c.yellowAccumulates,
           yellowsForSuspension: c.yellowAccumulates
             ? Math.max(1, Number(c.yellowsForSuspension) || 3)
@@ -261,7 +266,15 @@ export function ChampionshipForm({
   /* ---------------------------------------------------------------------- */
   /* Fases de grupos, critérios de classificação e chaveamento               */
   /* ---------------------------------------------------------------------- */
-  const qualifiersNum = leagueQualifiers ? Number(leagueQualifiers) : 0
+  // A tabela do app é UMA só (categoria separa quem pode ser inscrito, não
+  // competições diferentes). Quando as categorias declaram números diferentes
+  // de classificados, ela segue a primeira — e o formulário avisa qual.
+  const classificadosCats = cats
+    .map((c) => (c.qualifiers ? Number(c.qualifiers) : 0))
+    .filter((n) => n > 0)
+  const qualifiersNum = classificadosCats[0] ?? 0
+  const classificadosDiferem = new Set(classificadosCats).size > 1
+  const catDaTabela = cats.find((c) => Number(c.qualifiers) > 0)
   const hasKnockout =
     format === 'groups_knockout' || (format === 'league' && qualifiersNum >= 2)
   /** O mata-mata é montado com os classificados da ÚLTIMA fase de grupos. */
@@ -378,7 +391,6 @@ export function ChampionshipForm({
       pointsDraw: Number(pointsDraw),
       registrationCutoffHours: Number(cutoffHours),
       benchSize: benchSize ? Math.max(0, Number(benchSize)) : undefined,
-      sendOffPolicy: sendOffPolicy || undefined,
       doubleRound,
       // Campos "legados" espelham a 1ª fase (usados no cadastro/sorteio dos times).
       numGroups: format === 'groups_knockout' ? stages[0].numGroups : undefined,
@@ -389,7 +401,7 @@ export function ChampionshipForm({
         format === 'groups_knockout'
           ? stages.map((s, i) => (i === 0 ? { ...s, doubleRound } : s))
           : undefined,
-      leagueQualifiers: format === 'league' && leagueQualifiers ? Number(leagueQualifiers) : undefined,
+      leagueQualifiers: format === 'league' && qualifiersNum ? qualifiersNum : undefined,
       tiebreakers,
       bracket: hasKnockout ? bracket : undefined,
       thirdPlace: hasKnockout ? thirdPlace : undefined,
@@ -473,6 +485,13 @@ export function ChampionshipForm({
               ? 'Só poderão ser inscritos atletas nascidos no ano informado ou depois (mais novos).'
               : 'Ex.: nascidos em 1979 ou mais velho. A exceção permite N atletas até um ano mais novo (ex.: 3 atletas de 1980 ou mais velho).'}
           </p>
+          {classificadosDiferem && (
+            <p className="field__hint cats__aviso">
+              ⚠️ As categorias classificam números diferentes de equipes. O regulamento traz o
+              número de cada uma; a <b>tabela do app</b> é uma só e vai destacar os{' '}
+              <b>{qualifiersNum} primeiros</b> — o de <b>{catDaTabela?.name || 'primeira categoria'}</b>.
+            </p>
+          )}
           <div className="cats__list">
             {cats.map((c, i) => (
               <div key={c.id} className="cat-card">
@@ -690,6 +709,46 @@ export function ChampionshipForm({
                     </div>
 
                     <div className="cat-regras__linha">
+                      <label className="mini-field mini-field--wide">
+                        <span className="mini-field__label">Se um atleta for expulso</span>
+                        <select
+                          value={c.sendOffPolicy}
+                          onChange={(e) =>
+                            updateCat(c.id, { sendOffPolicy: e.target.value as '' | SendOffPolicy })
+                          }
+                        >
+                          <option value="">Não definido</option>
+                          {Object.entries(SEND_OFF_LABELS).map(([id, label]) => (
+                            <option key={id} value={id}>{label}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    {format !== 'knockout' && (
+                      <div className="cat-regras__linha">
+                        <label className="mini-field">
+                          <span className="mini-field__label">
+                            {format === 'groups_knockout' ? 'Classificados por grupo' : 'Classificados ao mata-mata'}
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={64}
+                            value={c.qualifiers}
+                            onChange={(e) => updateCat(c.id, { qualifiers: e.target.value })}
+                            placeholder={format === 'groups_knockout' ? 'Ex.: 2' : 'Ex.: 8'}
+                          />
+                          <small className="mini-field__hint">
+                            {format === 'groups_knockout'
+                              ? 'quantas equipes avançam de cada grupo'
+                              : 'primeiras colocadas que avançam'}
+                          </small>
+                        </label>
+                      </div>
+                    )}
+
+                    <div className="cat-regras__linha">
                       <label className="mini-field">
                         <span className="mini-field__label">Valor da arbitragem</span>
                         <input
@@ -836,9 +895,10 @@ export function ChampionshipForm({
         )}
 
         {format === 'league' && (
-          <Field label="Quantos se classificam (opcional)" hint="Nº de times no topo da tabela que avançam. Deixe em branco para não destacar.">
-            <input type="number" min={1} max={64} value={leagueQualifiers} onChange={(e) => setLeagueQualifiers(e.target.value)} placeholder="ex.: 8" />
-          </Field>
+          <p className="field__hint">
+            🏁 <b>Quantos se classificam</b> agora é definido em cada categoria, no bloco
+            “Regras de jogo”. A forma de disputa acima vale para todas.
+          </p>
         )}
 
         {format !== 'knockout' && (
@@ -985,32 +1045,19 @@ export function ChampionshipForm({
           </label>
         )}
 
-        <div className="form-row">
-          <Field
-            label="Atletas no banco de reservas"
-            hint="Entra no regulamento: “Poderá ficar no banco de reservas até X atletas devidamente uniformizados.” Em branco = não definido."
-          >
-            <input
-              type="number"
-              min={0}
-              max={30}
-              value={benchSize}
-              onChange={(e) => setBenchSize(e.target.value)}
-              placeholder="Ex.: 7"
-            />
-          </Field>
-          <Field label="Se um atleta for expulso" hint="Vale para todas as categorias do campeonato.">
-            <select
-              value={sendOffPolicy}
-              onChange={(e) => setSendOffPolicy(e.target.value as '' | SendOffPolicy)}
-            >
-              <option value="">Não definido</option>
-              {Object.entries(SEND_OFF_LABELS).map(([id, label]) => (
-                <option key={id} value={id}>{label}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
+        <Field
+          label="Atletas no banco de reservas"
+          hint="Entra no regulamento: “Poderá ficar no banco de reservas até X atletas devidamente uniformizados.” Em branco = não definido."
+        >
+          <input
+            type="number"
+            min={0}
+            max={30}
+            value={benchSize}
+            onChange={(e) => setBenchSize(e.target.value)}
+            placeholder="Ex.: 7"
+          />
+        </Field>
 
         <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições de um time encerram este tempo antes da partida e reabrem após o jogo ser finalizado. Use 0 para não limitar.">
           <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />

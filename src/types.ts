@@ -77,6 +77,18 @@ export interface Category {
   yellowAccumulates?: boolean
   /** Quantos amarelos suspendem, quando acumulam (padrão 3). */
   yellowsForSuspension?: number
+  /**
+   * Penalidade da expulsão NESTA categoria: seguir com um atleta a menos ou
+   * substituir o expulso. Cada categoria é um caso — o que vale no Sub-11
+   * raramente vale no adulto.
+   */
+  sendOffPolicy?: SendOffPolicy
+  /**
+   * Quantas equipes se classificam nesta categoria. O que o número significa
+   * depende do formato, que é o mesmo para todas: nos pontos corridos são os
+   * primeiros da tabela; em grupos + mata-mata, quantos avançam POR GRUPO.
+   */
+  qualifiers?: number
   /** Valor da arbitragem por partida, em centavos. */
   refereeFeeCents?: number
   /** Chave PIX para o pagamento da arbitragem. */
@@ -300,8 +312,6 @@ export interface Championship {
    * uniformizados. Vale para o campeonato inteiro.
    */
   benchSize?: number
-  /** Penalidade da expulsão: um a menos em campo ou substituição do expulso. */
-  sendOffPolicy?: SendOffPolicy
   /**
    * Momento em que o campeonato foi encerrado. Preenchido automaticamente na
    * troca de status — é o que mantém o campeão na vitrine pública pelos dias

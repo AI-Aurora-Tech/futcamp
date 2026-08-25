@@ -633,6 +633,12 @@ table { border-collapse: collapse; width: 100%; }
    federados). */
 .cat-regras__check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; line-height: 1.3; }
 .cat-regras__check input[type='checkbox'] { width: 16px; height: 16px; flex: none; accent-color: var(--brand); }
+/* Aviso de que a tabela do app é uma só quando as categorias classificam
+   números diferentes — o regulamento traz o de cada uma. */
+.cats__aviso {
+  background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem; margin: 0.2rem 0 0.6rem; line-height: 1.45;
+}
 .link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
 .link-btn--add:hover { color: var(--brand); }
 

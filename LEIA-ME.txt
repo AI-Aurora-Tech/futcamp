@@ -1,78 +1,68 @@
-Tabelaço — regras de jogo no cadastro + cláusulas fixas no regulamento
-======================================================================
+Tabelaço — expulsão e classificados por categoria
+==================================================
 
-ATENÇÃO À ORDEM DOS PACOTES
-Este pacote inclui registration.ts, que também mudou no pacote do LOGIN
-POR E-MAIL. Aplique naquela ordem:
-   1) tabelaco-login-time.zip
-   2) tabelaco-suporte.zip
-   3) este
-Os arquivos aqui já trazem tudo o que veio antes.
+Continuação do pacote anterior (tabelaco-regras-jogo.zip). Aplique
+aquele primeiro; os arquivos daqui já trazem as duas mudanças.
 
-1) BANCO — Supabase → SQL Editor → cole e execute:
+1) BANCO — Supabase → SQL Editor:
 
-     supabase/migrations/0029_game_rules.sql
+     supabase/migrations/0030_send_off_per_category.sql
 
-   Idempotente: pode rodar de novo sem medo.
+   Rode DEPOIS da 0029. Idempotente.
 
 2) FRONT — copie por cima, mantendo os caminhos:
 
      src/types.ts
      src/index.css
-     src/lib/regras.ts                    (NOVO)
+     src/lib/regras.ts
      src/lib/regulamento.ts
-     src/lib/discipline.ts
-     src/lib/pdf.ts
      src/services/championships.ts
      src/services/registration.ts
      src/components/ChampionshipForm.tsx
-     src/components/StatsPanel.tsx
-     src/components/ManageChampionship.tsx
-     src/components/PublicChampionship.tsx
 
    Depois: npm run build
 
 
-O QUE ENTRA NO FORMULÁRIO
--------------------------
-POR CATEGORIA (bloco "⏱ Regras de jogo" dentro de cada categoria):
-  • Tempo de jogo — minutos de cada tempo + quantos tempos (mostra o
-    total calculado ao lado).
-  • Substituições — rotativa (livre) ou com limite; escolhendo limite,
-    aparece o campo "quantas por partida".
-  • Cartão amarelo — acumula? Se sim, quantos suspendem (padrão 3).
-  • Arbitragem — valor por partida e a chave PIX de recebimento.
+O QUE MUDA
+----------
+• "Se um atleta for expulso" saiu do nível do campeonato e entrou no
+  bloco "Regras de jogo" de CADA categoria.
 
-DO CAMPEONATO INTEIRO (perto do prazo de inscrição):
-  • Atletas no banco de reservas.
-  • Se um atleta for expulso: equipe com um a menos OU substitui.
+• "Quantos se classificam" saiu da seção de formato e também entrou na
+  categoria. O rótulo acompanha o formato escolhido:
+     Pontos corridos      → "Classificados ao mata-mata"
+     Grupos + mata-mata   → "Classificados por grupo"
+     Mata-mata puro       → o campo nem aparece
 
+• A FORMA DE DISPUTA continua sendo do campeonato, igual para todas as
+  categorias — como você pediu.
 
-NO REGULAMENTO
---------------
-Tudo isso vira seção do PDF, com uma linha por categoria. O arquivo
-exemplo-regulamento.pdf, aqui no pacote, é um regulamento completo
-gerado com 4 categorias — vale a pena abrir antes de subir.
-
-Campo deixado em branco NÃO vira frase inventada: a seção some inteira e
-a numeração se refaz sozinha. Um regulamento que afirma "2 tempos de 25
-minutos" num campeonato onde ninguém definiu o tempo é pior do que um
-que não fala do assunto.
-
-CLÁUSULAS FIXAS — entram em TODO campeonato, sem depender do cadastro:
-tolerância e W.O., troca de uniforme, bola de jogo, agressão e
-discriminação, o protocolo de três etapas para racismo, punições
-esportivas e responsabilidade legal.
-
-Sobre o texto delas: mantive a redação e o conteúdo que você mandou,
-corrigindo só acentuação e concordância ("devera" → "deverá", "tera" →
-"terá") e uma troca: "perca de 03 pontos" → "perda de 03 pontos". É um
-documento que as equipes leem e guardam.
+• O banco de reservas continua do campeonato (você não pediu para mover,
+  e a frase do regulamento tem um X só).
 
 
-MUDANÇA DE COMPORTAMENTO
-------------------------
-A suspensão automática por cartão amarelo deixou de ser 3 fixo. Agora
-segue a categoria em que o atleta está inscrito, e respeita a categoria
-que desliga o acúmulo. Atleta sem categoria e cartão de banco continuam
-no costume (3), como antes.
+UM PONTO QUE VOCÊ PRECISA SABER
+-------------------------------
+A tabela de classificação do app é UMA só por campeonato. No modelo
+atual, categoria separa QUEM PODE SER INSCRITO — não são competições
+com tabelas separadas.
+
+Então, se as categorias classificarem números diferentes, o regulamento
+sai certo (o número de cada uma), mas a tabela do app precisa escolher
+um: ela usa o da primeira categoria que declarou, e o formulário mostra
+um aviso amarelo dizendo qual, com nome e número. Nada fica escondido.
+
+Se você quiser tabela e mata-mata SEPARADOS por categoria, isso é uma
+mudança grande no app (partidas passariam a ter categoria) — me avise
+que eu levanto o que envolve antes de mexer.
+
+
+CONFERÊNCIA
+-----------
+exemplo-regulamento.pdf foi gerado com 4 categorias declarando expulsões
+e classificados diferentes — veja as seções "Dos classificados" e "Da
+disciplina".
+
+A migration tem teste próprio: a suíte recria o estado anterior (coluna
+preenchida) e roda a 0030 de novo, para provar que a penalidade já
+configurada é COPIADA para as categorias em vez de sumir com a coluna.

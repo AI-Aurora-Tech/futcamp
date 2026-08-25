@@ -94,18 +94,60 @@ export function descreverBanco(c: Pick<Championship, 'benchSize'>): string {
   return `Poderá ficar no banco de reservas até ${n} atletas devidamente uniformizados.`
 }
 
-/** O que acontece com a equipe quando um atleta é expulso. */
-export function descreverExpulsao(c: Pick<Championship, 'sendOffPolicy'>): string {
-  const p = c.sendOffPolicy
+/**
+ * O que acontece com a equipe quando um atleta é expulso NESTA categoria.
+ * Cada categoria é um caso: o que vale no Sub-11 raramente vale no adulto.
+ */
+export function descreverExpulsao(cat: Category | null | undefined): string {
+  const p = cat?.sendOffPolicy
   if (!p) return ''
   return p === 'menos_um'
-    ? 'O atleta expulso não pode ser substituído: a equipe segue a partida com um atleta a menos.'
-    : 'A equipe pode substituir o atleta expulso, mantendo o número de atletas em campo. O expulso está fora da partida.'
+    ? 'o atleta expulso não pode ser substituído — a equipe segue a partida com um atleta a menos'
+    : 'a equipe pode substituir o atleta expulso, mantendo o número de atletas em campo; o expulso está fora da partida'
 }
 
 /** Rótulo pronto da penalidade, para telas e resumos. */
-export function rotuloExpulsao(c: Pick<Championship, 'sendOffPolicy'>): string {
-  return c.sendOffPolicy ? SEND_OFF_LABELS[c.sendOffPolicy] : ''
+export function rotuloExpulsao(cat: Category | null | undefined): string {
+  return cat?.sendOffPolicy ? SEND_OFF_LABELS[cat.sendOffPolicy] : ''
+}
+
+/**
+ * Quantas equipes se classificam nesta categoria.
+ *
+ * O formato é o mesmo para todas as categorias — é o número que muda. O texto
+ * acompanha o formato porque "4 classificados" quer dizer coisas diferentes
+ * em pontos corridos e em grupos.
+ */
+export function descreverClassificados(
+  c: Pick<Championship, 'format'>,
+  cat: Category | null | undefined,
+): string {
+  const n = cat?.qualifiers
+  if (!n || n <= 0) return ''
+  if (c.format === 'groups_knockout') {
+    return `classificam-se ${n} equipe(s) por grupo para o mata-mata`
+  }
+  if (c.format === 'knockout') return ''
+  return `classificam-se as ${n} primeiras colocadas para o mata-mata`
+}
+
+/**
+ * O número que a TABELA do app usa nos pontos corridos.
+ *
+ * A tabela do campeonato é uma só — categorias, no app, separam quem pode ser
+ * inscrito, não competições diferentes. Quando as categorias declaram números
+ * diferentes, a tabela segue a primeira que declarou; o regulamento continua
+ * trazendo o de cada uma.
+ */
+export function classificadosDaTabela(cats: Category[] | null | undefined): number | undefined {
+  const declarados = (cats ?? []).map((c) => c.qualifiers).filter((n): n is number => !!n && n > 0)
+  return declarados[0]
+}
+
+/** As categorias discordam sobre quantos se classificam? */
+export function classificadosDivergem(cats: Category[] | null | undefined): boolean {
+  const declarados = (cats ?? []).map((c) => c.qualifiers).filter((n): n is number => !!n && n > 0)
+  return new Set(declarados).size > 1
 }
 
 /** Alguma categoria definiu alguma regra de jogo? */
@@ -115,6 +157,8 @@ export function temRegrasDeJogo(cats: Category[] | null | undefined): boolean {
       Boolean(c.periodMinutes) ||
       Boolean(c.substitutionMode) ||
       c.yellowAccumulates !== undefined ||
+      Boolean(c.sendOffPolicy) ||
+      Boolean(c.qualifiers) ||
       Boolean(c.refereeFeeCents) ||
       Boolean((c.refereePix ?? '').trim()),
   )

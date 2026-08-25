@@ -28,6 +28,7 @@ import {
   descreverAmarelos,
   descreverArbitragem,
   descreverBanco,
+  descreverClassificados,
   descreverExpulsao,
   descreverSubstituicoes,
   descreverTempo,
@@ -98,21 +99,19 @@ function maiuscula(frase: string): string {
 
 /** Descreve o formato da competição em uma frase que um leigo entende. */
 export function descreverFormato(c: Championship): string {
+  // A forma de disputa é a MESMA para todas as categorias — o que muda de uma
+  // para outra é quantas equipes se classificam, e isso tem seção própria.
   const nome = FORMAT_LABELS[c.format] ?? c.format
   if (c.format === 'league') {
     const turno = c.doubleRound ? 'turno e returno (todos se enfrentam duas vezes)' : 'turno único (todos se enfrentam uma vez)'
-    const classificados = c.leagueQualifiers
-      ? ` Os ${c.leagueQualifiers} primeiros avançam ao mata-mata.`
-      : ''
-    return `${nome}, em ${turno}.${classificados}`
+    return `${nome}, em ${turno}.`
   }
   if (c.format === 'knockout') {
     return `${nome}: quem perde está eliminado.${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
   }
   const grupos = c.numGroups ? `${c.numGroups} grupo(s)` : 'grupos'
   const porGrupo = c.teamsPerGroup ? ` de ${c.teamsPerGroup} equipes` : ''
-  const avancam = c.advancePerGroup ? `, classificando ${c.advancePerGroup} por grupo` : ''
-  return `${nome}: fase de ${grupos}${porGrupo}${avancam}, seguida de mata-mata.${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
+  return `${nome}: fase de ${grupos}${porGrupo}, seguida de mata-mata.${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
 }
 
 /** Prazo de inscrição em texto. */
@@ -253,7 +252,6 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
   )
 
   const banco = descreverBanco(c)
-  const expulsao = descreverExpulsao(c)
 
   linhas.push(
     ...renderizar([
@@ -295,6 +293,13 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
         itens: [banco, ...porCategoria(cats, descreverSubstituicoes)],
       },
       {
+        titulo: 'Dos classificados',
+        intro: cats.length > 1
+          ? 'A forma de disputa é a mesma para todas as categorias; o número de classificados é de cada uma:'
+          : undefined,
+        itens: porCategoria(cats, (cat) => descreverClassificados(c, cat)),
+      },
+      {
         titulo: 'Da pontuação',
         itens: [
           `Vitória: ${c.pointsWin ?? 3} ponto(s).`,
@@ -320,7 +325,12 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
         : []),
       {
         titulo: 'Da disciplina',
-        itens: [expulsao, ...porCategoria(cats, descreverAmarelos)],
+        // Expulsão e acúmulo de amarelo são regra DE CATEGORIA: cada uma é um
+        // caso, e a linha diz de qual categoria está falando.
+        itens: [
+          ...porCategoria(cats, descreverExpulsao),
+          ...porCategoria(cats, descreverAmarelos),
+        ],
       },
       {
         titulo: 'Da arbitragem',
