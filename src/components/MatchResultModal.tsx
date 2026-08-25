@@ -190,6 +190,9 @@ export function MatchResultModal({
     patch.incidents = incidents.trim() || undefined
     setBusy(true)
     await w.updateMatch(match.id, patch)
+    // Encerrar a partida enfileira, de uma vez, o resultado, o resumo de cada
+    // equipe, as suspensões e — se a rodada fechou — a classificação.
+    if (newStatus === 'finished') void flushPush(match.championshipId)
     setBusy(false)
     onSaved()
   }

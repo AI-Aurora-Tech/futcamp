@@ -421,6 +421,215 @@ select pg_temp.checa('o app não se promove escrevendo direto na tabela',
 reset request.jwt.claim.sub;
 
 -- ===========================================================================
+-- Categoria como competição (0033)
+-- ===========================================================================
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+
+-- A CONVERSÃO. As migrations rodam antes do cenário, então aqui o estado
+-- "antes" é recriado de propósito e a migration roda de novo — é o único jeito
+-- de provar que um campeonato que já existia não fica para trás.
+insert into public.matches (id, championship_id, round, home_team_id)
+values ('cccccccc-cccc-cccc-cccc-cccccccccccc', '22222222-2222-2222-2222-222222222222', 1,
+        '33333333-3333-3333-3333-333333333333');
+update public.matches set category_id = null
+ where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+delete from public.team_categories
+ where team_id = '33333333-3333-3333-3333-333333333333';
+
+\i :raiz/supabase/migrations/0033_categoria_como_competicao.sql
+
+select pg_temp.checa('partida antiga ganhou a 1ª categoria',
+  (select category_id from matches where id = 'cccccccc-cccc-cccc-cccc-cccccccccccc') = 'cat1');
+select pg_temp.checa('clube antigo foi inscrito na 1ª categoria',
+  exists (select 1 from team_categories
+           where team_id = '33333333-3333-3333-3333-333333333333'
+             and category_id = 'cat1'));
+select pg_temp.checa('e rodar a migration de novo não duplica inscrição',
+  (select count(*) from team_categories
+    where team_id = '33333333-3333-3333-3333-333333333333') = 1);
+
+-- Campeonato de três categorias, do organizador logado.
+insert into public.championships (id, owner_id, name, sport, format, season, plan, status, categories)
+values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111',
+        'Copa de Base', 'futebol', 'league', '2026', 'ouro', 'active',
+        '[{"id":"s11","name":"Sub-11"},{"id":"s13","name":"Sub-13"},{"id":"s15","name":"Sub-15"}]'::jsonb);
+
+insert into public.teams (id, championship_id, name)
+values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Leões FC');
+
+-- O MESMO clube em duas categorias, em grupos diferentes.
+insert into public.team_categories (team_id, championship_id, category_id, "group") values
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11', 'A'),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's15', 'C');
+
+select pg_temp.checa('um clube, duas inscrições',
+  (select count(*) from team_categories
+    where team_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') = 2);
+select pg_temp.checa('e grupos diferentes em cada categoria',
+  (select "group" from team_categories
+    where team_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' and category_id = 's11') = 'A'
+  and (select "group" from team_categories
+        where team_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' and category_id = 's15') = 'C');
+select pg_temp.recusa('a mesma inscrição não entra duas vezes',
+  $q$ insert into public.team_categories (team_id, championship_id, category_id)
+      values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11') $q$,
+  'duplicate key');
+
+-- O clube conta UMA vez no limite do plano, jogue em quantas categorias for.
+select pg_temp.checa('o limite do plano conta clubes, não inscrições',
+  (select count(*) from teams where championship_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') = 1);
+
+-- Partidas separadas por categoria.
+insert into public.matches (championship_id, category_id, round, home_team_id, away_team_id)
+values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11', 1, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', null),
+       ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11', 2, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', null),
+       ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's15', 1, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', null);
+select pg_temp.checa('a tabela do Sub-11 tem 2 jogos',
+  (select count(*) from matches
+    where championship_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and category_id = 's11') = 2);
+select pg_temp.checa('e a do Sub-15 tem 1, sem se misturarem',
+  (select count(*) from matches
+    where championship_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and category_id = 's15') = 1);
+
+-- Situação por categoria: começam e terminam em datas diferentes.
+select pg_temp.checa('categoria herda a situação do campeonato',
+  public.categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11') = 'active');
+select public.set_categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11', 'finished') as _;
+select pg_temp.checa('encerrar o Sub-11 vale só para ele',
+  public.categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11') = 'finished');
+select pg_temp.checa('o Sub-15 continua em andamento',
+  public.categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's15') = 'active');
+select pg_temp.checa('e o encerramento fica datado',
+  (select cat->>'finishedAt' is not null
+     from championships c, lateral jsonb_array_elements(c.categories) cat
+    where c.id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and cat->>'id' = 's11'));
+
+-- Mexer numa categoria não pode apagar as regras das outras.
+select public.set_categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's13', 'active') as _;
+select pg_temp.checa('as três categorias continuam lá, na ordem',
+  (select string_agg(cat->>'id', ',' order by ord)
+     from championships c,
+          lateral jsonb_array_elements(c.categories) with ordinality as t(cat, ord)
+    where c.id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') = 's11,s13,s15');
+
+select pg_temp.recusa('situação inventada é recusada',
+  $q$ select public.set_categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11', 'pausado') $q$,
+  'Situação desconhecida');
+select pg_temp.recusa('campeonato alheio não muda de situação',
+  $q$ select public.set_categoria_status('88888888-8888-8888-8888-888888888888', 'c1', 'finished') $q$,
+  'Somente o organizador');
+
+-- Reabrir volta a situação e limpa a data.
+select public.set_categoria_status('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 's11', 'active') as _;
+select pg_temp.checa('reabrir limpa a data de encerramento',
+  (select cat->>'finishedAt' is null
+     from championships c, lateral jsonb_array_elements(c.categories) cat
+    where c.id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' and cat->>'id' = 's11'));
+
+-- Excluir o clube leva junto as inscrições dele.
+delete from public.teams where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+select pg_temp.checa('excluir o clube apaga as inscrições',
+  (select count(*) from team_categories
+    where team_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb') = 0);
+reset request.jwt.claim.sub;
+
+-- ===========================================================================
+-- Links de inscrição com escopo de categoria (0034)
+-- ===========================================================================
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111',
+        'Copa dos Links', 'futebol', 'league', '2026', 'ouro',
+        '[{"id":"s11","name":"Sub-11"},{"id":"s13","name":"Sub-13"},{"id":"s15","name":"Sub-15"}]'::jsonb);
+
+-- Os links são criados ANTES de serem consultados, de propósito:
+-- `champ_invite_scope` é `stable` e, dentro de um mesmo comando, não enxerga a
+-- linha que a função volátil acabou de inserir. No app são duas idas ao
+-- servidor, então isso não aparece — mas o teste precisa respeitar a regra.
+select public.ensure_champ_team_invite('dddddddd-dddd-dddd-dddd-dddddddddddd') as _;
+select public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s13']) as _;
+
+select pg_temp.checa('link aberto libera as três categorias',
+  jsonb_array_length(public.champ_invite_scope(
+    'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    (select token from champ_team_invites
+      where championship_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd' and categories is null))) = 3);
+
+select pg_temp.checa('pedir o link aberto duas vezes devolve o mesmo',
+  public.ensure_champ_team_invite('dddddddd-dddd-dddd-dddd-dddddddddddd')
+  = public.ensure_champ_team_invite('dddddddd-dddd-dddd-dddd-dddddddddddd'));
+
+-- O link DIRECIONADO libera só a sua.
+select pg_temp.checa('link do Sub-13 libera só o Sub-13',
+  public.champ_invite_scope(
+    'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    (select token from champ_team_invites
+      where championship_id = 'dddddddd-dddd-dddd-dddd-dddddddddddd' and categories = array['s13']))
+  = '["s13"]'::jsonb);
+
+select pg_temp.checa('o mesmo escopo devolve sempre o mesmo link',
+  public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s13'])
+  = public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s13']));
+
+select pg_temp.checa('a ordem das categorias não cria link novo',
+  public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s11','s15'])
+  = public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s15','s11']));
+
+select pg_temp.checa('e o link aberto é diferente do direcionado',
+  public.ensure_champ_team_invite('dddddddd-dddd-dddd-dddd-dddddddddddd')
+  <> public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s13']));
+
+select pg_temp.recusa('não dá para criar link de categoria que não existe',
+  $q$ select public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s99']) $q$,
+  'Categoria inexistente');
+
+-- Criar time pelo link direcionado inscreve SÓ naquela categoria.
+select public.create_team_via_invite(
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s13']),
+  'Time do Sub-13', null, null, null, null, null, null, null) as _;
+select pg_temp.checa('time do link direcionado entra só no Sub-13',
+  (select array_agg(tc.category_id) from team_categories tc
+     join teams t on t.id = tc.team_id
+    where t.name = 'Time do Sub-13') = array['s13']);
+
+-- Pelo link aberto, o responsável escolhe.
+select public.create_team_via_invite(
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  public.ensure_champ_team_invite('dddddddd-dddd-dddd-dddd-dddddddddddd'),
+  'Time de Duas', null, null, null, null, null, null, array['s11','s15']) as _;
+select pg_temp.checa('pelo link aberto o time entra nas que escolheu',
+  (select count(*) from team_categories tc join teams t on t.id = tc.team_id
+    where t.name = 'Time de Duas') = 2);
+
+-- Sem escolha, o link aberto inscreve em todas.
+select public.create_team_via_invite(
+  'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  public.ensure_champ_team_invite('dddddddd-dddd-dddd-dddd-dddddddddddd'),
+  'Time de Todas', null, null, null, null, null, null, null) as _;
+select pg_temp.checa('sem escolher, o link aberto inscreve em todas',
+  (select count(*) from team_categories tc join teams t on t.id = tc.team_id
+    where t.name = 'Time de Todas') = 3);
+
+-- A trava que importa: o escopo do link não pode ser furado pelo navegador.
+select pg_temp.recusa('link do Sub-13 não inscreve no Sub-17',
+  $q$ select public.create_team_via_invite(
+        'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        public.ensure_champ_category_invite('dddddddd-dddd-dddd-dddd-dddddddddddd', array['s13']),
+        'Time Espertinho', null, null, null, null, null, null, array['s15']) $q$,
+  'não dá acesso a essa categoria');
+select pg_temp.checa('e o time espertinho não foi criado',
+  not exists (select 1 from teams where name = 'Time Espertinho'));
+
+select pg_temp.recusa('token inventado não cria time',
+  $q$ select public.create_team_via_invite('dddddddd-dddd-dddd-dddd-dddddddddddd',
+        'token-falso', 'Fantasma', null, null, null, null, null, null, null) $q$,
+  'Link de criação inválido');
+
+reset request.jwt.claim.sub;
+
+-- ===========================================================================
 -- Exclusão de campeonato com notificações (0024)
 -- ===========================================================================
 insert into public.push_outbox (championship_id, audience, title, body)
@@ -442,3 +651,201 @@ update public.championships set payment_status = 'pending' where id = '44444444-
 select public.master_release_championship('44444444-4444-4444-4444-444444444444', 'recebido em dinheiro');
 select pg_temp.checa('master libera e registra o motivo',
   (select payment_ref from championships where id = '44444444-4444-4444-4444-444444444444') = 'recebido em dinheiro');
+
+-- ===========================================================================
+-- Avisos que a equipe recebe (0035)
+--
+-- Um campeonato próprio, com duas categorias, para conferir que o recorte por
+-- categoria vale e que cada aviso vai só para quem tem que receber.
+-- ===========================================================================
+\set av 'aa000000-0000-0000-0000-000000000001'
+\set leo '5a000000-0000-0000-0000-000000000001'
+\set tig '5a000000-0000-0000-0000-000000000002'
+\set agu '5a000000-0000-0000-0000-000000000003'
+\set gav '5a000000-0000-0000-0000-000000000004'
+
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'av', '11111111-1111-1111-1111-111111111111', 'Copa dos Avisos', 'futebol', 'league',
+        '2026', 'gratis',
+        '[{"id":"s11","name":"Sub-11","yellowsForSuspension":3},{"id":"s15","name":"Sub-15"}]'::jsonb);
+
+insert into public.teams (id, championship_id, name) values
+  (:'leo', :'av', 'Leões'), (:'tig', :'av', 'Tigres'),
+  (:'agu', :'av', 'Águias'), (:'gav', :'av', 'Gaviões');
+
+-- Leões e Tigres jogam o Sub-11; Águias e Gaviões, o Sub-15.
+insert into public.team_categories (team_id, championship_id, category_id) values
+  (:'leo', :'av', 's11'), (:'tig', :'av', 's11'),
+  (:'agu', :'av', 's15'), (:'gav', :'av', 's15');
+
+insert into public.players (id, team_id, championship_id, name) values
+  ('5b000000-0000-0000-0000-000000000001', :'leo', :'av', 'João'),
+  ('5b000000-0000-0000-0000-000000000002', :'leo', :'av', 'Pedro'),
+  ('5b000000-0000-0000-0000-000000000003', :'tig', :'av', 'Rafael');
+
+-- --------------------------------------------------------------------------
+-- Aviso 1 — jogo marcado
+-- --------------------------------------------------------------------------
+-- Nasce SEM data, como na geração da tabela: não pode avisar nada ainda.
+insert into public.matches (id, championship_id, category_id, round, phase, home_team_id, away_team_id)
+values ('5c000000-0000-0000-0000-000000000001', :'av', 's11', 1, 'group', :'leo', :'tig');
+
+select pg_temp.checa('tabela gerada sem data não avisa',
+  not exists (select 1 from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001'));
+
+update public.matches
+   set scheduled_at = '2026-09-12 18:00:00+00', venue = 'Campo do Bairro'
+ where id = '5c000000-0000-0000-0000-000000000001';
+
+select pg_temp.checa('marcar o jogo avisa os dois times',
+  (select target_teams from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001')
+   @> array[:'leo', :'tig']::uuid[]);
+select pg_temp.checa('  com categoria, data, hora e local',
+  (select body from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001')
+   = 'Sub-11 · Leões × Tigres · sáb 12/09 às 15:00 · Campo do Bairro');
+select pg_temp.checa('  e carimba a categoria no aviso',
+  (select category_id from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001') = 's11');
+
+-- Remarcar antes da entrega não vira um segundo aviso.
+update public.matches set scheduled_at = '2026-09-13 14:00:00+00'
+ where id = '5c000000-0000-0000-0000-000000000001';
+select pg_temp.checa('remarcar antes da entrega não duplica',
+  (select count(*) from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001') = 1);
+select pg_temp.checa('  e o aviso passa a dizer "remarcado"',
+  (select title from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001')
+   = '📅 Jogo remarcado');
+
+-- Mexer no que não interessa (placar parcial) não avisa de novo.
+update public.matches set incidents = 'chuva' where id = '5c000000-0000-0000-0000-000000000001';
+select pg_temp.checa('mudança irrelevante não gera aviso',
+  (select count(*) from push_outbox where dedupe_key = 'jogo:5c000000-0000-0000-0000-000000000001') = 1);
+
+-- --------------------------------------------------------------------------
+-- Aviso 2 — faltam 2 dias
+-- --------------------------------------------------------------------------
+insert into public.matches (id, championship_id, category_id, round, phase,
+                            home_team_id, away_team_id, scheduled_at, venue)
+values ('5c000000-0000-0000-0000-000000000002', :'av', 's11', 2, 'group', :'tig', :'leo',
+        now() + interval '30 hours', 'Ginásio');
+insert into public.matches (id, championship_id, category_id, round, phase,
+                            home_team_id, away_team_id, scheduled_at)
+values ('5c000000-0000-0000-0000-000000000003', :'av', 's15', 1, 'group', :'agu', :'gav',
+        now() + interval '10 days');
+
+select pg_temp.checa('lembrete só do jogo dentro das 48h',
+  public.push_gerar_lembretes() = 1);
+select pg_temp.checa('  e é o jogo certo',
+  exists (select 1 from push_outbox
+           where dedupe_key = 'lembrete:5c000000-0000-0000-0000-000000000002'
+             and title = '⏰ Seu jogo é daqui a 2 dias'));
+select pg_temp.checa('rodar de novo não repete o lembrete',
+  public.push_gerar_lembretes() = 0);
+
+-- --------------------------------------------------------------------------
+-- Aviso 6 — gol com o autor, e o placar contado dos eventos
+-- --------------------------------------------------------------------------
+insert into public.match_events (match_id, championship_id, team_id, player_id, type, minute)
+values ('5c000000-0000-0000-0000-000000000001', :'av', :'leo',
+        '5b000000-0000-0000-0000-000000000001', 'goal', 12);
+
+select pg_temp.checa('o gol nomeia quem fez e conta o placar dos eventos',
+  (select body from push_outbox where title like '⚽ Gol%' order by id desc limit 1)
+   = 'Leões 1 × 0 Tigres — gol de João 12''');
+select pg_temp.checa('  e vai só para os dois times em campo',
+  (select array_length(target_teams, 1) from push_outbox where title like '⚽ Gol%' order by id desc limit 1) = 2);
+
+insert into public.match_events (match_id, championship_id, team_id, player_id, type, minute)
+values ('5c000000-0000-0000-0000-000000000001', :'av', :'tig',
+        '5b000000-0000-0000-0000-000000000003', 'goal', 40);
+select pg_temp.checa('o segundo gol atualiza o placar',
+  (select body from push_outbox where title like '⚽ Gol%' order by id desc limit 1)
+   = 'Leões 1 × 1 Tigres — gol de Rafael 40''');
+
+-- --------------------------------------------------------------------------
+-- Avisos 3, 5 e 7 — suspensão, resultado e resumo
+-- --------------------------------------------------------------------------
+-- João leva o 3º amarelo (todos nesta partida) e Rafael, vermelho.
+insert into public.match_events (match_id, championship_id, team_id, player_id, type)
+select '5c000000-0000-0000-0000-000000000001', :'av', :'leo',
+       '5b000000-0000-0000-0000-000000000001', 'yellow_card'
+  from generate_series(1, 3);
+insert into public.match_events (match_id, championship_id, team_id, player_id, type)
+values ('5c000000-0000-0000-0000-000000000001', :'av', :'tig',
+        '5b000000-0000-0000-0000-000000000003', 'red_card');
+
+update public.matches set home_score = 2, away_score = 1, status = 'finished'
+ where id = '5c000000-0000-0000-0000-000000000001';
+
+select pg_temp.checa('vermelho suspende e avisa o time do atleta',
+  exists (select 1 from push_outbox
+           where title = '🟥 Suspensão automática'
+             and body = 'Rafael levou cartão vermelho e não joga a próxima partida.'
+             and target_teams = array[:'tig']::uuid[]));
+select pg_temp.checa('3º amarelo suspende e avisa o time do atleta',
+  exists (select 1 from push_outbox
+           where title = '🟨 Suspensão por cartões'
+             and body = 'João completou 3 amarelos e não joga a próxima partida.'
+             and target_teams = array[:'leo']::uuid[]));
+
+select pg_temp.checa('o resumo sai um para cada equipe',
+  (select count(*) from push_outbox where dedupe_key like 'resumo:5c000000-0000-0000-0000-000000000001:%') = 2);
+select pg_temp.checa('  para quem ganhou, vitória',
+  (select title from push_outbox
+    where dedupe_key = 'resumo:5c000000-0000-0000-0000-000000000001:' || :'leo')
+   = '🏆 Vitória — Leões 2 × 1 Tigres');
+select pg_temp.checa('  para quem perdeu, derrota',
+  (select title from push_outbox
+    where dedupe_key = 'resumo:5c000000-0000-0000-0000-000000000001:' || :'tig')
+   = '🏁 Derrota — Tigres 1 × 2 Leões');
+select pg_temp.checa('  com os gols da própria equipe e os cartões',
+  (select body from push_outbox
+    where dedupe_key = 'resumo:5c000000-0000-0000-0000-000000000001:' || :'leo')
+   like 'Sub-11 · Gols: João (12'') · 3 amarelo(s) · Próximo:%');
+select pg_temp.checa('  e o próximo compromisso da equipe',
+  (select body from push_outbox
+    where dedupe_key = 'resumo:5c000000-0000-0000-0000-000000000001:' || :'leo')
+   like '%contra Tigres');
+
+-- --------------------------------------------------------------------------
+-- Aviso 4 — classificação quando a rodada fecha
+-- --------------------------------------------------------------------------
+select pg_temp.checa('rodada 1 do Sub-11 fechou e a classificação saiu',
+  exists (select 1 from push_outbox
+           where dedupe_key = 'classif:' || :'av' || ':s11:1'
+             and title = '📊 Rodada 1 encerrada · Sub-11'
+             and body = 'Classificação: 1º Leões (3 pts) · 2º Tigres (0 pts)'));
+select pg_temp.checa('  e foi para os clubes do Sub-11, não os do Sub-15',
+  (select target_teams from push_outbox where dedupe_key = 'classif:' || :'av' || ':s11:1')
+   @> array[:'leo', :'tig']::uuid[]
+  and not ((select target_teams from push_outbox where dedupe_key = 'classif:' || :'av' || ':s11:1')
+   && array[:'agu', :'gav']::uuid[]));
+
+-- A rodada 2 tem jogo em aberto: nada de classificação ainda.
+select pg_temp.checa('rodada com jogo em aberto não fecha a classificação',
+  not exists (select 1 from push_outbox where dedupe_key = 'classif:' || :'av' || ':s11:2'));
+
+-- Nenhum aviso do Sub-11 chegou a quem só disputa o Sub-15.
+select pg_temp.checa('nada do Sub-11 vaza para o Sub-15',
+  not exists (select 1 from push_outbox
+               where category_id = 's11'
+                 and target_teams && array[:'agu', :'gav']::uuid[]));
+
+-- Campeonato de categoria única: o aviso não pode carregar um prefixo vazio.
+\set uni 'aa000000-0000-0000-0000-000000000009'
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'uni', '11111111-1111-1111-1111-111111111111', 'Copa Única', 'futebol', 'league',
+        '2026', 'gratis', '[{"id":"c1","name":"Adulto"}]'::jsonb);
+insert into public.teams (id, championship_id, name) values
+  ('ab000000-0000-0000-0000-000000000001', :'uni', 'Alfa'),
+  ('ab000000-0000-0000-0000-000000000002', :'uni', 'Beta');
+insert into public.matches (id, championship_id, round, phase, home_team_id, away_team_id)
+values ('ac000000-0000-0000-0000-000000000001', :'uni', 1, 'group',
+        'ab000000-0000-0000-0000-000000000001', 'ab000000-0000-0000-0000-000000000002');
+update public.matches set scheduled_at = '2026-09-12 18:00:00+00'
+ where id = 'ac000000-0000-0000-0000-000000000001';
+
+select pg_temp.checa('categoria única não vira prefixo vazio',
+  (select body from push_outbox where dedupe_key = 'jogo:ac000000-0000-0000-0000-000000000001')
+   = 'Alfa × Beta · sáb 12/09 às 15:00');
+select pg_temp.checa('  e a partida sem categoria cai na primeira',
+  (select category_id from push_outbox where dedupe_key = 'jogo:ac000000-0000-0000-0000-000000000001') = 'c1');

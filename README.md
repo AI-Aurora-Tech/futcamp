@@ -366,19 +366,32 @@ telas dentro do app não gera visualizações adicionais.
 
 ## 🔔 Notificações push
 
-Dois avisos automáticos, cada um ligado por quem quer recebê-lo (por
-dispositivo):
+Ligados por quem quer recebê-los, dispositivo por dispositivo.
 
-- **Responsável do time** — no portal de inscrição, liga *"Avisos de gol do meu
-  grupo"*: recebe uma notificação a cada gol nas partidas do **mesmo grupo e da
-  mesma fase** em que o time dele joga.
-- **Organizador** — em *Ajustes*, liga *"Avisos de alterações dos times"*:
-  recebe quando um time inscreve, edita ou remove atletas, ou muda os próprios
-  dados. Alterações seguidas do mesmo time são agrupadas em um aviso só (uma
-  importação de 30 atletas não vira 30 notificações).
+**Responsável do time** — no portal de inscrição, liga *"Avisos do meu time"*:
+
+| Aviso | Quando chega |
+| --- | --- |
+| 📅 **Jogo marcado ou remarcado** | O organizador define (ou muda) data, hora ou local. Vai com os três. |
+| ⏰ **Falta 2 dias** | 48 horas antes do jogo. |
+| ⚽ **Gol** | A cada gol da partida, com o **nome de quem fez** e o placar do momento. |
+| 🟥 **Atleta suspenso** | Fim do jogo em que o atleta levou vermelho ou completou os amarelos da categoria. Só o time dele recebe. |
+| 🏆 **Resultado e resumo** | Fim do jogo. Um aviso por equipe: o título traz vitória, empate ou derrota; o corpo traz os gols dos seus atletas, os cartões e o próximo compromisso. |
+| 📊 **Classificação** | Quando o último jogo da rodada encerra, com os três primeiros. |
+
+**Organizador** — em *Ajustes*, liga *"Avisos de alterações dos times"*:
+recebe quando um time inscreve, edita ou remove atletas, ou muda os próprios
+dados. Alterações seguidas do mesmo time são agrupadas em um aviso só (uma
+importação de 30 atletas não vira 30 notificações).
+
+Tudo é recortado por **categoria**: cada categoria é uma competição, e quem
+cuida do Sub-11 não recebe a classificação do Sub-17.
 
 Os avisos nascem de **gatilhos no banco** (`push_outbox`), então valem para
-qualquer caminho — painel, portal do mesário e link de inscrição.
+qualquer caminho — painel, portal do mesário e link de inscrição. O único que
+não nasce de gatilho é o lembrete de 2 dias: ninguém escreve no banco quando o
+relógio passa das 48 horas, então ele é gerado pela própria Edge Function
+(`push_gerar_lembretes`) a cada execução agendada.
 
 ### Como habilitar
 
@@ -390,16 +403,19 @@ qualquer caminho — painel, portal do mesário e link de inscrição.
    ```bash
    VITE_VAPID_PUBLIC_KEY=BEl...   # chave pública
    ```
-3. **Banco** — rode a migration `0018_push_notifications.sql`.
+3. **Banco** — rode as migrations `0018_push_notifications.sql` e
+   `0035_avisos_da_equipe.sql`.
 4. **Edge Function** — publique a função de entrega e configure os secrets:
    ```bash
    supabase functions deploy send-push
    supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... \
      VAPID_SUBJECT="mailto:voce@exemplo.com"
    ```
-5. (Opcional, recomendado) Agende a função para rodar a cada minuto — ela
-   entrega o que por acaso tenha ficado pendente. O app já chama a função logo
-   após cada gol e cada alteração, então o agendamento é só a rede de segurança.
+5. **Agende a função a cada 15 minutos** (Supabase → Edge Functions →
+   Schedules, ou `pg_cron`). Este passo **não é opcional**: é ele que faz o
+   lembrete de 2 dias existir, e é a rede de segurança para qualquer aviso que
+   tenha ficado pendente. Os demais avisos o app já entrega na hora, chamando a
+   função logo depois do gol, do encerramento e do agendamento dos jogos.
 
 Sem esses passos o recurso aparece desligado e explicado na interface — nada
 quebra. No **modo demo** (sem Supabase) não há push: não existe servidor para

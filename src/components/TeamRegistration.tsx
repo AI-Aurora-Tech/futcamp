@@ -572,8 +572,8 @@ function RosterCard({
       )}
 
       <PushToggle
-        title="Avisos de gol do meu grupo"
-        hint="Um aviso no celular a cada gol nas partidas do grupo em que o seu time joga."
+        title="Avisos do meu time"
+        hint="No celular: jogo marcado ou remarcado, lembrete 2 dias antes, gol com o nome de quem fez, atleta suspenso por cartão, o resumo da partida da sua equipe e a classificação quando a rodada fecha."
         available={pushAvailable()}
         enable={() => enablePush({ championshipId: data.championshipId, role: 'team', teamId: teamId, token })}
         disable={() => disablePush(data.championshipId)}

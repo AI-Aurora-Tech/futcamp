@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { updateMatch } from '../services/matches'
+import { flushPush } from '../services/push'
 import { PHASE_LABELS, type Match, type MatchPhase, type Team, type Venue } from '../types'
 import { Button, TeamBadge } from './ui'
 
@@ -66,13 +67,18 @@ export function MatchScheduler({
   async function saveAll() {
     setBusy(true)
     try {
+      let mudou = false
       for (const m of matches) {
         const d = drafts[m.id]
         const iso = d.scheduledAt ? new Date(d.scheduledAt).toISOString() : undefined
         const venue = d.venue.trim() || undefined
         if ((m.scheduledAt ?? undefined) === iso && (m.venue ?? undefined) === venue) continue
         await updateMatch(m.id, { scheduledAt: iso, venue })
+        mudou = true
       }
+      // Marcar o jogo enfileira o aviso no banco; esta chamada é o que faz
+      // ele sair agora, e não só no próximo agendamento.
+      if (mudou && matches[0]) void flushPush(matches[0].championshipId)
       onSaved()
     } finally {
       setBusy(false)

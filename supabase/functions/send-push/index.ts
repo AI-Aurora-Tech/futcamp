@@ -1,14 +1,22 @@
 // ===========================================================================
 // Edge Function: send-push
 //
-// Entrega os avisos da fila `push_outbox` por Web Push (VAPID):
-//   • gol no grupo em que o time do responsável está jogando;
-//   • alterações de elenco/dados dos times, para o organizador.
+// Faz duas coisas, nesta ordem:
+//
+//   1. GERA os avisos que dependem do relógio — hoje, o lembrete de 2 dias
+//      antes do jogo. Nenhum gatilho de banco dispara sozinho quando o tempo
+//      passa, então é aqui que esse aviso nasce (`push_gerar_lembretes`).
+//   2. ENTREGA a fila `push_outbox` por Web Push (VAPID): jogo marcado,
+//      lembrete, gol, suspensão, resultado, resumo da partida, classificação
+//      da rodada e as alterações de elenco que vão para o organizador.
 //
 // Pode ser chamada de duas formas:
 //   1. pelo app, logo depois da ação (entrega imediata);
-//   2. por um agendamento (pg_cron / Supabase Schedules), como rede de
-//      segurança para o que ficou pendente.
+//   2. por um agendamento (Supabase Schedules / pg_cron), que é o que faz o
+//      lembrete de 2 dias existir — sem relógio, ele nunca sai.
+//
+// ⚠️ Agende esta função a cada 15 minutos. É a única peça do sistema de
+//    avisos que não é disparada pelo uso do app.
 //
 // Corpo (opcional): { "championshipId": "<uuid>", "limit": 100 }
 //
@@ -78,7 +86,19 @@ serve(async (req) => {
     /* sem corpo: drena tudo que estiver pendente */
   }
 
-  // 1. Fila pendente.
+  // 1. Avisos que dependem do relógio: o lembrete de 2 dias antes do jogo.
+  //    Roda antes de ler a fila para que o que nasceu agora já saia nesta
+  //    mesma passada. Falhar aqui não pode impedir a entrega do resto.
+  let reminders = 0
+  try {
+    const { data, error: remErr } = await supabase.rpc('push_gerar_lembretes')
+    if (remErr) console.error('push_gerar_lembretes:', remErr.message)
+    else reminders = Number(data) || 0
+  } catch (err) {
+    console.error('push_gerar_lembretes:', err)
+  }
+
+  // 2. Fila pendente.
   let query = supabase
     .from('push_outbox')
     .select('*')
@@ -89,14 +109,14 @@ serve(async (req) => {
 
   const { data: pending, error } = await query
   if (error) return json({ ok: false, error: error.message }, 500)
-  if (!pending?.length) return json({ ok: true, sent: 0, pending: 0 })
+  if (!pending?.length) return json({ ok: true, sent: 0, pending: 0, reminders })
 
   let sent = 0
   let failed = 0
   const goneEndpoints: string[] = []
 
   for (const row of pending as OutboxRow[]) {
-    // 2. Destinatários deste aviso.
+    // 3. Destinatários deste aviso.
     let subQuery = supabase
       .from('push_subscriptions')
       .select('id,endpoint,p256dh,auth,role,team_id')
@@ -132,10 +152,10 @@ serve(async (req) => {
     await supabase.from('push_outbox').update({ sent_at: new Date().toISOString() }).eq('id', row.id)
   }
 
-  // 3. Limpa inscrições mortas.
+  // 4. Limpa inscrições mortas.
   if (goneEndpoints.length) {
     await supabase.from('push_subscriptions').delete().in('endpoint', goneEndpoints)
   }
 
-  return json({ ok: true, sent, failed, processed: pending.length })
+  return json({ ok: true, sent, failed, reminders, processed: pending.length })
 })
