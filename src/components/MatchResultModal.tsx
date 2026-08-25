@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import {
   EVENT_LABELS,
@@ -37,6 +38,7 @@ function toLocalInput(iso?: string): string {
 export function MatchResultModal({
   championship,
   match,
+  allMatches = [],
   teams,
   players,
   officials,
@@ -47,6 +49,12 @@ export function MatchResultModal({
 }: {
   championship: Championship
   match: Match
+  /**
+   * Todas as partidas do campeonato. É o que permite saber quem chega
+   * suspenso NESTA rodada — a conta olha os jogos anteriores de cada time,
+   * não só este.
+   */
+  allMatches?: Match[]
   teams: Team[]
   players: Player[]
   /** Presente apenas no modo administrador: habilita atribuir mesário. */
@@ -73,6 +81,8 @@ export function MatchResultModal({
   const [penAway, setPenAway] = useState<string>(match.penaltyAway != null ? String(match.penaltyAway) : '')
   const [incidents, setIncidents] = useState<string>(match.incidents ?? '')
   const [events, setEvents] = useState<MatchEvent[]>([])
+  /** Eventos do campeonato inteiro — a suspensão se conta pelas rodadas anteriores. */
+  const [todosEventos, setTodosEventos] = useState<MatchEvent[]>([])
   const [lineup, setLineup] = useState<LineupEntry[]>(match.lineup ?? [])
   const [busy, setBusy] = useState(false)
 
@@ -85,8 +95,25 @@ export function MatchResultModal({
   const [evMinute, setEvMinute] = useState<string>('')
 
   useEffect(() => {
-    w.listEvents(match.championshipId).then((all) => setEvents(all.filter((e) => e.matchId === match.id)))
+    w.listEvents(match.championshipId).then((all) => {
+      setTodosEventos(all)
+      setEvents(all.filter((e) => e.matchId === match.id))
+    })
   }, [match.id, match.championshipId, w])
+
+  // Quem cumpre suspensão nesta partida. Fica fora da escalação: a regra do
+  // campeonato é que o suspenso não recebe presença.
+  const suspensos = useMemo(
+    () =>
+      suspensosNaPartida({
+        match,
+        matches: allMatches.length ? allMatches : [match],
+        events: todosEventos,
+        players,
+        categories: championship.categories,
+      }),
+    [match, allMatches, todosEventos, players, championship.categories],
+  )
 
   // Só atletas PRESENTES (na escalação salva) podem receber eventos.
   const presentIds = new Set(lineup.map((l) => l.playerId))
@@ -347,6 +374,7 @@ export function MatchResultModal({
           away={away}
           players={players}
           lineup={lineup}
+          suspensos={suspensos}
           onSave={async (entries) => {
             await w.setLineup(match.id, entries)
             setLineup(entries)
@@ -473,12 +501,15 @@ function PresencePanel({
   away,
   players,
   lineup,
+  suspensos,
   onSave,
 }: {
   home?: Team
   away?: Team
   players: Player[]
   lineup: LineupEntry[]
+  /** Atletas que cumprem suspensão nesta partida — não podem ser marcados. */
+  suspensos: Map<string, Suspensao>
   onSave: (entries: LineupEntry[]) => Promise<void>
 }) {
   const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta')
@@ -489,7 +520,9 @@ function PresencePanel({
     const draft: Record<string, PresenceRow> = {}
     for (const p of athletes) {
       const n = num.get(p.id) ?? p.number
-      draft[p.id] = { present: present.has(p.id), number: n != null ? String(n) : '' }
+      // Suspenso entra desmarcado mesmo se estava na escalação salva: pode ter
+      // sido escalado antes de o cartão da rodada anterior ser lançado.
+      draft[p.id] = { present: present.has(p.id) && !suspensos.has(p.id), number: n != null ? String(n) : '' }
     }
     return draft
   }
@@ -499,15 +532,30 @@ function PresencePanel({
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
-  // Ressincroniza quando a escalação salva muda por fora.
+  /**
+   * Ressincroniza quando a escalação salva muda por fora — e também quando a
+   * lista de suspensos chega.
+   *
+   * Os eventos do campeonato são carregados depois da primeira renderização,
+   * então na montagem `suspensos` ainda está vazio e o rascunho nasce com o
+   * suspenso marcado. Sem esta dependência ele continuaria marcado na tela.
+   * A chave é o conjunto de ids, não o Map: o Map é recriado a cada render.
+   */
+  const chaveSuspensos = [...suspensos.keys()].sort().join(',')
   useEffect(() => {
     setDraft(build())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lineup])
+  }, [lineup, chaveSuspensos])
 
   const presentCount = athletes.filter((p) => draft[p.id]?.present).length
 
+  /** Estava escalado e chegou suspenso: precisa sair, e o time precisa saber. */
+  const retirados = athletes.filter(
+    (p) => suspensos.has(p.id) && lineup.some((l) => l.playerId === p.id),
+  )
+
   function toggle(id: string) {
+    if (suspensos.has(id)) return
     setDraft((d) => ({ ...d, [id]: { ...d[id], present: !d[id]?.present } }))
     setMsg(null)
   }
@@ -519,7 +567,7 @@ function PresencePanel({
   async function save() {
     setBusy(true)
     const entries: LineupEntry[] = athletes
-      .filter((p) => draft[p.id]?.present)
+      .filter((p) => draft[p.id]?.present && !suspensos.has(p.id))
       .map((p) => ({ playerId: p.id, number: draft[p.id].number ? Number(draft[p.id].number) : undefined }))
     try {
       await onSave(entries)
@@ -545,11 +593,27 @@ function PresencePanel({
           <ul className="presence-list">
             {list.map((p) => {
               const row = draft[p.id] ?? { present: false, number: '' }
+              const susp = suspensos.get(p.id)
               return (
-                <li key={p.id} className={`presence-item ${row.present ? 'is-present' : ''}`}>
+                <li
+                  key={p.id}
+                  className={`presence-item ${row.present ? 'is-present' : ''} ${susp ? 'is-suspenso' : ''}`}
+                >
                   <label className="presence-item__check">
-                    <input type="checkbox" checked={row.present} onChange={() => toggle(p.id)} />
-                    <span>{p.name}</span>
+                    <input
+                      type="checkbox"
+                      checked={row.present}
+                      disabled={Boolean(susp)}
+                      onChange={() => toggle(p.id)}
+                    />
+                    <span className="presence-item__label">
+                      <span className="presence-item__nome">{p.name}</span>
+                      {susp && (
+                        <span className="susp-tag" title="Cumpre suspensão nesta partida">
+                          {susp.motivo}
+                        </span>
+                      )}
+                    </span>
                   </label>
                   <input
                     className="presence-item__num"
@@ -557,7 +621,7 @@ function PresencePanel({
                     placeholder="nº"
                     value={row.number}
                     onChange={(e) => setNumber(p.id, e.target.value)}
-                    disabled={!row.present}
+                    disabled={!row.present || Boolean(susp)}
                     aria-label={`Número de ${p.name}`}
                   />
                 </li>
@@ -581,6 +645,21 @@ function PresencePanel({
             Marque quem está presente e informe o número da camisa desta partida. Só os presentes recebem gols e cartões.
             Chegou atrasado? Marque e salve novamente.
           </p>
+
+          {suspensos.size > 0 && (
+            <p className="hint hint--warn">
+              🚫 {suspensos.size} atleta(s) cumprem suspensão nesta partida e não podem ser escalados
+              {retirados.length > 0 && (
+                <>
+                  {' '}— <b>{retirados.map((p) => p.name).join(', ')}</b>{' '}
+                  {retirados.length === 1 ? 'estava' : 'estavam'} na escalação e{' '}
+                  {retirados.length === 1 ? 'foi retirado' : 'foram retirados'}. Salve para confirmar
+                </>
+              )}
+              .
+            </p>
+          )}
+
           <div className="presence-grid">
             {renderTeamColumn(home)}
             {renderTeamColumn(away)}

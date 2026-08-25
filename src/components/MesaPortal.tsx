@@ -28,6 +28,12 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
   const [matches, setMatches] = useState<Match[]>([])
+  /**
+   * TODAS as partidas do campeonato. O mesário só vê os jogos dele na lista,
+   * mas a conta de suspensão precisa das rodadas anteriores de cada time —
+   * inclusive as que outro mesário apitou.
+   */
+  const [todasPartidas, setTodasPartidas] = useState<Match[]>([])
   const [editing, setEditing] = useState<Match | null>(null)
 
   useEffect(() => {
@@ -44,14 +50,16 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
 
   const loadData = useCallback(async () => {
     if (!session) return
-    const [t, p, m] = await Promise.all([
+    const [t, p, m, todas] = await Promise.all([
       listTeams(championshipId),
       listPlayers(championshipId),
       listAssignedMatches(championshipId, session.officialId),
+      listMatches(championshipId).catch(() => [] as Match[]),
     ])
     setTeams(t)
     setPlayers(p)
     setMatches(m)
+    setTodasPartidas(todas)
   }, [championshipId, session])
 
   useEffect(() => {
@@ -163,6 +171,7 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
         <MatchResultModal
           championship={champ}
           match={editing}
+          allMatches={todasPartidas}
           teams={teams}
           players={players}
           writer={writer}

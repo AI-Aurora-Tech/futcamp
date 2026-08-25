@@ -1,76 +1,43 @@
-Tabelaço — abas de categoria (passo 3)
-=======================================
+Tabelaço — correção do erro de deploy
+======================================
 
-SÓ FRONT. Não tem migration nova — usa as 0033 e 0034, que você já
-aplicou nos passos 1 e 2.
+O QUE ACONTECEU
+---------------
+Erro meu, de empacotamento. O pacote do PASSO 3 incluiu o
+MatchesPanel.tsx, que passa a propriedade `allMatches` para o
+MatchResultModal — mas o MatchResultModal.tsx não estava naquele
+pacote. Ele veio no pacote da SUSPENSÃO (tabelaco-suspensao.zip), que
+não chegou a ser aplicado.
 
-Copie por cima, mantendo os caminhos:
+Resultado: um arquivo passando uma propriedade que o outro, mais
+antigo, ainda não conhece.
 
-  src/index.css
-  src/services/matches.ts
-  src/components/ManageChampionship.tsx
-  src/components/TeamsPanel.tsx
-  src/components/PlayersPanel.tsx
-  src/components/MatchesPanel.tsx
+
+O QUE FAZER
+-----------
+Copie estes 3 arquivos por cima, mantendo os caminhos:
+
+  src/lib/suspensao.ts                    (NOVO)
+  src/components/MatchResultModal.tsx
+  src/components/MesaPortal.tsx
 
 Depois: npm run build
 
+Isso resolve o deploy E traz a regra de suspensão que faltava: atleta
+suspenso não pode receber presença na partida que cumpre.
 
-COMO FICA
----------
-Abrindo um campeonato com mais de uma categoria, aparece uma fileira de
-abas logo abaixo do nome:
-
-     [ Sub-11 ]  [ Sub-13 ]  [ Sub-15 🏁 ]
-
-Ela fica ACIMA das abas de seção (Visão geral, Times, Elencos…) porque a
-categoria é o recorte maior: trocar de categoria troca o conteúdo de
-TODAS as seções.
-
-Separado por categoria:
-  • Times      — só os clubes inscritos nela, com o grupo daquela categoria
-  • Elencos    — o mesmo clube tem atletas diferentes em cada uma
-  • Partidas   — a tabela, com os locais, horários, árbitros e mesários
-  • Estatísticas — artilharia, cartões e suspensões
-  • Visão geral  — classificação e campeão
-  • Ajustes    — a SITUAÇÃO é de cada categoria
-
-A aba abre na categoria EM ANDAMENTO — é onde há trabalho a fazer.
-Categoria encerrada leva 🏁, rascunho leva ✎.
-
-Campeonato de categoria única não mostra aba nenhuma: continua igual.
+NÃO use o tabelaco-suspensao.zip antigo — o index.css dele é de uma
+versão anterior e desfaria as abas de categoria. Estes 3 arquivos estão
+no estado atual e não mexem no CSS.
 
 
-DUAS COISAS QUE VOCÊ VAI NOTAR
+DE ONDE VEM ESSA DOR DE CABEÇA
 ------------------------------
-1. "Gerar / regerar tabela" agora vale só para a categoria aberta. Gerar
-   a tabela do Sub-11 não toca na do Sub-15. A trava de "jogos já
-   encerrados" também conta só os da categoria.
+É a terceira vez que um arquivo fica para trás. Cada pacote traz só o
+que mudou, e quando um pacote é pulado, o seguinte encontra o projeto
+num estado que eu não previ.
 
-2. Sortear grupos idem — o grupo é da inscrição, então sortear o Sub-11
-   não desmancha os grupos do Sub-15.
-
-Atleta novo e importação de planilha já nascem na categoria da aba
-aberta, para não cair na errada sem ninguém perceber.
-
-
-UM DEFEITO SÉRIO QUE ISTO CORRIGIU
-----------------------------------
-A função que apaga partidas para regerar a tabela apagava TODAS as do
-campeonato. Com categorias separadas, um clique em "regerar tabela" no
-Sub-11 teria levado junto a tabela inteira do Sub-15 — placares, gols,
-cartões e súmulas. Agora o apagar e o gerar são recortados pela
-categoria.
-
-
-O QUE AINDA FALTA
------------------
-  • Página pública com abas e campeão por categoria
-  • Portal do time mostrando as categorias do clube
-  • Tela de conferência da conversão (mover jogos antigos de categoria)
-  • Súmula nomeando a categoria
-
-Os locais de jogo continuam num cadastro só (aba Cadastros), reaproveitado
-por qualquer categoria — o que é separado é ONDE cada jogo acontece, que
-vai na partida. Se você quiser a lista de campos separada por categoria
-também, me diga.
+O tabelaco-completo.zip que mandei junto resolve isso de vez:
+substituindo src/ e supabase/ inteiros, seu projeto fica idêntico ao
+meu. Recomendo usá-lo — testei descompactando num diretório limpo e
+rodando o build.
