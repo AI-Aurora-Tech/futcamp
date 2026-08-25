@@ -1,40 +1,87 @@
-Tabelaço — projeto completo, estado atual
-==========================================
+Tabelaço — categoria vira competição · PASSO 1 (banco e modelo)
+===============================================================
 
-Use este pacote se preferir não caçar arquivo por arquivo. Substituindo
-as pastas abaixo, seu projeto fica idêntico ao meu — sem chance de
-sobrar arquivo de uma versão antiga (foi isso que quebrou o deploy).
+IMPORTANTE: depois de aplicar este pacote o app continua se comportando
+EXATAMENTE como antes. Isso é de propósito. Este passo prepara o terreno
+— banco, modelo e filtros — sem mexer em nenhuma tela. As abas por
+categoria vêm no passo 2 e vão encontrar tudo pronto.
 
-SUBSTITUA:
-  src/          (pasta inteira)
-  supabase/     (pasta inteira)
-  public/
-  index.html
-  package.json
-  package-lock.json
-  vite.config.ts
-  tsconfig.json
-  tsconfig.node.json
-  vercel.json
+Aplicar agora tem uma vantagem: a conversão dos seus campeonatos atuais
+acontece de uma vez, e você pode conferir com calma antes de as telas
+mudarem.
 
-NÃO copie node_modules nem dist — o Vercel gera os dois.
+1) BANCO — Supabase → SQL Editor:
 
-Depois: npm install && npm run build
+     supabase/migrations/0033_categoria_como_competicao.sql
+
+   Rode DEPOIS da 0032. Idempotente.
+
+2) FRONT — copie por cima, mantendo os caminhos:
+
+     src/types.ts
+     src/lib/categorias.ts                (NOVO)
+     src/services/teams.ts
+     src/services/matches.ts
+     src/services/championships.ts
+
+   Depois: npm run build
 
 
-MIGRATIONS
-----------
-No Supabase → SQL Editor, na ordem, as que ainda não rodou:
+O DESENHO ESCOLHIDO
+-------------------
+O TIME continua sendo o CLUBE — um escudo, um responsável, um login. O
+que nasce é a INSCRIÇÃO do clube em cada categoria. O Leões FC é um só e
+disputa o Sub-11 e o Sub-15.
 
-  0026_federated_per_category.sql   (corrigida)
-  0027_release_bypass.sql
-  0028_team_login_email.sql
-  0029_game_rules.sql
-  0030_send_off_per_category.sql
-  0031_plan_team_limit.sql
-  0032_change_plan.sql
+  championships          → o formato de disputa (igual para todas)
+  championships.categories → as regras de cada categoria + a SITUAÇÃO dela
+  teams                  → o CLUBE
+  team_categories        → o clube disputa esta categoria, neste grupo  ← NOVO
+  matches.category_id    → de qual categoria é esta partida             ← NOVO
+  players.category_id    → já existia
 
-Todas são idempotentes: rodar de novo uma que já rodou não faz mal.
+O grupo (A, B, C…) saiu do time e foi para a inscrição: o mesmo clube
+pode cair no grupo A do Sub-11 e no C do Sub-15 — antes isso era
+impossível de representar.
 
-Para conferir o banco depois, supabase/tests/ tem a suíte que uso aqui
-(precisa de um Postgres local; veja o README de lá).
+A SITUAÇÃO (rascunho / em andamento / encerrado) passa a ser por
+categoria, como você pediu: o Sub-11 pode encerrar com o Sub-17 ainda na
+semifinal. Categoria sem situação própria herda a do campeonato.
+
+O limite de equipes do plano continua contando CLUBES, não inscrições.
+Um clube em quatro categorias é um clube.
+
+
+O QUE ACONTECE COM O QUE JÁ EXISTE
+----------------------------------
+Nada é apagado. Todas as partidas e todos os clubes vão para a PRIMEIRA
+categoria de cada campeonato — o que é idêntico ao comportamento de hoje.
+
+⚠️ ATENÇÃO se você já tem um campeonato rodando com VÁRIAS categorias:
+todos os jogos dele vão para a primeira categoria. Está correto do ponto
+de vista dos dados, mas pode não ser o que você queria. O passo 2 traz
+uma tela de conferência para mover os jogos para a categoria certa.
+
+Se preferir, confira agora mesmo no SQL Editor:
+
+  select category_id, count(*) from matches
+   where championship_id = 'SEU-CAMPEONATO' group by 1;
+
+
+PASSO 2 (o próximo)
+-------------------
+  • Aba por categoria no topo do campeonato
+  • Times, elencos, partidas e estatísticas seguindo a aba
+  • "Gerar rodadas" e mata-mata por categoria
+  • Encerrar uma categoria sem encerrar as outras
+  • Tela de conferência da conversão
+  • Página pública com abas, campeão por categoria
+  • Portal do time com as categorias do clube
+
+
+CONFERÊNCIA
+-----------
+30 asserções SQL novas (inscrição do mesmo clube em duas categorias com
+grupos diferentes, tabelas que não se misturam, encerrar uma categoria
+sem tocar nas outras, mexer numa categoria sem apagar as regras das
+outras) e 31 asserções dos filtros no app.

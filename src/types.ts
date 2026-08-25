@@ -59,6 +59,17 @@ export interface Category {
   /** Máximo de membros da comissão técnica por time nesta categoria. */
   maxStaff?: number
 
+  /* --- A categoria como competição (migration 0033) --------------------- */
+
+  /**
+   * Situação DESTA categoria. Categorias começam e terminam em datas
+   * diferentes: o Sub-11 pode encerrar com o Sub-17 ainda na semifinal.
+   * Ausente = herda a situação do campeonato.
+   */
+  status?: ChampionshipStatus
+  /** Quando esta categoria foi encerrada (mantém o campeão na vitrine). */
+  finishedAt?: string
+
   /* --- Regras de jogo (entram no regulamento) --------------------------- */
 
   /** Duração de CADA tempo, em minutos. */
@@ -345,8 +356,20 @@ export interface Team {
   shortName?: string
   /** Emoji ou data URL usado como escudo. */
   logo?: string
-  /** Grupo (ex.: "A", "B") no formato de grupos. */
+  /**
+   * Grupo (ex.: "A", "B") no formato de grupos.
+   * @deprecated O grupo passou a ser da INSCRIÇÃO na categoria — o mesmo clube
+   * pode cair no grupo A do Sub-11 e no C do Sub-15. Continua aqui para os
+   * campeonatos de categoria única, como reserva.
+   */
   group?: string
+  /**
+   * Categorias em que este clube está inscrito. Vazio = campeonato antigo,
+   * antes da separação por categoria; vale como "todas".
+   */
+  categoryIds?: string[]
+  /** Grupo do clube em cada categoria: `{ s11: 'A', s15: 'C' }`. */
+  groupByCategory?: Record<string, string>
   color?: string
   /** Nome do responsável pelo time (antes rotulado como "técnico"). */
   coach?: string
@@ -480,6 +503,12 @@ export const PHASE_LABELS: Record<MatchPhase, string> = {
 }
 
 export interface Match {
+  /**
+   * Categoria a que esta partida pertence. Cada categoria tem tabela,
+   * classificação e mata-mata próprios. Ausente = campeonato anterior à
+   * separação; vale como a primeira categoria.
+   */
+  categoryId?: string
   id: string
   championshipId: string
   /** Rodada (usado em pontos corridos e fase de grupos). */

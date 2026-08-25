@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { planOf, totalCents } from '../lib/pricing'
-import type { Championship, PlanKey } from '../types'
+import type { Championship, ChampionshipStatus, PlanKey } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -316,6 +316,45 @@ export async function revertPlan(champId: string): Promise<void> {
     c.paymentRef = v.paymentRef
     c.paidAt = v.paidAt
     c.planChange = undefined
+    return null
+  })
+}
+
+/**
+ * Muda a situação de UMA categoria — rascunho, em andamento ou encerrada.
+ *
+ * Categorias começam e terminam em datas diferentes; encerrar o Sub-11 não
+ * pode encerrar o Sub-17. No Supabase quem escreve é a RPC
+ * `set_categoria_status`: a situação mora dentro do jsonb das categorias, e
+ * reescrever o array inteiro do navegador faria uma aba apagar o que a outra
+ * acabou de salvar.
+ */
+export async function setCategoryStatus(
+  champId: string,
+  categoryId: string,
+  status: ChampionshipStatus,
+): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('set_categoria_status', {
+      p_champ: champId,
+      p_category: categoryId,
+      p_status: status,
+    })
+    if (error) {
+      throw new Error(
+        /does not exist|PGRST202/i.test(error.message ?? '')
+          ? 'A separação por categoria ainda não foi liberada neste servidor (migration 0033).'
+          : error.message,
+      )
+    }
+    return
+  }
+  mutate((d) => {
+    const c = d.championships.find((x) => x.id === champId)
+    const cat = c?.categories.find((x) => x.id === categoryId)
+    if (!cat) return null
+    cat.status = status
+    cat.finishedAt = status === 'finished' ? new Date().toISOString() : undefined
     return null
   })
 }

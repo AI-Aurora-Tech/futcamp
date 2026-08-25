@@ -33,6 +33,7 @@ function fromRow(r: any): Match {
   return {
     id: r.id,
     championshipId: r.championship_id,
+    categoryId: r.category_id ?? undefined,
     round: r.round,
     phase: r.phase,
     group: r.group ?? undefined,
@@ -59,6 +60,7 @@ function fromRow(r: any): Match {
 function toRow(m: Partial<Match>): Record<string, unknown> {
   const row: Record<string, unknown> = {}
   if (m.championshipId !== undefined) row.championship_id = m.championshipId
+  if (m.categoryId !== undefined) row.category_id = m.categoryId
   if (m.round !== undefined) row.round = m.round
   if (m.phase !== undefined) row.phase = m.phase
   if (m.group !== undefined) row.group = m.group

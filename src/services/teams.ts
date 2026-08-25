@@ -8,6 +8,12 @@ import type { Team } from '../types'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 function fromRow(r: any): Team {
+  // As inscrições vêm no mesmo select (`team_categories(...)`), para não fazer
+  // uma segunda ida ao banco só para saber em quais categorias o clube joga.
+  const inscricoes: any[] = Array.isArray(r.team_categories) ? r.team_categories : []
+  const grupos: Record<string, string> = {}
+  for (const i of inscricoes) if (i.group) grupos[i.category_id] = i.group
+
   return {
     id: r.id,
     championshipId: r.championship_id,
@@ -18,6 +24,8 @@ function fromRow(r: any): Team {
     color: r.color ?? undefined,
     coach: r.coach ?? undefined,
     phone: r.phone ?? undefined,
+    categoryIds: inscricoes.length ? inscricoes.map((i) => i.category_id) : undefined,
+    groupByCategory: Object.keys(grupos).length ? grupos : undefined,
     createdAt: r.created_at,
   }
 }
@@ -39,7 +47,7 @@ export async function listTeams(championshipId: string): Promise<Team[]> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase
       .from('teams')
-      .select('*')
+      .select('*, team_categories(category_id, group)')
       .eq('championship_id', championshipId)
       .order('name')
     if (error) throw error
@@ -83,7 +91,17 @@ export async function createTeam(input: NewTeam): Promise<Team> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.from('teams').insert(toRow(input)).select('*').single()
     if (error) throw erroDeLimite(error)
-    return fromRow(data)
+    const time = fromRow(data)
+    if (input.categoryIds?.length) {
+      await setTeamCategories(
+        time.id,
+        input.championshipId,
+        input.categoryIds.map((c) => ({ categoryId: c, group: input.groupByCategory?.[c] })),
+      )
+      time.categoryIds = input.categoryIds
+      time.groupByCategory = input.groupByCategory
+    }
+    return time
   }
   assertLimiteDemo(input.championshipId)
   const team: Team = {
@@ -95,6 +113,49 @@ export async function createTeam(input: NewTeam): Promise<Team> {
   return mutate((d) => {
     d.teams.push(team)
     return team
+  })
+}
+
+/** Em quais categorias o clube joga, e em que grupo em cada uma. */
+export interface InscricaoCategoria {
+  categoryId: string
+  group?: string
+}
+
+/**
+ * Define as categorias que este clube disputa.
+ *
+ * Reescreve a lista inteira: é uma caixa de seleção na tela, e mandar o
+ * conjunto final evita ter que descobrir, aqui, o que entrou e o que saiu.
+ */
+export async function setTeamCategories(
+  teamId: string,
+  championshipId: string,
+  inscricoes: InscricaoCategoria[],
+): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error: apagou } = await supabase.from('team_categories').delete().eq('team_id', teamId)
+    if (apagou) throw new Error(apagou.message)
+    if (!inscricoes.length) return
+    const { error } = await supabase.from('team_categories').insert(
+      inscricoes.map((i) => ({
+        team_id: teamId,
+        championship_id: championshipId,
+        category_id: i.categoryId,
+        group: i.group || null,
+      })),
+    )
+    if (error) throw new Error(error.message)
+    return
+  }
+  mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) return null
+    t.categoryIds = inscricoes.length ? inscricoes.map((i) => i.categoryId) : undefined
+    const grupos: Record<string, string> = {}
+    for (const i of inscricoes) if (i.group) grupos[i.categoryId] = i.group
+    t.groupByCategory = Object.keys(grupos).length ? grupos : undefined
+    return null
   })
 }
 
