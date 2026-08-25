@@ -209,8 +209,10 @@ organizador clica em "Já paguei". Quem decide continua sendo a API do Asaas; o
 app nunca diz que pagou.
 
 Plano **Grátis** não passa por cobrança nenhuma (`payment_status = 'free'`), e
-**Diamante** abre o e-mail de contato quando `VITE_CONTACT_EMAIL` está
-definido. No **modo demo** (sem Supabase) o pagamento é simulado na hora, para
+**Diamante** (preço sob consulta) abre a conversa no **WhatsApp** já com a
+mensagem escrita — `wa.me` abre o aplicativo no celular e o WhatsApp Web no
+computador. O número está em `src/components/Plans.tsx` e pode ser trocado sem
+mexer no código, por `VITE_WHATSAPP` no `.env`. No **modo demo** (sem Supabase) o pagamento é simulado na hora, para
 dar para testar o fluxo inteiro sem backend.
 
 > O CPF do pagador é pedido pelo Asaas, na página dele — o Tabelaço não coleta
@@ -338,6 +340,29 @@ uma biblioteca. As bibliotecas de PDF pesam centenas de KB — mais que o app
 inteiro — para produzir um documento de texto. Aqui é Helvetica, normal e
 negrito, com acentuação por WinAnsiEncoding. Sem imagens e sem tabelas: se um
 dia o regulamento precisar disso, aí vale reconsiderar.
+
+## 📈 Analytics (Vercel)
+
+Contagem de acessos pelo **Vercel Web Analytics** — sem cookie e sem dado
+pessoal. O componente entra uma vez, em [`src/main.tsx`](src/main.tsx):
+
+```tsx
+import { Analytics } from '@vercel/analytics/react'
+```
+
+> O caminho é `/react`, **não** `/next`: `@vercel/analytics/next` é do Next.js
+> e não existe neste projeto (Vite + React) — importá-lo quebra o build.
+
+Em desenvolvimento o pacote não envia nada, só registra no console. Em
+produção ele carrega `/_vercel/insights/script.js` do próprio domínio, o que
+também o livra da maioria dos bloqueadores de anúncio.
+
+**Uma limitação para conhecer:** o pacote conta uma visualização a cada
+`pushState`, e o Tabelaço navega trocando o `location.hash`. Na prática, cada
+**acesso** é contado (visitas e visitantes ficam corretos, que é o objetivo),
+e o endereço registrado é o da carga da página — quem abre direto o link
+público de um campeonato aparece com aquele endereço, mas quem navega entre as
+telas dentro do app não gera visualizações adicionais.
 
 ## 🔔 Notificações push
 
