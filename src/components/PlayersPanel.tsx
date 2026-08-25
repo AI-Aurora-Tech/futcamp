@@ -30,6 +30,7 @@ export function PlayersPanel({
   teams,
   players,
   categoryId,
+  onCategoryChange,
   onChange,
 }: {
   championship: Championship
@@ -40,6 +41,13 @@ export function PlayersPanel({
    * do Sub-13, e cadastrar ali um atleta do Sub-15 seria um erro silencioso.
    */
   categoryId?: string
+  /**
+   * Trocar de categoria pelas abas DESTA tela.
+   *
+   * É o mesmo estado da aba lá em cima, não um segundo controle: duas verdades
+   * sobre qual categoria está aberta acabariam discordando.
+   */
+  onCategoryChange?: (id: string) => void
   onChange: () => void
 }) {
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.id ?? '')
@@ -80,6 +88,9 @@ export function PlayersPanel({
   )
   const team = teams.find((t) => t.id === selectedTeam)
   const catById = new Map(championship.categories.map((c) => [c.id, c] as const))
+  const nomeCat = championship.categories.length > 1
+    ? championship.categories.find((c) => c.id === categoryId)?.name
+    : undefined
 
   async function remove(p: Player) {
     if (!confirm(`Remover ${p.name} do elenco?`)) return
@@ -99,9 +110,29 @@ export function PlayersPanel({
 
   return (
     <section className="panel">
+      {/* Abas de categoria também aqui, e não só no topo do campeonato: esta é
+          a tela em que o erro custa caro — inscrever o atleta na categoria
+          errada só aparece no dia do jogo. */}
+      {championship.categories.length > 1 && onCategoryChange && (
+        <nav className="cat-tabs cat-tabs--claro" aria-label="Categorias">
+          {/* Sem contador: este painel só recebe os atletas da categoria
+              aberta, então um número em uma aba e nenhum nas outras pareceria
+              defeito. Quantos há em cada time aparece nos chips abaixo. */}
+          {championship.categories.map((c) => (
+            <button
+              key={c.id}
+              className={`cat-tab ${categoryId === c.id ? 'is-active' : ''}`}
+              onClick={() => onCategoryChange(c.id)}
+            >
+              {c.name}
+            </button>
+          ))}
+        </nav>
+      )}
+
       <div className="panel__head">
         <div>
-          <h2>Elencos</h2>
+          <h2>{nomeCat ? `Elencos · ${nomeCat}` : 'Elencos'}</h2>
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
@@ -153,7 +184,7 @@ export function PlayersPanel({
                 <th className="col-num">#</th>
                 <th>Atleta</th>
                 <th>Nasc.</th>
-                {championship.categories.length > 1 && <th>Categoria</th>}
+                {championship.categories.length > 1 && !nomeCat && <th>Categoria</th>}
                 <th>Posição</th>
                 <th className="col-actions"></th>
               </tr>
@@ -179,7 +210,9 @@ export function PlayersPanel({
                     </span>
                   </td>
                   <td>{p.birthdate ? p.birthdate.split('-').reverse().join('/') : '—'}</td>
-                  {championship.categories.length > 1 && <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>}
+                  {championship.categories.length > 1 && !nomeCat && (
+                    <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
+                  )}
                   <td>{labelDaPosicao(p.position) || '—'}</td>
                   <td className="col-actions">
                     <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>

@@ -732,6 +732,21 @@ table { border-collapse: collapse; width: 100%; }
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--radius-sm); padding: 0.4rem 0.7rem; font-size: 0.88rem;
 }
+
+/* As mesmas abas, sobre fundo claro — dentro dos painéis de elenco. */
+.cat-tabs--claro { margin: 0 0 0.9rem; padding-bottom: 0.2rem; border-bottom: 1px solid var(--line); }
+.cat-tabs--claro .cat-tab {
+  border-color: var(--line-strong); background: var(--surface-2); color: var(--ink-soft);
+}
+.cat-tabs--claro .cat-tab:hover { background: var(--surface); color: var(--brand-dark); border-color: var(--brand); }
+.cat-tabs--claro .cat-tab.is-active {
+  background: var(--brand); color: #fff; border-color: var(--brand);
+}
+.cat-tab__n {
+  font-size: 0.7rem; font-weight: 800; background: rgba(0,0,0,0.14);
+  border-radius: 999px; padding: 0.02rem 0.38rem; min-width: 1.15rem; text-align: center;
+}
+.cat-tabs--claro .cat-tab.is-active .cat-tab__n { background: rgba(255,255,255,0.28); }
 .link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
 .link-btn--add:hover { color: var(--brand); }
 

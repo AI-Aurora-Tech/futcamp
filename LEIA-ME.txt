@@ -1,43 +1,44 @@
-Tabelaço — correção do erro de deploy
-======================================
+Tabelaço — abas de categoria na inscrição de atletas
+=====================================================
 
-O QUE ACONTECEU
----------------
-Erro meu, de empacotamento. O pacote do PASSO 3 incluiu o
-MatchesPanel.tsx, que passa a propriedade `allMatches` para o
-MatchResultModal — mas o MatchResultModal.tsx não estava naquele
-pacote. Ele veio no pacote da SUSPENSÃO (tabelaco-suspensao.zip), que
-não chegou a ser aplicado.
+SÓ FRONT. Sem migration nova.
 
-Resultado: um arquivo passando uma propriedade que o outro, mais
-antigo, ainda não conhece.
+Copie por cima, mantendo os caminhos:
 
-
-O QUE FAZER
------------
-Copie estes 3 arquivos por cima, mantendo os caminhos:
-
-  src/lib/suspensao.ts                    (NOVO)
-  src/components/MatchResultModal.tsx
-  src/components/MesaPortal.tsx
+  src/index.css
+  src/services/registration.ts
+  src/components/ManageChampionship.tsx
+  src/components/PlayersPanel.tsx
+  src/components/TeamRegistration.tsx
 
 Depois: npm run build
 
-Isso resolve o deploy E traz a regra de suspensão que faltava: atleta
-suspenso não pode receber presença na partida que cumpre.
-
-NÃO use o tabelaco-suspensao.zip antigo — o index.css dele é de uma
-versão anterior e desfaria as abas de categoria. Estes 3 arquivos estão
-no estado atual e não mexem no CSS.
+⚠️ Antes deste, seu projeto precisa estar com o pacote de correção
+aplicado (correcao-build2.zip) — ou com o tabelaco-completo.zip.
 
 
-DE ONDE VEM ESSA DOR DE CABEÇA
-------------------------------
-É a terceira vez que um arquivo fica para trás. Cada pacote traz só o
-que mudou, e quando um pacote é pulado, o seguinte encontra o projeto
-num estado que eu não previ.
+COMO FICA
+---------
+ORGANIZADOR e MASTER (mesma tela, aba Elencos):
+Uma fileira de abas dentro do painel, além da que já existe no topo do
+campeonato. As duas mexem no MESMO estado — clicar numa move a outra.
 
-O tabelaco-completo.zip que mandei junto resolve isso de vez:
-substituindo src/ e supabase/ inteiros, seu projeto fica idêntico ao
-meu. Recomendo usá-lo — testei descompactando num diretório limpo e
-rodando o build.
+GESTOR DO TIME (portal de inscrição):
+Abas com as categorias em que o CLUBE está inscrito, cada uma com o seu
+contador de atletas. As categorias em que o clube não joga não aparecem.
+
+Nos dois casos:
+  • o título diz qual categoria está aberta ("Elencos · Sub-15");
+  • a coluna "Categoria" da tabela some, porque a aba já diz;
+  • o diálogo de inscrição e a importação de planilha recebem SÓ a
+    categoria da aba aberta, já escolhida;
+  • no portal do time, a regra de atletas federados mostrada é a da aba.
+
+Campeonato de categoria única não mostra aba nenhuma — continua igual.
+
+
+POR QUE ISSO IMPORTA
+--------------------
+Inscrever o atleta na categoria errada é um erro que não dá aviso: só
+aparece no dia do jogo, quando o atleta não pode entrar. Com a aba
+aberta definindo onde o atleta nasce, o caminho errado deixa de existir.

@@ -34,6 +34,11 @@ export interface RegistrationData {
   championshipLogo?: string
   audience: 'infantil' | 'adulto'
   categories: Category[]
+  /**
+   * Categorias em que ESTE clube está inscrito. Vazio = campeonato anterior à
+   * separação, e aí vale para todas.
+   */
+  teamCategories: string[]
   players: Player[]
   hasAccount: boolean
   /** Usuários dos gestores do time já cadastrados (até 2). */
@@ -202,6 +207,7 @@ export async function loadRegistration(
       championshipLogo: data.championship_logo ?? undefined,
       audience: data.audience ?? 'adulto',
       categories: Array.isArray(data.categories) ? data.categories : [],
+      teamCategories: Array.isArray(data.team_categories) ? (data.team_categories as string[]) : [],
       players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
       hasAccount: Boolean(data.has_account),
       managers: Array.isArray(data.managers) ? (data.managers as string[]) : [],
@@ -231,6 +237,7 @@ export async function loadRegistration(
       audience: champ?.audience ?? 'adulto',
       championship: champ ?? undefined,
       categories: champ?.categories ?? [],
+      teamCategories: team.categoryIds ?? [],
       players: d.players
         .filter((p) => p.teamId === teamId)
         .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),

@@ -505,8 +505,28 @@ function RosterCard({
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
   const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
-  const athletes = data.players.filter((p) => (p.role ?? 'atleta') === 'atleta').length
-  const staff = data.players.filter((p) => p.role === 'comissao').length
+
+  /* ---------------------------------------------------------------------- */
+  /* Abas de categoria                                                       */
+  /*                                                                          */
+  /* Cada categoria é uma competição, e o elenco de uma não se mistura com o  */
+  /* da outra: o clube inscreve atletas diferentes no Sub-11 e no Sub-15. As  */
+  /* abas mostram só as categorias em que ESTE clube está inscrito — as       */
+  /* outras não são assunto dele.                                             */
+  /* ---------------------------------------------------------------------- */
+  const minhas = data.teamCategories.length
+    ? data.categories.filter((c) => data.teamCategories.includes(c.id))
+    : data.categories
+  const varias = minhas.length > 1
+  const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
+  const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
+
+  const doElenco = varias
+    ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
+    : data.players
+  const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
+  const staff = doElenco.filter((p) => p.role === 'comissao').length
+  const nomeCat = minhas.find((c) => c.id === catAtual)?.name
 
   async function remove(p: Player) {
     if (!confirm(`Remover ${p.name} do elenco?`)) return
@@ -518,14 +538,38 @@ function RosterCard({
     <section className="panel reg__panel">
       <div className="panel__head">
         <div>
-          <h2>Elenco — {athletes} atleta(s), {staff} comissão</h2>
-          <p className="muted">Inscreva os atletas com nome completo, CPF e data de nascimento.</p>
+          <h2>
+            {varias ? `Elenco · ${nomeCat}` : 'Elenco'} — {athletes} atleta(s), {staff} comissão
+          </h2>
+          <p className="muted">
+            Inscreva os atletas com nome completo, CPF e data de nascimento.
+            {varias && ' Cada categoria tem o seu elenco.'}
+          </p>
         </div>
         <div className="panel__head-actions">
           <Button variant="soft" onClick={() => setImporting(true)} disabled={lock.locked}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
         </div>
       </div>
+
+      {varias && (
+        <nav className="cat-tabs cat-tabs--claro" aria-label="Categorias do time">
+          {minhas.map((c) => {
+            const quantos = data.players.filter(
+              (p) => (p.categoryId || minhas[0]?.id) === c.id && (p.role ?? 'atleta') === 'atleta',
+            ).length
+            return (
+              <button
+                key={c.id}
+                className={`cat-tab ${catAtual === c.id ? 'is-active' : ''}`}
+                onClick={() => setCatId(c.id)}
+              >
+                {c.name} <span className="cat-tab__n">{quantos}</span>
+              </button>
+            )
+          })}
+        </nav>
+      )}
 
       <PushToggle
         title="Avisos de gol do meu grupo"
@@ -553,7 +597,7 @@ function RosterCard({
         <div className={`fed-note ${algumaPermite(data, data.categories) ? '' : 'fed-note--no'}`}>
           <b>Atletas federados (campo / futsal)</b>
           <ul className="fed-note__list">
-            {data.categories.map((cat) => {
+            {(varias ? minhas.filter((c) => c.id === catAtual) : minhas).map((cat) => {
               const usadas = contarFederados(data.players, cat.id)
               const limite = limiteFederados(cat)
               return (
@@ -569,8 +613,8 @@ function RosterCard({
         </div>
       )}
 
-      {data.players.length === 0 ? (
-        <EmptyState icon="👤" title="Nenhum atleta inscrito">
+      {doElenco.length === 0 ? (
+        <EmptyState icon="👤" title={varias ? `Nenhum atleta no ${nomeCat}` : 'Nenhum atleta inscrito'}>
           <p>Comece inscrevendo os atletas do elenco.</p>
         </EmptyState>
       ) : (
@@ -581,12 +625,12 @@ function RosterCard({
                 <th className="col-num">#</th>
                 <th>Atleta</th>
                 <th>Nasc.</th>
-                {data.categories.length > 1 && <th>Categoria</th>}
+                {!varias && data.categories.length > 1 && <th>Categoria</th>}
                 <th className="col-actions"></th>
               </tr>
             </thead>
             <tbody>
-              {data.players.map((p) => (
+              {doElenco.map((p) => (
                 <tr key={p.id}>
                   <td className="col-num">{p.number ?? '—'}</td>
                   <td>
@@ -606,7 +650,9 @@ function RosterCard({
                     </span>
                   </td>
                   <td>{p.birthdate ? p.birthdate.split('-').reverse().join('/') : '—'}</td>
-                  {data.categories.length > 1 && <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>}
+                  {!varias && data.categories.length > 1 && (
+                    <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
+                  )}
                   <td className="col-actions">
                     <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
                     <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
@@ -622,7 +668,10 @@ function RosterCard({
         <AthleteDialog
           teamId={teamId}
           token={token}
-          categories={data.categories}
+          // Só as categorias deste clube, e a da aba aberta já vem escolhida:
+          // inscrever no Sub-15 estando na aba do Sub-11 seria um erro que só
+          // aparece na hora do jogo.
+          categories={varias ? minhas.filter((c) => c.id === catAtual) : minhas}
           audience={data.audience}
           elenco={data.players}
           initial={editing ?? undefined}
@@ -640,7 +689,7 @@ function RosterCard({
 
       {importing && (
         <ImportAthletesModal
-          categories={data.categories}
+          categories={varias ? minhas.filter((c) => c.id === catAtual) : minhas}
           existing={data.players}
           teamId={teamId}
           onAdd={async (i) => {
