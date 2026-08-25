@@ -1,61 +1,78 @@
-Tabelaço — o dono do time entra pela página inicial
-====================================================
+Tabelaço — regras de jogo no cadastro + cláusulas fixas no regulamento
+======================================================================
 
-ORDEM: rode a migration ANTES de subir o front. Sem ela, o login pela
-página inicial avisa que o servidor ainda não foi liberado.
+ATENÇÃO À ORDEM DOS PACOTES
+Este pacote inclui registration.ts, que também mudou no pacote do LOGIN
+POR E-MAIL. Aplique naquela ordem:
+   1) tabelaco-login-time.zip
+   2) tabelaco-suporte.zip
+   3) este
+Os arquivos aqui já trazem tudo o que veio antes.
 
 1) BANCO — Supabase → SQL Editor → cole e execute:
 
-     supabase/migrations/0028_team_login_email.sql
+     supabase/migrations/0029_game_rules.sql
 
-   É idempotente: pode rodar de novo sem medo.
+   Idempotente: pode rodar de novo sem medo.
 
 2) FRONT — copie por cima, mantendo os caminhos:
 
+     src/types.ts
      src/index.css
-     src/lib/email.ts                     (NOVO)
-     src/lib/teamSession.ts               (NOVO)
+     src/lib/regras.ts                    (NOVO)
+     src/lib/regulamento.ts
+     src/lib/discipline.ts
+     src/lib/pdf.ts
+     src/services/championships.ts
      src/services/registration.ts
-     src/components/Landing.tsx
-     src/components/TeamRegistration.tsx
-     src/components/TeamsPanel.tsx
+     src/components/ChampionshipForm.tsx
+     src/components/StatsPanel.tsx
+     src/components/ManageChampionship.tsx
+     src/components/PublicChampionship.tsx
 
    Depois: npm run build
 
 
-COMO FICA
----------
-A CRIAÇÃO da conta não muda: continua sendo pelo link que o organizador
-envia (#/t/<time>?k=<token>). O que muda é que o login agora é um
-E-MAIL VÁLIDO, e não mais um usuário inventado.
+O QUE ENTRA NO FORMULÁRIO
+-------------------------
+POR CATEGORIA (bloco "⏱ Regras de jogo" dentro de cada categoria):
+  • Tempo de jogo — minutos de cada tempo + quantos tempos (mostra o
+    total calculado ao lado).
+  • Substituições — rotativa (livre) ou com limite; escolhendo limite,
+    aparece o campo "quantas por partida".
+  • Cartão amarelo — acumula? Se sim, quantos suspendem (padrão 3).
+  • Arbitragem — valor por partida e a chave PIX de recebimento.
 
-Depois de criada a conta, o gestor entra pela PÁGINA INICIAL do
-Tabelaço — a mesma caixa "Entrar" do organizador — só com e-mail e
-senha. O app reconhece que é gestor de time e abre o portal do time
-direto, sem pedir o link.
-
-Se o mesmo e-mail gerencia times em campeonatos diferentes, a página
-mostra a lista para ele escolher qual abrir.
-
-Cada time continua podendo ter 2 gestores; agora cada um com o próprio
-e-mail e a própria senha.
+DO CAMPEONATO INTEIRO (perto do prazo de inscrição):
+  • Atletas no banco de reservas.
+  • Se um atleta for expulso: equipe com um a menos OU substitui.
 
 
-O QUE NÃO MUDA
+NO REGULAMENTO
 --------------
-• Só o link do organizador cria conta de time. Ninguém entra em um time
-  sem ter sido chamado.
-• Contas antigas, com usuário que não é e-mail ("leoes.fc"), continuam
-  entrando pelo link exatamente como antes. Nada é apagado nem migrado
-  à força — apenas não é mais possível criar contas assim.
-• Zerar a senha continua sendo do administrador, e a nova senha continua
-  sendo criada PELO LINK. É de propósito: se desse para redefinir só com
-  o e-mail, bastaria saber o endereço de um gestor com a senha zerada
-  para entrar no time dele.
+Tudo isso vira seção do PDF, com uma linha por categoria. O arquivo
+exemplo-regulamento.pdf, aqui no pacote, é um regulamento completo
+gerado com 4 categorias — vale a pena abrir antes de subir.
+
+Campo deixado em branco NÃO vira frase inventada: a seção some inteira e
+a numeração se refaz sozinha. Um regulamento que afirma "2 tempos de 25
+minutos" num campeonato onde ninguém definiu o tempo é pior do que um
+que não fala do assunto.
+
+CLÁUSULAS FIXAS — entram em TODO campeonato, sem depender do cadastro:
+tolerância e W.O., troca de uniforme, bola de jogo, agressão e
+discriminação, o protocolo de três etapas para racismo, punições
+esportivas e responsabilidade legal.
+
+Sobre o texto delas: mantive a redação e o conteúdo que você mandou,
+corrigindo só acentuação e concordância ("devera" → "deverá", "tera" →
+"terá") e uma troca: "perca de 03 pontos" → "perda de 03 pontos". É um
+documento que as equipes leem e guardam.
 
 
-CONFERÊNCIA
------------
-A suíte SQL (supabase/tests/run.sh) ganhou 24 verificações novas — senha
-errada, e-mail desconhecido, senha vazia, conta zerada, e-mail repetido
-no mesmo time e o terceiro gestor. Todas passando.
+MUDANÇA DE COMPORTAMENTO
+------------------------
+A suspensão automática por cartão amarelo deixou de ser 3 fixo. Agora
+segue a categoria em que o atleta está inscrito, e respeita a categoria
+que desliga o acúmulo. Atleta sem categoria e cartão de banco continuam
+no costume (3), como antes.

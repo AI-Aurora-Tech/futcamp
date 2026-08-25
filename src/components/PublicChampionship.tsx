@@ -112,7 +112,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
         {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} players={players} events={events} />}
         {tab === 'matches' && <MatchesReadOnly championship={champ} teams={teams} matches={matches} />}
         {tab === 'calendar' && <MatchCalendar championship={champ} teams={teams} matches={matches} />}
-        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} />}
+        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} categories={champ.categories} />}
       </div>
 
       <footer className="public__footer">

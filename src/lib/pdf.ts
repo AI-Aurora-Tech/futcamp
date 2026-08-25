@@ -146,6 +146,34 @@ function bytesDe(texto: string): number[] {
   return out
 }
 
+/**
+ * Texto para os METADADOS do arquivo (o /Title, que vira o nome na aba do
+ * navegador e nas propriedades do arquivo).
+ *
+ * Aqui NÃO vale o WinAnsi do conteúdo: leitor de PDF interpreta string de
+ * metadado como PDFDocEncoding, e os dois discordam justamente na faixa
+ * 0x80–0x9F — o travessão de "Regulamento — Copa" saía como "Š". A forma que
+ * todo leitor entende sem ambiguidade é UTF-16BE com marca de ordem de bytes,
+ * escrita em hexadecimal.
+ */
+export function textoUtf16(texto: string): number[] {
+  const bytes: number[] = [0x3c, 0x46, 0x45, 0x46, 0x46] // "<FEFF"
+  for (const ch of texto) {
+    const cp = ch.codePointAt(0) ?? 0
+    const unidades =
+      cp > 0xffff
+        ? [0xd800 + ((cp - 0x10000) >> 10), 0xdc00 + ((cp - 0x10000) & 0x3ff)]
+        : [cp]
+    for (const u of unidades) {
+      for (const nibble of u.toString(16).toUpperCase().padStart(4, '0')) {
+        bytes.push(nibble.charCodeAt(0))
+      }
+    }
+  }
+  bytes.push(0x3e) // ">"
+  return bytes
+}
+
 export interface DocumentoPdf {
   titulo: string
   linhas: Linha[]
@@ -241,13 +269,11 @@ export function gerarPdf(doc: DocumentoPdf): Uint8Array {
     )
   }
 
-  const idInfo = add(
-    [
-      ...bytesDe('<< /Title ('),
-      ...escaparWinAnsi(doc.titulo),
-      ...bytesDe(') /Producer (Tabelaco) /Creator (Tabelaco) >>'),
-    ],
-  )
+  const idInfo = add([
+    ...bytesDe('<< /Title '),
+    ...textoUtf16(doc.titulo),
+    ...bytesDe(' /Producer (Tabelaco) /Creator (Tabelaco) >>'),
+  ])
 
   objetos[idCatalogo - 1] = bytesDe(`<< /Type /Catalog /Pages ${idPages} 0 R >>`)
   objetos[idPages - 1] = bytesDe(

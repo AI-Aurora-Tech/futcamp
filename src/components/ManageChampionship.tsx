@@ -234,7 +234,7 @@ export function ManageChampionship({
         {tab === 'matches' && <MatchesPanel championship={champ} teams={teams} players={players} matches={matches} events={events} officials={officials} onChange={reload} />}
         {tab === 'officials' && <OfficialsPanel championship={champ} officials={officials} matches={matches} onChange={reload} />}
         {tab === 'registries' && <RegistriesPanel championship={champ} onChange={reload} />}
-        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} />}
+        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} categories={champ.categories} />}
         {tab === 'settings' && (
           <section className="panel">
             <div className="panel__head">

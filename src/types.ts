@@ -58,6 +58,49 @@ export interface Category {
   maxAthletes?: number
   /** Máximo de membros da comissão técnica por time nesta categoria. */
   maxStaff?: number
+
+  /* --- Regras de jogo (entram no regulamento) --------------------------- */
+
+  /** Duração de CADA tempo, em minutos. */
+  periodMinutes?: number
+  /** Quantos tempos tem a partida (padrão 2). */
+  periods?: number
+  /**
+   * Substituições: 'rotativa' (livres, o atleta pode voltar) ou 'limitada'
+   * (até `maxSubstitutions` por partida). Ausente = não definido, e o
+   * regulamento não afirma nada.
+   */
+  substitutionMode?: SubstitutionMode
+  /** Quantas substituições por partida, quando o modo é 'limitada'. */
+  maxSubstitutions?: number
+  /** O cartão amarelo acumula para suspensão automática? */
+  yellowAccumulates?: boolean
+  /** Quantos amarelos suspendem, quando acumulam (padrão 3). */
+  yellowsForSuspension?: number
+  /** Valor da arbitragem por partida, em centavos. */
+  refereeFeeCents?: number
+  /** Chave PIX para o pagamento da arbitragem. */
+  refereePix?: string
+}
+
+/** Como as substituições funcionam na categoria. */
+export type SubstitutionMode = 'rotativa' | 'limitada'
+
+export const SUBSTITUTION_LABELS: Record<SubstitutionMode, string> = {
+  rotativa: 'Rotativa (livre)',
+  limitada: 'Com limite por partida',
+}
+
+/**
+ * O que acontece com a equipe quando um atleta é expulso: joga com um a menos
+ * (regra do futebol de campo) ou pode substituir o expulso depois de cumprido
+ * o tempo de punição (comum no futsal e em torneios de base).
+ */
+export type SendOffPolicy = 'menos_um' | 'substitui'
+
+export const SEND_OFF_LABELS: Record<SendOffPolicy, string> = {
+  menos_um: 'A equipe segue com um atleta a menos',
+  substitui: 'A equipe pode substituir o atleta expulso',
 }
 
 /** Árbitro do campeonato (apita as partidas). */
@@ -252,6 +295,13 @@ export interface Championship {
   paymentRef?: string
   /** Momento da confirmação do pagamento. */
   paidAt?: string
+  /**
+   * Quantos atletas podem ficar no banco de reservas, devidamente
+   * uniformizados. Vale para o campeonato inteiro.
+   */
+  benchSize?: number
+  /** Penalidade da expulsão: um a menos em campo ou substituição do expulso. */
+  sendOffPolicy?: SendOffPolicy
   /**
    * Momento em que o campeonato foi encerrado. Preenchido automaticamente na
    * troca de status — é o que mantém o campeão na vitrine pública pelos dias

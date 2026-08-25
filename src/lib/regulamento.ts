@@ -2,8 +2,14 @@
 // Regulamento do campeonato, montado a partir do que já está cadastrado.
 //
 // A ideia é que o organizador não precise redigir nada: as regras que ele
-// escolheu no formulário (formato, pontuação, categorias, desempate, prazo de
-// inscrição, atletas federados) viram um documento que os times podem baixar.
+// escolheu no formulário (formato, pontuação, categorias, tempo de jogo,
+// substituições, cartões, arbitragem, desempate, prazo de inscrição, atletas
+// federados) viram um documento que os times podem baixar.
+//
+// Além disso, todo campeonato leva um bloco de cláusulas FIXAS — tolerância,
+// troca de uniforme, bola de jogo, agressão, racismo. Elas não dependem do
+// cadastro porque não são negociáveis: valem em qualquer competição da
+// plataforma.
 //
 // Esta parte é só o TEXTO — pura e testável. Quem transforma em arquivo é o
 // `src/lib/pdf.ts`.
@@ -14,9 +20,18 @@ import {
   FORMAT_LABELS,
   SPORT_LABELS,
   TIEBREAKER_LABELS,
+  type Category,
   type Championship,
 } from '../types'
 import { algumaPermite, textoRegra } from './federated'
+import {
+  descreverAmarelos,
+  descreverArbitragem,
+  descreverBanco,
+  descreverExpulsao,
+  descreverSubstituicoes,
+  descreverTempo,
+} from './regras'
 import type { Linha } from './pdf'
 
 /** Data por extenso, para o rodapé do documento. */
@@ -26,12 +41,59 @@ function dataLonga(iso?: string): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-function secao(titulo: string, itens: string[]): Linha[] {
-  if (!itens.length) return []
-  return [
-    { texto: titulo, estilo: 'secao' },
-    ...itens.map((texto): Linha => ({ texto: `• ${texto}`, estilo: 'item' })),
-  ]
+/**
+ * Uma seção do regulamento antes de virar linha.
+ *
+ * A numeração NÃO fica escrita no título: seções vazias somem, e um documento
+ * que pula do "5" para o "7" faz o leitor procurar a página que falta.
+ */
+interface Secao {
+  titulo: string
+  intro?: string
+  itens?: string[]
+}
+
+function renderizar(secoes: Secao[]): Linha[] {
+  const linhas: Linha[] = []
+  let n = 0
+  for (const s of secoes) {
+    const itens = (s.itens ?? []).filter(Boolean)
+    if (!itens.length && !s.intro) continue
+    n++
+    linhas.push({ texto: `${n}. ${s.titulo}`, estilo: 'secao' })
+    if (s.intro) linhas.push({ texto: s.intro, estilo: 'corpo' })
+    for (const item of itens) linhas.push({ texto: `• ${item}`, estilo: 'item' })
+  }
+  return linhas
+}
+
+/** "Sub-13: 2 tempos de 25 minutos" — uma linha por categoria que definiu. */
+function porCategoria(cats: Category[], descreve: (c: Category) => string): string[] {
+  return cats
+    .map((c) => {
+      const txt = descreve(c)
+      return txt ? `${c.name}: ${txt}.` : ''
+    })
+    .filter(Boolean)
+}
+
+/**
+ * Rótulo do esporte e do público, com o valor cru como reserva.
+ *
+ * Campeonato antigo pode ter um `sport` que saiu da lista. `SPORT_LABELS[...]`
+ * devolveria `undefined`, e o regulamento — um documento que as equipes leem —
+ * sairia com "Modalidade: undefined.".
+ */
+function rotuloEsporte(c: Championship): string {
+  return SPORT_LABELS[c.sport] ?? c.sport ?? ''
+}
+
+function rotuloPublico(c: Championship): string {
+  return AUDIENCE_LABELS[c.audience] ?? c.audience ?? ''
+}
+
+function maiuscula(frase: string): string {
+  return frase.charAt(0).toUpperCase() + frase.slice(1)
 }
 
 /** Descreve o formato da competição em uma frase que um leigo entende. */
@@ -86,8 +148,79 @@ export function descreverCategorias(c: Championship): string[] {
   })
 }
 
-function maiuscula(frase: string): string {
-  return frase.charAt(0).toUpperCase() + frase.slice(1)
+/* -------------------------------------------------------------------------- */
+/* Cláusulas fixas — valem em qualquer campeonato da plataforma                */
+/* -------------------------------------------------------------------------- */
+
+const TOLERANCIA: Secao = {
+  titulo: 'Da tolerância',
+  itens: [
+    'Cada categoria terá 20 minutos de tolerância. Após esse prazo será aplicado o W.O. e, ' +
+      'caso não haja justificativa, a equipe será automaticamente eliminada do campeonato.',
+  ],
+}
+
+const UNIFORME: Secao = {
+  titulo: 'Da troca de uniforme',
+  itens: [
+    'Cada categoria terá até 20 minutos de tolerância após o comunicado do delegado da partida. ' +
+      'A troca do uniforme é de responsabilidade da equipe mandante.',
+  ],
+}
+
+const BOLA: Secao = {
+  titulo: 'Da bola de jogo',
+  itens: [
+    'Cada equipe deverá apresentar no mínimo 03 bolas em condições de jogo ao delegado da partida. ' +
+      'O não cumprimento penaliza a equipe com a perda de 03 pontos e do mando de jogo.',
+  ],
+}
+
+const AGRESSAO: Secao = {
+  titulo: 'Da agressão e de qualquer forma de discriminação',
+  itens: [
+    'A partida deverá ser paralisada.',
+    'Em caso de agressão física, a equipe infratora será penalizada após o julgamento da súmula ' +
+      'pela organização do campeonato.',
+    'Em caso de briga generalizada, a partida deverá ser encerrada, aguardando-se o posicionamento ' +
+      'da organização mediante as informações da súmula.',
+  ],
+}
+
+const RACISMO: Secao = {
+  titulo: 'Em caso de racismo — o protocolo em campo',
+  intro:
+    'O árbitro, jogadores ou oficiais podem sinalizar um ato discriminatório cruzando os pulsos em ' +
+    'formato de "X". O jogo deve seguir estas três etapas se houver ofensas ou cantos racistas:',
+  itens: [
+    '1ª etapa (paralisação): o árbitro interrompe a partida imediatamente e ordena um aviso público ' +
+      'para que o comportamento cesse.',
+    '2ª etapa (suspensão temporária): se o ato continuar após o reinício, o árbitro suspende o jogo ' +
+      'por um período determinado e retira as equipes do gramado, que vão aos vestiários enquanto ' +
+      'novos avisos são emitidos.',
+    '3ª etapa (encerramento definitivo): caso as manifestações persistam após o retorno, o jogo é ' +
+      'encerrado de forma definitiva e a equipe responsável pela conduta discriminatória — de ' +
+      'jogadores ou de torcida — é punida com a derrota por W.O.',
+  ],
+}
+
+const PUNICOES: Secao = {
+  titulo: 'Das punições esportivas e disciplinares',
+  itens: [
+    'Multas e sanções severas: clubes e confederações podem receber multas altíssimas, que chegam ' +
+      'a milhões de reais.',
+    'Perda de pontos e portões fechados: os clubes podem jogar com portões fechados, perder pontos ' +
+      'na tabela ou até sofrer rebaixamento e exclusão de campeonatos.',
+  ],
+}
+
+const RESPONSABILIDADE: Secao = {
+  titulo: 'Da responsabilidade legal',
+  itens: [
+    'Prisão em flagrante: o racismo é crime inafiançável e imprescritível no Brasil. Torcedores, ' +
+      'atletas ou dirigentes que cometerem agressões racistas devem ser identificados, detidos pelas ' +
+      'forças de segurança presentes no estádio e conduzidos a uma delegacia para autuação em flagrante.',
+  ],
 }
 
 /**
@@ -98,11 +231,13 @@ function maiuscula(frase: string): string {
  * traz a data de emissão — a versão importa.
  */
 export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] {
+  const cats = c.categories ?? []
+
   const linhas: Linha[] = [
     { texto: 'REGULAMENTO', estilo: 'titulo' },
     { texto: c.name, estilo: 'secao' },
     {
-      texto: [SPORT_LABELS[c.sport], AUDIENCE_LABELS[c.audience], c.season]
+      texto: [rotuloEsporte(c), rotuloPublico(c), c.season]
         .filter(Boolean)
         .join(' · '),
       estilo: 'subtitulo',
@@ -113,75 +248,105 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
     linhas.push({ texto: c.description.trim(), estilo: 'corpo' })
   }
 
-  linhas.push(
-    ...secao('1. Da competição', [
-      `Modalidade: ${SPORT_LABELS[c.sport]}.`,
-      `Público: ${AUDIENCE_LABELS[c.audience]}.`,
-      c.season ? `Temporada: ${c.season}.` : '',
-      `Formato: ${descreverFormato(c)}`,
-    ].filter(Boolean)),
-  )
-
-  linhas.push(
-    ...secao('2. Das categorias', descreverCategorias(c).length
-      ? descreverCategorias(c)
-      : ['Categoria única, sem restrição de idade.']),
-  )
-
-  linhas.push(
-    ...secao('3. Das inscrições', [
-      descreverPrazo(c),
-      'A inscrição é feita pelo responsável da equipe, pelo link enviado pelo organizador.',
-      'São exigidos nome completo, CPF e data de nascimento de cada atleta.',
-      'Um mesmo CPF não pode ser inscrito em duas equipes do mesmo campeonato.',
-      ...(algumaPermite(c, c.categories)
-        ? ['A equipe deve indicar, na inscrição, quais atletas são federados e em qual modalidade (campo ou futsal). O limite de federados é por categoria — veja a seção 2.']
-        : c.audience === 'infantil'
-          ? ['Nenhuma categoria deste campeonato aceita atletas federados.']
-          : []),
-    ]),
-  )
-
-  const pontos = [
-    `Vitória: ${c.pointsWin ?? 3} ponto(s).`,
-    `Empate: ${c.pointsDraw ?? 1} ponto(s).`,
-    'Derrota: 0 ponto.',
-  ]
   const criterios = (c.tiebreakers?.length ? c.tiebreakers : DEFAULT_TIEBREAKERS).map(
     (t, i) => `${i + 1}º) ${TIEBREAKER_LABELS[t] ?? t}`,
   )
 
-  linhas.push(...secao('4. Da pontuação', pontos))
-  linhas.push(
-    { texto: '5. Dos critérios de desempate', estilo: 'secao' },
-    {
-      texto:
-        'Em caso de igualdade de pontos, a classificação é decidida nesta ordem:',
-      estilo: 'corpo',
-    },
-    ...criterios.map((texto): Linha => ({ texto: `• ${texto}`, estilo: 'item' })),
-  )
-
-  if (c.format !== 'league') {
-    linhas.push(
-      ...secao('6. Do mata-mata', [
-        'Empate no tempo normal é decidido na disputa por pênaltis.',
-        c.thirdPlace ? 'Há disputa de 3º lugar.' : 'Não há disputa de 3º lugar.',
-      ]),
-    )
-  }
+  const banco = descreverBanco(c)
+  const expulsao = descreverExpulsao(c)
 
   linhas.push(
-    ...secao('7. Das súmulas e resultados', [
-      'A súmula de cada partida é preenchida pela mesa e fica disponível para as equipes.',
-      'Gols, cartões e substituições registrados na súmula alimentam a classificação e as estatísticas.',
-      'A classificação é atualizada automaticamente ao encerrar cada partida.',
-    ]),
-  )
-
-  linhas.push(
-    ...secao('8. Dos casos omissos', [
-      'Os casos não previstos neste regulamento serão resolvidos pela organização do campeonato.',
+    ...renderizar([
+      {
+        titulo: 'Da competição',
+        itens: [
+          `Modalidade: ${rotuloEsporte(c)}.`,
+          `Público: ${rotuloPublico(c)}.`,
+          c.season ? `Temporada: ${c.season}.` : '',
+          `Formato: ${descreverFormato(c)}`,
+        ],
+      },
+      {
+        titulo: 'Das categorias',
+        itens: descreverCategorias(c).length
+          ? descreverCategorias(c)
+          : ['Categoria única, sem restrição de idade.'],
+      },
+      {
+        titulo: 'Do tempo de jogo',
+        itens: porCategoria(cats, descreverTempo),
+      },
+      {
+        titulo: 'Das inscrições',
+        itens: [
+          descreverPrazo(c),
+          'A inscrição é feita pelo responsável da equipe, pelo link enviado pelo organizador.',
+          'São exigidos nome completo, CPF e data de nascimento de cada atleta.',
+          'Um mesmo CPF não pode ser inscrito em duas equipes do mesmo campeonato.',
+          ...(algumaPermite(c, cats)
+            ? ['A equipe deve indicar, na inscrição, quais atletas são federados e em qual modalidade (campo ou futsal). O limite de federados é por categoria — veja a seção Das categorias.']
+            : c.audience === 'infantil'
+              ? ['Nenhuma categoria deste campeonato aceita atletas federados.']
+              : []),
+        ],
+      },
+      {
+        titulo: 'Do banco de reservas e das substituições',
+        itens: [banco, ...porCategoria(cats, descreverSubstituicoes)],
+      },
+      {
+        titulo: 'Da pontuação',
+        itens: [
+          `Vitória: ${c.pointsWin ?? 3} ponto(s).`,
+          `Empate: ${c.pointsDraw ?? 1} ponto(s).`,
+          'Derrota: 0 ponto.',
+        ],
+      },
+      {
+        titulo: 'Dos critérios de desempate',
+        intro: 'Em caso de igualdade de pontos, a classificação é decidida nesta ordem:',
+        itens: criterios,
+      },
+      ...(c.format !== 'league'
+        ? [
+            {
+              titulo: 'Do mata-mata',
+              itens: [
+                'Empate no tempo normal é decidido na disputa por pênaltis.',
+                c.thirdPlace ? 'Há disputa de 3º lugar.' : 'Não há disputa de 3º lugar.',
+              ],
+            },
+          ]
+        : []),
+      {
+        titulo: 'Da disciplina',
+        itens: [expulsao, ...porCategoria(cats, descreverAmarelos)],
+      },
+      {
+        titulo: 'Da arbitragem',
+        itens: porCategoria(cats, descreverArbitragem),
+      },
+      TOLERANCIA,
+      UNIFORME,
+      BOLA,
+      AGRESSAO,
+      RACISMO,
+      PUNICOES,
+      RESPONSABILIDADE,
+      {
+        titulo: 'Das súmulas e resultados',
+        itens: [
+          'A súmula de cada partida é preenchida pela mesa e fica disponível para as equipes.',
+          'Gols, cartões e substituições registrados na súmula alimentam a classificação e as estatísticas.',
+          'A classificação é atualizada automaticamente ao encerrar cada partida.',
+        ],
+      },
+      {
+        titulo: 'Dos casos omissos',
+        itens: [
+          'Os casos não previstos neste regulamento serão resolvidos pela organização do campeonato.',
+        ],
+      },
     ]),
   )
 

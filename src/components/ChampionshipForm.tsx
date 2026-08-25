@@ -29,7 +29,9 @@ import {
   stageName,
   totalQualifiers,
 } from '../lib/groupStages'
-import { PHASE_LABELS } from '../types'
+import { PHASE_LABELS, SEND_OFF_LABELS, SUBSTITUTION_LABELS } from '../types'
+import type { SendOffPolicy, SubstitutionMode } from '../types'
+import { centavosDeTexto, textoDeCentavos } from '../lib/regras'
 import type { NewChampionship } from '../services/championships'
 
 const LOGO_CHOICES = ['🏆', '⚽', '🥇', '🔥', '⭐', '🦁', '🦅', '🐯', '🐺', '🛡️']
@@ -46,6 +48,17 @@ interface CatDraft {
   allowFederated: boolean
   /** Vazio = sem limite. Texto para o campo aceitar ser apagado. */
   maxFederated: string
+
+  /* Regras de jogo — tudo texto, para o campo poder ficar vazio ("não
+     definido") em vez de assumir um número que ninguém escolheu. */
+  periodMinutes: string
+  periods: string
+  substitutionMode: '' | SubstitutionMode
+  maxSubstitutions: string
+  yellowAccumulates: boolean
+  yellowsForSuspension: string
+  refereeFee: string
+  refereePix: string
 }
 
 function toDraft(c: Category): CatDraft {
@@ -59,6 +72,14 @@ function toDraft(c: Category): CatDraft {
     maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
     allowFederated: Boolean(c.allowFederated),
     maxFederated: c.maxFederated != null ? String(c.maxFederated) : '',
+    periodMinutes: c.periodMinutes != null ? String(c.periodMinutes) : '',
+    periods: String(c.periods ?? 2),
+    substitutionMode: c.substitutionMode ?? '',
+    maxSubstitutions: c.maxSubstitutions != null ? String(c.maxSubstitutions) : '',
+    yellowAccumulates: c.yellowAccumulates !== false,
+    yellowsForSuspension: c.yellowsForSuspension != null ? String(c.yellowsForSuspension) : '',
+    refereeFee: textoDeCentavos(c.refereeFeeCents),
+    refereePix: c.refereePix ?? '',
   }
 }
 
@@ -66,6 +87,8 @@ function emptyDraft(): CatDraft {
   return {
     id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
     maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
+    periodMinutes: '', periods: '2', substitutionMode: '', maxSubstitutions: '',
+    yellowAccumulates: true, yellowsForSuspension: '3', refereeFee: '', refereePix: '',
   }
 }
 
@@ -151,6 +174,12 @@ export function ChampionshipForm({
   })
   const [leagueQualifiers, setLeagueQualifiers] = useState<string>(initial?.leagueQualifiers != null ? String(initial.leagueQualifiers) : '')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
+  const [benchSize, setBenchSize] = useState(
+    initial?.benchSize != null ? String(initial.benchSize) : '',
+  )
+  const [sendOffPolicy, setSendOffPolicy] = useState<'' | SendOffPolicy>(
+    initial?.sendOffPolicy ?? '',
+  )
   const [tiebreakers, setTiebreakers] = useState<TiebreakerId[]>(
     initial?.tiebreakers?.length ? initial.tiebreakers : DEFAULT_TIEBREAKERS,
   )
@@ -205,6 +234,22 @@ export function ChampionshipForm({
             audience === 'infantil' && c.allowFederated && c.maxFederated.trim()
               ? Math.max(1, Number(c.maxFederated))
               : null,
+          // Regras de jogo. Campo vazio fica `undefined` de propósito: o
+          // regulamento omite a regra em vez de afirmar um padrão que o
+          // organizador não escolheu.
+          periodMinutes: c.periodMinutes ? Math.max(1, Number(c.periodMinutes)) : undefined,
+          periods: c.periodMinutes ? Math.max(1, Number(c.periods) || 2) : undefined,
+          substitutionMode: c.substitutionMode || undefined,
+          maxSubstitutions:
+            c.substitutionMode === 'limitada' && c.maxSubstitutions
+              ? Math.max(1, Number(c.maxSubstitutions))
+              : undefined,
+          yellowAccumulates: c.yellowAccumulates,
+          yellowsForSuspension: c.yellowAccumulates
+            ? Math.max(1, Number(c.yellowsForSuspension) || 3)
+            : undefined,
+          refereeFeeCents: centavosDeTexto(c.refereeFee),
+          refereePix: c.refereePix.trim() || undefined,
         }
       })
   }
@@ -332,6 +377,8 @@ export function ChampionshipForm({
       pointsWin: Number(pointsWin),
       pointsDraw: Number(pointsDraw),
       registrationCutoffHours: Number(cutoffHours),
+      benchSize: benchSize ? Math.max(0, Number(benchSize)) : undefined,
+      sendOffPolicy: sendOffPolicy || undefined,
       doubleRound,
       // Campos "legados" espelham a 1ª fase (usados no cadastro/sorteio dos times).
       numGroups: format === 'groups_knockout' ? stages[0].numGroups : undefined,
@@ -549,6 +596,121 @@ export function ChampionshipForm({
                     />
                     <small className="mini-field__hint">técnicos/auxiliares por time</small>
                   </label>
+
+                  {/* Regras de jogo: tudo o que se discute na beira do campo e
+                      entra no regulamento que os times baixam. */}
+                  <div className="cat-regras">
+                    <span className="cat-regras__titulo">⏱ Regras de jogo</span>
+
+                    <div className="cat-regras__linha">
+                      <label className="mini-field">
+                        <span className="mini-field__label">Tempo de jogo</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={90}
+                          value={c.periodMinutes}
+                          onChange={(e) => updateCat(c.id, { periodMinutes: e.target.value })}
+                          placeholder="Ex.: 25"
+                        />
+                        <small className="mini-field__hint">minutos de cada tempo</small>
+                      </label>
+                      <label className="mini-field">
+                        <span className="mini-field__label">Nº de tempos</span>
+                        <select
+                          value={c.periods}
+                          onChange={(e) => updateCat(c.id, { periods: e.target.value })}
+                        >
+                          <option value="1">1 (corrido)</option>
+                          <option value="2">2 tempos</option>
+                          <option value="3">3 tempos</option>
+                          <option value="4">4 tempos</option>
+                        </select>
+                        <small className="mini-field__hint">
+                          {c.periodMinutes
+                            ? `total de ${Math.max(1, Number(c.periods) || 2) * Number(c.periodMinutes)} min`
+                            : 'em branco = não definido'}
+                        </small>
+                      </label>
+                    </div>
+
+                    <div className="cat-regras__linha">
+                      <label className="mini-field">
+                        <span className="mini-field__label">Substituições</span>
+                        <select
+                          value={c.substitutionMode}
+                          onChange={(e) =>
+                            updateCat(c.id, { substitutionMode: e.target.value as '' | SubstitutionMode })
+                          }
+                        >
+                          <option value="">Não definido</option>
+                          {Object.entries(SUBSTITUTION_LABELS).map(([id, label]) => (
+                            <option key={id} value={id}>{label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {c.substitutionMode === 'limitada' && (
+                        <label className="mini-field">
+                          <span className="mini-field__label">Quantas por partida</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={c.maxSubstitutions}
+                            onChange={(e) => updateCat(c.id, { maxSubstitutions: e.target.value })}
+                            placeholder="Ex.: 5"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="cat-regras__linha">
+                      <label className="check cat-regras__check">
+                        <input
+                          type="checkbox"
+                          checked={c.yellowAccumulates}
+                          onChange={(e) => updateCat(c.id, { yellowAccumulates: e.target.checked })}
+                        />
+                        <span>O cartão <b>amarelo acumula</b></span>
+                      </label>
+                      {c.yellowAccumulates && (
+                        <label className="mini-field">
+                          <span className="mini-field__label">Amarelos p/ suspensão</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={20}
+                            value={c.yellowsForSuspension}
+                            onChange={(e) => updateCat(c.id, { yellowsForSuspension: e.target.value })}
+                            placeholder="3"
+                          />
+                          <small className="mini-field__hint">suspensão automática</small>
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="cat-regras__linha">
+                      <label className="mini-field">
+                        <span className="mini-field__label">Valor da arbitragem</span>
+                        <input
+                          inputMode="decimal"
+                          value={c.refereeFee}
+                          onChange={(e) => updateCat(c.id, { refereeFee: e.target.value })}
+                          placeholder="Ex.: 180,00"
+                        />
+                        <small className="mini-field__hint">R$ por partida</small>
+                      </label>
+                      <label className="mini-field mini-field--wide">
+                        <span className="mini-field__label">PIX da arbitragem</span>
+                        <input
+                          value={c.refereePix}
+                          onChange={(e) => updateCat(c.id, { refereePix: e.target.value })}
+                          placeholder="CPF, e-mail, telefone ou chave aleatória"
+                        />
+                        <small className="mini-field__hint">entra no regulamento</small>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -822,6 +984,33 @@ export function ChampionshipForm({
             <span>Turno e returno (todos se enfrentam duas vezes)</span>
           </label>
         )}
+
+        <div className="form-row">
+          <Field
+            label="Atletas no banco de reservas"
+            hint="Entra no regulamento: “Poderá ficar no banco de reservas até X atletas devidamente uniformizados.” Em branco = não definido."
+          >
+            <input
+              type="number"
+              min={0}
+              max={30}
+              value={benchSize}
+              onChange={(e) => setBenchSize(e.target.value)}
+              placeholder="Ex.: 7"
+            />
+          </Field>
+          <Field label="Se um atleta for expulso" hint="Vale para todas as categorias do campeonato.">
+            <select
+              value={sendOffPolicy}
+              onChange={(e) => setSendOffPolicy(e.target.value as '' | SendOffPolicy)}
+            >
+              <option value="">Não definido</option>
+              {Object.entries(SEND_OFF_LABELS).map(([id, label]) => (
+                <option key={id} value={id}>{label}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
 
         <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições de um time encerram este tempo antes da partida e reabrem após o jogo ser finalizado. Use 0 para não limitar.">
           <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />

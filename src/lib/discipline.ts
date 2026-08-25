@@ -1,4 +1,5 @@
-import type { Match, MatchEvent, Player, Team } from '../types'
+import type { Category, Match, MatchEvent, Player, Team } from '../types'
+import { amareloAcumula, limiteAmarelos } from './regras'
 
 export interface DisciplineRow {
   playerId?: string
@@ -15,11 +16,13 @@ export interface DisciplineRow {
 
 /**
  * Calcula a situação disciplinar e a SUSPENSÃO AUTOMÁTICA:
- *  • 3 cartões amarelos acumulados na fase de grupos / pontos corridos, ou
+ *  • cartões amarelos acumulados na fase de grupos / pontos corridos, no
+ *    limite que a CATEGORIA do atleta definiu (padrão 3; a categoria pode
+ *    desligar o acúmulo), ou
  *  • 1 cartão vermelho (em qualquer fase, na última partida realizada do time).
  *
  * Observação: é um alerta automático. Como o app não controla "suspensão já
- * cumprida", o amarelo sinaliza a cada múltiplo de 3 e o vermelho sinaliza
+ * cumprida", o amarelo sinaliza a cada múltiplo do limite e o vermelho sinaliza
  * quando ocorreu na última partida finalizada do time.
  */
 export function computeDiscipline(
@@ -27,11 +30,19 @@ export function computeDiscipline(
   events: MatchEvent[],
   players: Player[],
   teams: Team[],
+  categories: Category[] = [],
 ): DisciplineRow[] {
   const finished = matches.filter((m) => m.status === 'finished')
   const finishedIds = new Set(finished.map((m) => m.id))
   const phaseById = new Map(finished.map((m) => [m.id, m.phase] as const))
   const pName = new Map(players.map((p) => [p.id, p.name] as const))
+  // A regra do amarelo é da categoria em que o atleta está inscrito. Cartão
+  // de banco (sem atleta) e atleta sem categoria caem no costume: acumula, e
+  // o 3º suspende.
+  const catById = new Map(categories.map((c) => [c.id, c] as const))
+  const catDoAtleta = new Map(
+    players.map((p) => [p.id, catById.get(p.categoryId ?? '')] as const),
+  )
   const teamNameById = new Map(teams.map((t) => [t.id, t.shortName || t.name] as const))
 
   // Última partida finalizada de cada time (por rodada, depois data/criação).
@@ -79,7 +90,9 @@ export function computeDiscipline(
 
   const result = [...rows.values()]
   for (const r of result) {
-    if (r.yellows > 0 && r.yellows % 3 === 0) {
+    const cat = r.playerId ? catDoAtleta.get(r.playerId) : undefined
+    const limite = limiteAmarelos(cat)
+    if (amareloAcumula(cat) && r.yellows > 0 && r.yellows % limite === 0) {
       r.suspended = true
       r.reasons.push(`${r.yellows}º amarelo (suspensão automática)`)
     }

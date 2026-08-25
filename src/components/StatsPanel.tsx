@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { aggregateByPlayer } from '../lib/stats'
 import { computeDiscipline } from '../lib/discipline'
-import type { EventType, Match, MatchEvent, Player, Team } from '../types'
+import type { Category, EventType, Match, MatchEvent, Player, Team } from '../types'
 import { EmptyState, TeamBadge } from './ui'
 
 const RANKINGS: { type: EventType; title: string; icon: string; unit: string }[] = [
@@ -16,11 +16,14 @@ export function StatsPanel({
   players,
   teams,
   matches = [],
+  categories = [],
 }: {
   events: MatchEvent[]
   players: Player[]
   teams: Team[]
   matches?: Match[]
+  /** Categorias do campeonato — definem quantos amarelos suspendem. */
+  categories?: Category[]
 }) {
   const rankings = useMemo(
     () =>
@@ -31,8 +34,8 @@ export function StatsPanel({
     [events, players, teams],
   )
   const discipline = useMemo(
-    () => computeDiscipline(matches, events, players, teams),
-    [matches, events, players, teams],
+    () => computeDiscipline(matches, events, players, teams, categories),
+    [matches, events, players, teams, categories],
   )
   const suspended = discipline.filter((d) => d.suspended)
 
