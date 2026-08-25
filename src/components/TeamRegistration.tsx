@@ -39,8 +39,9 @@ import {
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
+import { emailPlausivel } from '../lib/email'
 
-const authKey = (teamId: string) => `futcamp:teamauth:${teamId}`
 
 export function TeamRegistration({
   teamId,
@@ -68,11 +69,7 @@ export function TeamRegistration({
   }
 
   useEffect(() => {
-    try {
-      setAuthed(sessionStorage.getItem(authKey(teamId)) === '1')
-    } catch {
-      /* ignore */
-    }
+    setAuthed(temSessaoTime(teamId))
     setLoading(true)
     loadRegistration(teamId, token)
       .then((d) => {
@@ -90,11 +87,7 @@ export function TeamRegistration({
   }, [teamId, token])
 
   function onAuthenticated() {
-    try {
-      sessionStorage.setItem(authKey(teamId), '1')
-    } catch {
-      /* ignore */
-    }
+    abrirSessaoTime(teamId)
     setAuthed(true)
     void reload()
   }
@@ -163,6 +156,8 @@ function AccessGate({
 }) {
   // 'reset' = a senha foi zerada pelo administrador; o gestor cria uma nova.
   const [mode, setMode] = useState<'login' | 'create' | 'reset'>(hasAccount ? 'login' : 'create')
+  // O login do time é o e-mail do gestor. É ele que permite entrar depois pela
+  // página inicial, sem precisar guardar o link do organizador.
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -195,9 +190,15 @@ function AccessGate({
       return
     }
 
-    if (mode === 'create' && password !== confirm) {
-      setError('As senhas não conferem.')
-      return
+    if (mode === 'create') {
+      if (!emailPlausivel(username)) {
+        setError('Informe um e-mail válido — é com ele que você vai entrar pela página inicial.')
+        return
+      }
+      if (password !== confirm) {
+        setError('As senhas não conferem.')
+        return
+      }
     }
     setBusy(true)
     const res =
@@ -217,7 +218,7 @@ function AccessGate({
       <section className="panel reg__panel reg__gate">
         <h2>Criar nova senha</h2>
         <p className="muted">
-          O administrador zerou a senha de <b>{username.trim()}</b>. Defina uma nova senha para gerir o time.
+          O administrador zerou a senha de <b>{username.trim().toLowerCase()}</b>. Defina uma nova senha para gerir o time.
         </p>
         <form onSubmit={submit} className="form-grid reg__gate-form">
           <Field label="Nova senha">
@@ -241,12 +242,19 @@ function AccessGate({
       <h2>{mode === 'create' ? 'Criar acesso do time' : 'Entrar'}</h2>
       <p className="muted">
         {mode === 'create'
-          ? 'Crie um usuário e senha para o responsável pelo time inscrever os atletas.'
-          : 'Entre com o usuário e senha do responsável pelo time.'}
+          ? 'Use um e-mail válido e crie uma senha. Com eles você entra aqui e também pela página inicial do Tabelaço, sem precisar deste link.'
+          : 'Entre com o e-mail e a senha do responsável pelo time.'}
       </p>
       <form onSubmit={submit} className="form-grid reg__gate-form">
-        <Field label="Usuário">
-          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex.: leoes.fc" autoComplete="username" required />
+        <Field label="E-mail do responsável">
+          <input
+            type="email"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="voce@email.com"
+            autoComplete="email"
+            required
+          />
         </Field>
         <Field label="Senha">
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete={mode === 'create' ? 'new-password' : 'current-password'} required={mode === 'create'} />
@@ -261,8 +269,13 @@ function AccessGate({
           {busy ? 'Aguarde…' : mode === 'create' ? 'Criar acesso e entrar' : 'Entrar'}
         </Button>
       </form>
-      {mode === 'login' && (
-        <p className="hint">Sua senha foi zerada pelo organizador? Informe o usuário e clique em Entrar para criar uma nova senha.</p>
+      {mode === 'create' ? (
+        <p className="hint">
+          🔑 Guarde este e-mail e senha: depois de criados, você gerencia o time entrando
+          pela página inicial do Tabelaço — o link do organizador deixa de ser necessário.
+        </p>
+      ) : (
+        <p className="hint">Sua senha foi zerada pelo organizador? Informe o e-mail e clique em Entrar para criar uma nova senha.</p>
       )}
       <div className="reg__gate-switch">
         {mode === 'create' ? (
@@ -393,6 +406,10 @@ function ManagersCard({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!emailPlausivel(username)) {
+      setError('Informe um e-mail válido para o 2º gestor.')
+      return
+    }
     if (password !== confirm) {
       setError('As senhas não conferem.')
       return
@@ -413,7 +430,10 @@ function ManagersCard({
       <div className="panel__head">
         <div>
           <h2>Gestores do time ({managers.length}/2)</h2>
-          <p className="muted">Até 2 pessoas podem acessar e gerir este time.</p>
+          <p className="muted">
+            Até 2 pessoas podem acessar e gerir este time. Cada uma entra pela página
+            inicial com o próprio e-mail e senha.
+          </p>
         </div>
         {canAdd && !adding && (
           <div className="panel__head-actions">
@@ -431,8 +451,15 @@ function ManagersCard({
       {canAdd && adding && (
         <form onSubmit={submit} className="form-grid">
           <div className="form-row">
-            <Field label="Usuário do 2º gestor">
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex.: leoes.auxiliar" autoComplete="off" required />
+            <Field label="E-mail do 2º gestor">
+              <input
+                type="email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="auxiliar@email.com"
+                autoComplete="off"
+                required
+              />
             </Field>
             <Field label="Senha">
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} autoComplete="new-password" required />

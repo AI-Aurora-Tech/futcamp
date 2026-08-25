@@ -212,7 +212,7 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
   }, [team.id])
 
   async function reset(m: TeamManager) {
-    if (!confirm(`Zerar a senha de "${m.username}"?\n\nNo próximo acesso pelo link de inscrição, o gestor criará uma nova senha.`)) return
+    if (!confirm(`Zerar a senha de "${m.username}"?\n\nEle perde o acesso pela página inicial e criará uma nova senha no próximo acesso pelo link de inscrição.`)) return
     setBusy(m.username)
     setError(null)
     try {
@@ -228,14 +228,15 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
   return (
     <Modal title={`Gestores — ${team.name}`} onClose={onClose}>
       <p className="muted">
-        Zere a senha de um gestor que a esqueceu. Ele entrará pelo link de inscrição com o mesmo usuário
-        e criará uma nova senha.
+        Zere a senha de um gestor que a esqueceu. Ele entrará pelo <b>link de inscrição</b> com o
+        mesmo e-mail e criará uma nova senha — a redefinição não passa pela página inicial, para
+        que ninguém entre no time só sabendo o endereço de e-mail do gestor.
       </p>
       {managers === null ? (
         <div className="pad-lg center"><Spinner /></div>
       ) : managers.length === 0 ? (
         <EmptyState icon="👤" title="Nenhum gestor cadastrado">
-          <p>Este time ainda não tem acesso criado. Envie o link de inscrição para o responsável criar o acesso.</p>
+          <p>Este time ainda não tem acesso criado. Envie o link de inscrição para o responsável criar a conta com o e-mail dele.</p>
         </EmptyState>
       ) : (
         <ul className="manager-list">

@@ -10,7 +10,9 @@ import { listEvents, listMatches } from '../services/matches'
 import { computePodium } from '../lib/champion'
 import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
 import { vitrine } from '../lib/vitrine'
-import { Button, ChampLogo, Field } from './ui'
+import { teamLoginByEmail, type TeamAccess } from '../services/registration'
+import { abrirSessaoTime } from '../lib/teamSession'
+import { Button, ChampLogo, Field, TeamBadge } from './ui'
 
 /** Campeão de cada campeonato encerrado, para a vitrine pública. */
 interface ChampionInfo {
@@ -126,6 +128,12 @@ function Vitrine({
   )
 }
 
+/** Abre o portal do time já autenticado — o e-mail e a senha acabaram de ser conferidos. */
+function entrarNoTime(t: TeamAccess) {
+  abrirSessaoTime(t.teamId)
+  window.location.hash = `#/t/${t.teamId}?k=${encodeURIComponent(t.token)}`
+}
+
 export function Landing() {
   const { signIn, signUp, enterDemo, mode } = useAuth()
   const [tab, setTab] = useState<'in' | 'up'>('in')
@@ -134,6 +142,8 @@ export function Landing() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Times que o e-mail/senha abriu, quando é mais de um: a pessoa escolhe.
+  const [meusTimes, setMeusTimes] = useState<TeamAccess[] | null>(null)
   const [ongoing, setOngoing] = useState<Championship[]>([])
   const [champions, setChampions] = useState<Record<string, ChampionInfo>>({})
   const [search, setSearch] = useState('')
@@ -154,14 +164,54 @@ export function Landing() {
     }
   }, [])
 
+  /**
+   * Tenta entrar como GESTOR DE TIME. Devolve `true` quando resolveu a
+   * tentativa (entrou, abriu a lista de times ou tem um erro para mostrar).
+   */
+  async function tentarComoTime(): Promise<boolean> {
+    const { teams, error: erro } = await teamLoginByEmail(email, password)
+    if (erro) {
+      setError(erro)
+      return true
+    }
+    if (teams.length === 0) return false
+    if (teams.length === 1) {
+      entrarNoTime(teams[0])
+      return true
+    }
+    setMeusTimes(teams)
+    return true
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const err =
-      tab === 'in' ? await signIn(email, password) : await signUp(name, email, password)
-    if (err) setError(err)
-    setBusy(false)
+    try {
+      if (tab === 'up') {
+        const err = await signUp(name, email, password)
+        if (err) setError(err)
+        return
+      }
+
+      // A mesma caixa de login serve para o organizador e para o gestor do
+      // time. A ordem muda com o modo porque no demo o login de organizador
+      // aceita qualquer e-mail (é conta de brinquedo) e engoliria o do time.
+      if (mode === 'demo') {
+        if (await tentarComoTime()) return
+        const err = await signIn(email, password)
+        if (err) setError(err)
+        return
+      }
+
+      const err = await signIn(email, password)
+      if (!err) return
+      // Organizador não é: pode ser gestor de time.
+      if (await tentarComoTime()) return
+      setError(err)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const features = [
@@ -209,6 +259,31 @@ export function Landing() {
       </div>
 
       <div className="landing__panel">
+        {meusTimes ? (
+          <div className="auth-card">
+            <h2 className="auth-card__title">Seus times</h2>
+            <p className="muted">
+              Este e-mail gerencia {meusTimes.length} times. Escolha qual você quer abrir.
+            </p>
+            <ul className="team-pick">
+              {meusTimes.map((t) => (
+                <li key={t.teamId}>
+                  <button type="button" className="team-pick__item" onClick={() => entrarNoTime(t)}>
+                    <TeamBadge team={{ name: t.teamName, logo: t.teamLogo, color: t.teamColor }} size={40} />
+                    <span className="team-pick__text">
+                      <strong>{t.teamName}</strong>
+                      <span className="muted small">{t.championshipName}</span>
+                    </span>
+                    <span aria-hidden>→</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button className="link-btn" onClick={() => { setMeusTimes(null); setPassword('') }}>
+              ← Entrar com outra conta
+            </button>
+          </div>
+        ) : (
         <div className="auth-card">
           <div className="auth-tabs">
             <button className={tab === 'in' ? 'is-active' : ''} onClick={() => setTab('in')}>
@@ -263,6 +338,12 @@ export function Landing() {
             🚀 Entrar no modo demonstração
           </Button>
 
+          <p className="auth-note auth-note--time">
+            🛡️ <b>Dono de time?</b> Entre aqui com o mesmo e-mail e senha que você criou
+            pelo link do organizador. A conta do time nasce sempre daquele link — depois
+            dela criada, esta página é a porta de entrada.
+          </p>
+
           <p className="auth-note">
             {mode === 'demo'
               ? 'Modo demo ativo: os dados ficam salvos apenas neste navegador.'
@@ -271,6 +352,7 @@ export function Landing() {
           <a className="auth-plans-link" href="#/planos">💳 Ver planos e preços</a>
           <a className="auth-plans-link" href="#/instalar">📲 Como instalar o app</a>
         </div>
+        )}
       </div>
     </div>
 

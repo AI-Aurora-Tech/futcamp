@@ -144,6 +144,23 @@ a.btn { text-decoration: none; cursor: pointer; }
 .auth-divider span { position: relative; background: var(--surface); padding: 0 0.75rem; color: var(--muted); font-size: 0.8rem; }
 .auth-card .btn--soft { width: 100%; justify-content: center; }
 .auth-note { text-align: center; font-size: 0.78rem; color: var(--muted); margin: 1rem 0 0; }
+.auth-note--time {
+  text-align: left; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 0.65rem 0.8rem; line-height: 1.45;
+}
+
+/* Escolha de time: um mesmo e-mail pode gerir times em campeonatos diferentes. */
+.auth-card__title { margin: 0 0 0.35rem; font-size: 1.15rem; }
+.team-pick { list-style: none; margin: 0.9rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.team-pick__item {
+  width: 100%; display: flex; align-items: center; gap: 0.7rem; text-align: left;
+  background: var(--surface-2); border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem; cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.team-pick__item:hover { border-color: var(--brand); background: var(--surface); }
+.team-pick__text { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.team-pick__text strong { font-size: 0.95rem; }
+.team-pick__text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Fields ---------- */
 .field { display: flex; flex-direction: column; gap: 0.35rem; }

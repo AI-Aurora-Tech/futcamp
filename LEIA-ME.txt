@@ -1,32 +1,61 @@
-Tabelaço — posições do atleta e funções da comissão técnica
-===========================================================
+Tabelaço — o dono do time entra pela página inicial
+====================================================
 
-Copie os 4 arquivos por cima dos existentes, mantendo os caminhos:
+ORDEM: rode a migration ANTES de subir o front. Sem ela, o login pela
+página inicial avisa que o servidor ainda não foi liberado.
 
-  src/types.ts
-  src/components/PlayersPanel.tsx      (elenco pelo organizador)
-  src/components/TeamRegistration.tsx  (portal do time)
-  src/lib/sumula.ts                    (súmula impressa)
+1) BANCO — Supabase → SQL Editor → cole e execute:
 
-O que muda
-----------
-O campo de posição passa a mostrar uma lista diferente conforme o tipo
-de inscrição escolhido no formulário:
+     supabase/migrations/0028_team_login_email.sql
 
-  Atleta   → Goleiro, Zagueiro, Lateral, Volante, Meia, Atacante
-  Comissão → Técnico, Auxiliar técnico, Massagista, Preparador físico,
-             Médico, Marketing
+   É idempotente: pode rodar de novo sem medo.
 
-O rótulo do campo também acompanha: "Posição" para atleta, "Função"
-para a comissão técnica.
+2) FRONT — copie por cima, mantendo os caminhos:
 
-Nada muda no banco
-------------------
-Continua tudo na mesma coluna `position` (texto livre, sem restrição no
-Postgres). Não há migration para rodar. O código do técnico continua
-sendo 'TEC', então os técnicos já cadastrados seguem aparecendo como
-técnicos.
+     src/index.css
+     src/lib/email.ts                     (NOVO)
+     src/lib/teamSession.ts               (NOVO)
+     src/services/registration.ts
+     src/components/Landing.tsx
+     src/components/TeamRegistration.tsx
+     src/components/TeamsPanel.tsx
 
-Depois de copiar
-----------------
-  npm run build
+   Depois: npm run build
+
+
+COMO FICA
+---------
+A CRIAÇÃO da conta não muda: continua sendo pelo link que o organizador
+envia (#/t/<time>?k=<token>). O que muda é que o login agora é um
+E-MAIL VÁLIDO, e não mais um usuário inventado.
+
+Depois de criada a conta, o gestor entra pela PÁGINA INICIAL do
+Tabelaço — a mesma caixa "Entrar" do organizador — só com e-mail e
+senha. O app reconhece que é gestor de time e abre o portal do time
+direto, sem pedir o link.
+
+Se o mesmo e-mail gerencia times em campeonatos diferentes, a página
+mostra a lista para ele escolher qual abrir.
+
+Cada time continua podendo ter 2 gestores; agora cada um com o próprio
+e-mail e a própria senha.
+
+
+O QUE NÃO MUDA
+--------------
+• Só o link do organizador cria conta de time. Ninguém entra em um time
+  sem ter sido chamado.
+• Contas antigas, com usuário que não é e-mail ("leoes.fc"), continuam
+  entrando pelo link exatamente como antes. Nada é apagado nem migrado
+  à força — apenas não é mais possível criar contas assim.
+• Zerar a senha continua sendo do administrador, e a nova senha continua
+  sendo criada PELO LINK. É de propósito: se desse para redefinir só com
+  o e-mail, bastaria saber o endereço de um gestor com a senha zerada
+  para entrar no time dele.
+
+
+CONFERÊNCIA
+-----------
+A suíte SQL (supabase/tests/run.sh) ganhou 24 verificações novas — senha
+errada, e-mail desconhecido, senha vazia, conta zerada, e-mail repetido
+no mesmo time e o terceiro gestor. Todas passando.

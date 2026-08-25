@@ -1,10 +1,14 @@
 // ---------------------------------------------------------------------------
-// Inscrição de time via link (sem conta no app principal).
+// Inscrição de time via link.
 //
 // Fluxo: o organizador envia `#/t/<teamId>?k=<token>`. Pelo link o responsável
-// CRIA um usuário e senha do time e, autenticado, inscreve os atletas
+// CRIA a conta do time — E-MAIL e senha — e, autenticado, inscreve os atletas
 // (NOME COMPLETO, CPF, DATA DE NASCIMENTO e FOTO opcional). A inscrição respeita
 // a categoria e a regra de ano de nascimento do campeonato.
+//
+// Depois de criada, a conta também entra pela PÁGINA INICIAL: com o mesmo
+// e-mail e senha, sem link (`teamLoginByEmail`). O link continua sendo o único
+// jeito de CRIAR a conta — quem entra em um time é quem o organizador chamou.
 //
 //  • Modo demo: token/credenciais no localStorage; validação client-side.
 //  • Modo Supabase: token em `team_invites` e operações via RPCs SECURITY
@@ -17,6 +21,7 @@ import { uid } from '../lib/id'
 import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
 import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
+import { emailPlausivel, normalizarEmail } from '../lib/email'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
@@ -72,6 +77,12 @@ export interface PlayerInput {
 function semMigration0025(error: { message?: string; code?: string }): boolean {
   const m = (error?.message ?? '').toLowerCase()
   return error?.code === 'PGRST202' || m.includes('does not exist') || m.includes('p_federated')
+}
+
+/** A RPC de login por e-mail não existe? Migration 0028 ainda não aplicada. */
+function semMigration0028(error: { message?: string; code?: string }): boolean {
+  const m = (error?.message ?? '').toLowerCase()
+  return error?.code === 'PGRST202' || m.includes('team_login_email')
 }
 
 /** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
@@ -285,11 +296,16 @@ export async function createTeamAccount(
   return mutate((d) => {
     const t = d.teams.find((x) => x.id === teamId)
     if (!t) return { ok: false, error: 'Time não encontrado.' }
-    const u = username.trim()
+    const u = normalizarEmail(username)
+    if (!emailPlausivel(u)) {
+      return { ok: false, error: 'Informe um e-mail válido para o gestor do time (ex.: nome@email.com).' }
+    }
     const slot1 = Boolean(t.username && t.passwordHash)
     const slot2 = Boolean(t.username2 && t.passwordHash2)
     if (slot1 && slot2) return { ok: false, error: 'Este time já possui 2 gestores.' }
-    if (t.username === u || t.username2 === u) return { ok: false, error: 'Este usuário já existe neste time.' }
+    if (normalizarEmail(t.username) === u || normalizarEmail(t.username2) === u) {
+      return { ok: false, error: 'Este e-mail já é gestor deste time.' }
+    }
     if (!slot1) {
       t.username = u
       t.passwordHash = demoHash(password)
@@ -329,15 +345,15 @@ export async function teamLogin(
   return query((d) => {
     const t = d.teams.find((x) => x.id === teamId)
     if (!t || t.accessToken !== token) return { ok: false, error: 'Link inválido.' }
-    const u = username.trim()
+    const u = normalizarEmail(username)
     const hash = demoHash(password)
     // Slot 1
-    if (t.username === u) {
+    if (normalizarEmail(t.username) === u) {
       if (!t.passwordHash) return { ok: false, needsPassword: true } // '' = senha zerada
       return t.passwordHash === hash ? { ok: true } : { ok: false, error: 'Usuário ou senha inválidos.' }
     }
     // Slot 2
-    if (t.username2 === u) {
+    if (normalizarEmail(t.username2) === u) {
       if (!t.passwordHash2) return { ok: false, needsPassword: true }
       return t.passwordHash2 === hash ? { ok: true } : { ok: false, error: 'Usuário ou senha inválidos.' }
     }
@@ -368,16 +384,104 @@ export async function setTeamPassword(
   return mutate((d) => {
     const t = d.teams.find((x) => x.id === teamId)
     if (!t || t.accessToken !== token) return { ok: false, error: 'Link inválido.' }
-    const u = username.trim()
-    if (t.username === u && !t.passwordHash) {
+    const u = normalizarEmail(username)
+    if (normalizarEmail(t.username) === u && !t.passwordHash) {
       t.passwordHash = demoHash(newPassword)
       return { ok: true }
     }
-    if (t.username2 === u && !t.passwordHash2) {
+    if (normalizarEmail(t.username2) === u && !t.passwordHash2) {
       t.passwordHash2 = demoHash(newPassword)
       return { ok: true }
     }
     return { ok: false, error: 'Esta conta não está com a senha zerada.' }
+  })
+}
+
+/** Um time que o e-mail/senha do gestor abre. */
+export interface TeamAccess {
+  teamId: string
+  token: string
+  teamName: string
+  teamLogo?: string
+  teamColor?: string
+  championshipId: string
+  championshipName: string
+  championshipLogo?: string
+  championshipStatus?: string
+}
+
+/**
+ * Login do gestor pela PÁGINA INICIAL, só com e-mail e senha.
+ *
+ * Devolve todos os times que aquele par abre: a mesma pessoa costuma gerir o
+ * time do filho em mais de um campeonato, e não dá para exigir que ela saiba
+ * de antemão qual. Lista vazia = não entrou, sem dizer por quê (se o e-mail
+ * não existe, se a senha errou ou se o administrador zerou a senha) — esta
+ * consulta responde para qualquer um.
+ */
+export async function teamLoginByEmail(
+  email: string,
+  password: string,
+): Promise<{ teams: TeamAccess[]; error?: string }> {
+  const mail = email.trim().toLowerCase()
+  if (!mail || !password) return { teams: [] }
+
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('team_login_email', {
+      p_email: mail,
+      p_password: password,
+    })
+    if (error) {
+      // RPC ausente = migration 0028 pendente. Não é "senha errada": quem
+      // digitou certo merece saber que o problema é do servidor.
+      return {
+        teams: [],
+        error: semMigration0028(error)
+          ? 'O acesso de time pela página inicial ainda não foi liberado neste servidor (migration 0028).'
+          : error.message,
+      }
+    }
+    const linhas = (Array.isArray(data) ? data : []) as any[]
+    return {
+      teams: linhas.map((r) => ({
+        teamId: r.team_id,
+        token: r.token,
+        teamName: r.team_name,
+        teamLogo: r.team_logo ?? undefined,
+        teamColor: r.team_color ?? undefined,
+        championshipId: r.championship_id,
+        championshipName: r.championship_name,
+        championshipLogo: r.championship_logo ?? undefined,
+        championshipStatus: r.championship_status ?? undefined,
+      })),
+    }
+  }
+
+  // Demo: as credenciais moram no próprio time, no localStorage.
+  const hash = demoHash(password)
+  const igual = (a?: string) => (a ?? '').trim().toLowerCase() === mail
+  return query((d) => {
+    const teams = d.teams.filter(
+      (t) =>
+        (igual(t.username) && Boolean(t.passwordHash) && t.passwordHash === hash) ||
+        (igual(t.username2) && Boolean(t.passwordHash2) && t.passwordHash2 === hash),
+    )
+    return {
+      teams: teams.map((t) => {
+        const c = d.championships.find((x) => x.id === t.championshipId)
+        return {
+          teamId: t.id,
+          token: t.accessToken ?? '',
+          teamName: t.name,
+          teamLogo: t.logo,
+          teamColor: t.color,
+          championshipId: t.championshipId,
+          championshipName: c?.name ?? 'Campeonato',
+          championshipLogo: c?.logo,
+          championshipStatus: c?.status,
+        }
+      }),
+    }
   })
 }
 
