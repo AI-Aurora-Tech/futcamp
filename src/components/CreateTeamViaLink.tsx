@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { getChampionship } from '../services/championships'
-import { createTeamViaLink, listTeams } from '../services/teams'
+import { championshipInviteScope, createTeamViaLink, listTeams } from '../services/teams'
 import { cabeMaisUmTime } from '../lib/pricing'
 import { fileToDataUrl } from '../lib/image'
 import type { Championship } from '../types'
@@ -26,6 +26,12 @@ export function CreateTeamViaLink({
   // O campeonato já bateu no limite do plano? Vale saber ANTES de o
   // responsável preencher escudo, cor e telefone para ouvir "não" no fim.
   const [lotado, setLotado] = useState(false)
+  /**
+   * Categorias que ESTE link libera. Link aberto traz todas — o responsável
+   * escolhe; link direcionado traz só a dele, e a escolha já vem feita.
+   */
+  const [liberadas, setLiberadas] = useState<string[] | null>(null)
+  const [escolhidas, setEscolhidas] = useState<string[]>([])
 
   const [name, setName] = useState('')
   const [logo, setLogo] = useState('')
@@ -46,6 +52,19 @@ export function CreateTeamViaLink({
           return
         }
         setChamp(c)
+
+        // O escopo do link. Sem resposta (servidor antigo), vale o campeonato
+        // inteiro — que é exatamente o comportamento anterior.
+        const escopo = await championshipInviteScope(championshipId, token).catch(() => null)
+        const validas = (escopo ?? c.categories.map((x) => x.id)).filter((id) =>
+          c.categories.some((x) => x.id === id),
+        )
+        if (active) {
+          setLiberadas(validas)
+          // Uma categoria só: não há o que escolher, já vai marcada.
+          setEscolhidas(validas.length === 1 ? validas : [])
+        }
+
         // Se a contagem falhar, segue em frente: o banco ainda recusa na hora
         // de salvar. Melhor deixar tentar do que barrar por engano.
         try {
@@ -60,7 +79,7 @@ export function CreateTeamViaLink({
     return () => {
       active = false
     }
-  }, [championshipId])
+  }, [championshipId, token])
 
   async function onLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -75,9 +94,25 @@ export function CreateTeamViaLink({
     }
   }
 
+  /** Categorias liberadas que existem de fato, na ordem do campeonato. */
+  const opcoes = (champ?.categories ?? []).filter((c) => liberadas?.includes(c.id))
+  /** Só faz sentido perguntar quando há mais de uma. */
+  const precisaEscolher = opcoes.length > 1
+
+  function alternar(id: string) {
+    setEscolhidas((atual) =>
+      atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id],
+    )
+    setError(null)
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (precisaEscolher && escolhidas.length === 0) {
+      setError('Escolha ao menos uma categoria para inscrever o time.')
+      return
+    }
     setBusy(true)
     try {
       const { teamId, token: teamToken } = await createTeamViaLink(championshipId, token, {
@@ -86,6 +121,7 @@ export function CreateTeamViaLink({
         color,
         coach,
         phone,
+        categoryIds: escolhidas,
       })
       // Segue para o fluxo de inscrição do time recém-criado.
       window.location.hash = `#/t/${teamId}?k=${teamToken}`
@@ -137,7 +173,10 @@ export function CreateTeamViaLink({
       <div className="container reg__content">
         <section className="panel reg__panel">
           <h2>Dados do seu time</h2>
-          <p className="muted">Crie o time do campeonato. Em seguida você define o acesso (até 2 gestores) e inscreve os atletas.</p>
+          <p className="muted">
+            Crie o time do campeonato. Em seguida você define o acesso (até 2 gestores) e
+            inscreve os atletas.
+          </p>
           <form onSubmit={submit} className="reg__team">
             <div className="reg__badge">
               <TeamBadge team={{ name, logo, color }} size={96} />
@@ -166,6 +205,36 @@ export function CreateTeamViaLink({
               <Field label="Cor">
                 <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
               </Field>
+
+              {/* Cada categoria é uma competição: tabela, rodadas e classificados
+                  próprios. É aqui que o clube diz em quais delas vai disputar. */}
+              {precisaEscolher && (
+                <div className="cat-pick">
+                  <span className="field__label">Em quais categorias o time vai jogar?</span>
+                  <p className="field__hint">
+                    Cada categoria é uma competição separada, com tabela e rodadas próprias.
+                    Marque todas em que o clube vai inscrever equipe.
+                  </p>
+                  <div className="cat-pick__list">
+                    {opcoes.map((c) => (
+                      <label key={c.id} className={`cat-pick__item ${escolhidas.includes(c.id) ? 'is-on' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={escolhidas.includes(c.id)}
+                          onChange={() => alternar(c.id)}
+                        />
+                        <span>{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!precisaEscolher && opcoes.length === 1 && champ && champ.categories.length > 1 && (
+                <p className="field__hint cat-pick__unica">
+                  🎯 Este link é da categoria <b>{opcoes[0].name}</b> — o time entra direto nela.
+                </p>
+              )}
               {error && <p className="auth-error">{error}</p>}
               <div className="reg__save">
                 <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Criando…' : 'Criar time e continuar'}</Button>

@@ -59,6 +59,9 @@ interface CatDraft {
   sendOffPolicy: '' | SendOffPolicy
   /** Quantas equipes se classificam nesta categoria. */
   qualifiers: string
+  /* Estrutura própria (grupos + mata-mata). Vazio = herda o campeonato. */
+  numGroups: string
+  teamsPerGroup: string
   yellowAccumulates: boolean
   yellowsForSuspension: string
   refereeFee: string
@@ -82,6 +85,8 @@ function toDraft(c: Category): CatDraft {
     maxSubstitutions: c.maxSubstitutions != null ? String(c.maxSubstitutions) : '',
     sendOffPolicy: c.sendOffPolicy ?? '',
     qualifiers: c.qualifiers != null ? String(c.qualifiers) : '',
+    numGroups: c.numGroups != null ? String(c.numGroups) : '',
+    teamsPerGroup: c.teamsPerGroup != null ? String(c.teamsPerGroup) : '',
     yellowAccumulates: c.yellowAccumulates !== false,
     yellowsForSuspension: c.yellowsForSuspension != null ? String(c.yellowsForSuspension) : '',
     refereeFee: textoDeCentavos(c.refereeFeeCents),
@@ -94,7 +99,7 @@ function emptyDraft(): CatDraft {
     id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
     maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
     periodMinutes: '', periods: '2', substitutionMode: '', maxSubstitutions: '',
-    sendOffPolicy: '', qualifiers: '',
+    sendOffPolicy: '', qualifiers: '', numGroups: '', teamsPerGroup: '',
     yellowAccumulates: true, yellowsForSuspension: '3', refereeFee: '', refereePix: '',
   }
 }
@@ -249,6 +254,21 @@ export function ChampionshipForm({
               : undefined,
           sendOffPolicy: c.sendOffPolicy || undefined,
           qualifiers: c.qualifiers ? Math.max(1, Number(c.qualifiers)) : undefined,
+          // Estrutura da categoria. Vazio fica `undefined` de propósito: a
+          // categoria herda o número do campeonato em vez de fixar um valor
+          // que o organizador não escolheu.
+          numGroups:
+            format === 'groups_knockout' && c.numGroups ? Math.max(1, Number(c.numGroups)) : undefined,
+          teamsPerGroup:
+            format === 'groups_knockout' && c.teamsPerGroup
+              ? Math.max(2, Number(c.teamsPerGroup))
+              : undefined,
+          advancePerGroup:
+            format === 'groups_knockout' && c.qualifiers
+              ? Math.max(1, Number(c.qualifiers))
+              : undefined,
+          leagueQualifiers:
+            format === 'league' && c.qualifiers ? Math.max(1, Number(c.qualifiers)) : undefined,
           yellowAccumulates: c.yellowAccumulates,
           yellowsForSuspension: c.yellowAccumulates
             ? Math.max(1, Number(c.yellowsForSuspension) || 3)
@@ -724,6 +744,35 @@ export function ChampionshipForm({
                         </select>
                       </label>
                     </div>
+
+                    {format === 'groups_knockout' && (
+                      <div className="cat-regras__linha">
+                        <label className="mini-field">
+                          <span className="mini-field__label">Grupos nesta categoria</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={16}
+                            value={c.numGroups}
+                            onChange={(e) => updateCat(c.id, { numGroups: e.target.value })}
+                            placeholder={String(stages[0]?.numGroups ?? 2)}
+                          />
+                          <small className="mini-field__hint">em branco = como o campeonato</small>
+                        </label>
+                        <label className="mini-field">
+                          <span className="mini-field__label">Equipes por grupo</span>
+                          <input
+                            type="number"
+                            min={2}
+                            max={32}
+                            value={c.teamsPerGroup}
+                            onChange={(e) => updateCat(c.id, { teamsPerGroup: e.target.value })}
+                            placeholder={teamsPerGroup || 'como o campeonato'}
+                          />
+                          <small className="mini-field__hint">cada categoria tem a sua</small>
+                        </label>
+                      </div>
+                    )}
 
                     {format !== 'knockout' && (
                       <div className="cat-regras__linha">

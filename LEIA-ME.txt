@@ -1,87 +1,81 @@
-Tabelaço — categoria vira competição · PASSO 1 (banco e modelo)
-===============================================================
+Tabelaço — links por categoria + estrutura de cada categoria
+=============================================================
 
-IMPORTANTE: depois de aplicar este pacote o app continua se comportando
-EXATAMENTE como antes. Isso é de propósito. Este passo prepara o terreno
-— banco, modelo e filtros — sem mexer em nenhuma tela. As abas por
-categoria vêm no passo 2 e vão encontrar tudo pronto.
-
-Aplicar agora tem uma vantagem: a conversão dos seus campeonatos atuais
-acontece de uma vez, e você pode conferir com calma antes de as telas
-mudarem.
+Continuação do passo 1. Aplique aquele primeiro (migration 0033).
 
 1) BANCO — Supabase → SQL Editor:
 
-     supabase/migrations/0033_categoria_como_competicao.sql
+     supabase/migrations/0034_links_por_categoria.sql
 
-   Rode DEPOIS da 0032. Idempotente.
+   Rode DEPOIS da 0033. Idempotente.
 
 2) FRONT — copie por cima, mantendo os caminhos:
 
      src/types.ts
-     src/lib/categorias.ts                (NOVO)
+     src/index.css
+     src/lib/categorias.ts
      src/services/teams.ts
-     src/services/matches.ts
-     src/services/championships.ts
+     src/components/TeamsPanel.tsx
+     src/components/CreateTeamViaLink.tsx
+     src/components/ChampionshipForm.tsx
 
    Depois: npm run build
 
 
-O DESENHO ESCOLHIDO
--------------------
-O TIME continua sendo o CLUBE — um escudo, um responsável, um login. O
-que nasce é a INSCRIÇÃO do clube em cada categoria. O Leões FC é um só e
-disputa o Sub-11 e o Sub-15.
+OS DOIS LINKS
+-------------
+Na aba TIMES do campeonato, com mais de uma categoria, aparecem:
 
-  championships          → o formato de disputa (igual para todas)
-  championships.categories → as regras de cada categoria + a SITUAÇÃO dela
-  teams                  → o CLUBE
-  team_categories        → o clube disputa esta categoria, neste grupo  ← NOVO
-  matches.category_id    → de qual categoria é esta partida             ← NOVO
-  players.category_id    → já existia
+  🔗 Link para criar time          → ABERTO, para todas as categorias
+  🔗 Sub-11  🔗 Sub-13  🔗 Sub-15  → DIRECIONADO, um por categoria
 
-O grupo (A, B, C…) saiu do time e foi para a inscrição: o mesmo clube
-pode cair no grupo A do Sub-11 e no C do Sub-15 — antes isso era
-impossível de representar.
+LINK ABERTO: o responsável vê a pergunta "Em quais categorias o time vai
+jogar?" com uma caixa para cada uma, e marca as que o clube disputa.
+Não dá para criar o time sem marcar pelo menos uma.
 
-A SITUAÇÃO (rascunho / em andamento / encerrado) passa a ser por
-categoria, como você pediu: o Sub-11 pode encerrar com o Sub-17 ainda na
-semifinal. Categoria sem situação própria herda a do campeonato.
+LINK DIRECIONADO: não pergunta nada. Mostra "🎯 Este link é da categoria
+Sub-13 — o time entra direto nela" e inscreve só nela.
 
-O limite de equipes do plano continua contando CLUBES, não inscrições.
-Um clube em quatro categorias é um clube.
+O mesmo conjunto de categorias devolve sempre o MESMO link. Clicar duas
+vezes em "Sub-13" não cria dois links vivos para a mesma coisa.
+
+⚠️ A trava está no BANCO, não na tela: se alguém trocar o parâmetro no
+navegador para entrar numa categoria que o link não abriu, a inscrição é
+recusada. Validar só na tela seria pedir licença para burlar.
 
 
-O QUE ACONTECE COM O QUE JÁ EXISTE
-----------------------------------
-Nada é apagado. Todas as partidas e todos os clubes vão para a PRIMEIRA
-categoria de cada campeonato — o que é idêntico ao comportamento de hoje.
+ESTRUTURA POR CATEGORIA
+-----------------------
+No formulário do campeonato, dentro do bloco "⏱ Regras de jogo" de cada
+categoria, e só no formato de grupos + mata-mata:
 
-⚠️ ATENÇÃO se você já tem um campeonato rodando com VÁRIAS categorias:
-todos os jogos dele vão para a primeira categoria. Está correto do ponto
-de vista dos dados, mas pode não ser o que você queria. O passo 2 traz
-uma tela de conferência para mover os jogos para a categoria certa.
+  Grupos nesta categoria    → em branco = como o campeonato
+  Equipes por grupo         → cada categoria tem a sua
+  Classificados por grupo   → já existia, agora vale de verdade
 
-Se preferir, confira agora mesmo no SQL Editor:
+Assim o Sub-11 pode ter 2 grupos classificando 2, e o Sub-17 ter 4 grupos
+classificando 1 — cada categoria com a sua condição, como você pediu.
 
-  select category_id, count(*) from matches
-   where championship_id = 'SEU-CAMPEONATO' group by 1;
+A FORMA de disputa (pontos corridos / grupos / mata-mata) continua sendo
+do campeonato, igual para todas. Campo em branco herda o número do
+campeonato: nada do que já existe precisa ser repreenchido.
 
 
-PASSO 2 (o próximo)
--------------------
-  • Aba por categoria no topo do campeonato
-  • Times, elencos, partidas e estatísticas seguindo a aba
+O QUE AINDA FALTA (passo 3)
+---------------------------
+  • Aba por categoria no topo do campeonato, filtrando times, elencos,
+    partidas e estatísticas
   • "Gerar rodadas" e mata-mata por categoria
-  • Encerrar uma categoria sem encerrar as outras
+  • Encerrar uma categoria sem encerrar as outras (o banco já aceita)
   • Tela de conferência da conversão
-  • Página pública com abas, campeão por categoria
-  • Portal do time com as categorias do clube
+  • Página pública com abas e campeão por categoria
+  • Portal do time mostrando as categorias do clube
 
 
 CONFERÊNCIA
 -----------
-30 asserções SQL novas (inscrição do mesmo clube em duas categorias com
-grupos diferentes, tabelas que não se misturam, encerrar uma categoria
-sem tocar nas outras, mexer numa categoria sem apagar as regras das
-outras) e 31 asserções dos filtros no app.
+170 asserções SQL (34 migrations aplicando limpas), incluindo: link
+aberto libera as três categorias, link direcionado libera só a sua, a
+ordem das categorias não cria link novo, o link do Sub-13 não inscreve no
+Sub-17, e token inventado não cria time. Mais 45 asserções dos filtros e
+da estrutura por categoria no app, e o ciclo completo no navegador.

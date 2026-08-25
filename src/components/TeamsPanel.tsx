@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createTeam,
   deleteTeam,
+  ensureChampCategoryToken,
   ensureChampTeamToken,
   ensureTeamToken,
   listTeamManagers,
@@ -96,17 +97,30 @@ export function TeamsPanel({
     }
   }
 
-  async function copyCreateTeamLink() {
+  /**
+   * Link de criação de time.
+   *
+   * Sem categoria: o link é ABERTO — o responsável escolhe em quais categorias
+   * inscreve o clube. Com categoria: o link já vem direcionado, e o time entra
+   * direto nela. Mandar o link certo para o time certo evita que quem só tem
+   * equipe de Sub-13 sequer veja a opção do Sub-17.
+   */
+  async function copyCreateTeamLink(categoryId?: string) {
     try {
-      const token = await ensureChampTeamToken(championship.id)
+      const token = categoryId
+        ? await ensureChampCategoryToken(championship.id, [categoryId])
+        : await ensureChampTeamToken(championship.id)
       const url = `${location.origin}${location.pathname}#/novo-time/${championship.id}?k=${token}`
+      const cat = championship.categories.find((c) => c.id === categoryId)
       await navigator.clipboard?.writeText(url).catch(() => {})
       window.prompt(
-        'Link para CRIAÇÃO de time\n\nEnvie ao responsável — ele cria o próprio time, define o escudo, os gestores e inscreve os atletas:',
+        cat
+          ? `Link de criação de time — ${cat.name}\n\nQuem abrir este link entra direto nesta categoria:`
+          : 'Link para CRIAÇÃO de time (todas as categorias)\n\nEnvie ao responsável — ele escolhe em quais categorias inscreve o clube, define o escudo, os gestores e os atletas:',
         url,
       )
-    } catch {
-      alert('Não foi possível gerar o link agora.')
+    } catch (e) {
+      alert((e as Error)?.message || 'Não foi possível gerar o link agora.')
     }
   }
 
@@ -129,10 +143,29 @@ export function TeamsPanel({
               {drawing ? 'Sorteando…' : '🎲 Sortear grupos'}
             </Button>
           )}
-          <Button variant="soft" onClick={() => void copyCreateTeamLink()} disabled={semVagas}>🔗 Link para criar time</Button>
+          <Button variant="soft" onClick={() => void copyCreateTeamLink()} disabled={semVagas}>
+            🔗 Link para criar time
+          </Button>
           <Button onClick={() => setAdding(true)} disabled={semVagas}>＋ Adicionar time</Button>
         </div>
       </div>
+
+      {/* Com mais de uma categoria, cada uma pode ter o seu link direcionado. */}
+      {championship.categories.length > 1 && !semVagas && (
+        <div className="cat-links">
+          <span className="cat-links__label">Link só de uma categoria:</span>
+          {championship.categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className="cat-links__btn"
+              onClick={() => void copyCreateTeamLink(c.id)}
+            >
+              🔗 {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {semVagas && (
         <p className="plano-cheio">

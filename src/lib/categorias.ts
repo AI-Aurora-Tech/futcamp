@@ -125,6 +125,65 @@ export function atletaDaCategoria(
 }
 
 /**
+ * O campeonato VISTO DE DENTRO de uma categoria.
+ *
+ * Devolve o mesmo campeonato com os números daquela categoria no lugar dos do
+ * campeonato: grupos, times por grupo, classificados por grupo, chaveamento,
+ * turno e returno, disputa de 3º lugar e situação.
+ *
+ * A forma de disputa não entra na conta — ela é do campeonato e vale para
+ * todas as categorias. O que muda de uma para outra são os números.
+ *
+ * A vantagem de devolver um `Championship` inteiro é que nada mais precisa
+ * mudar: `computeStandings`, `planKnockout`, `suggestBracket` e `groupStagesOf`
+ * continuam recebendo o que sempre receberam, só que já filtrado pela
+ * categoria. Campo que a categoria não define herda o do campeonato — é o que
+ * mantém rodando tudo o que foi criado antes da separação.
+ */
+export function competicaoDaCategoria(
+  champ: Championship,
+  categoryId: string | undefined,
+): Championship {
+  const cat = categoriaPorId(champ, categoryId)
+  if (!cat) return champ
+
+  const ou = <T,>(daCategoria: T | undefined, doCampeonato: T): T =>
+    daCategoria === undefined ? doCampeonato : daCategoria
+
+  return {
+    ...champ,
+    status: cat.status ?? champ.status,
+    finishedAt: cat.finishedAt ?? champ.finishedAt,
+    numGroups: ou(cat.numGroups, champ.numGroups),
+    teamsPerGroup: ou(cat.teamsPerGroup, champ.teamsPerGroup),
+    advancePerGroup: ou(cat.advancePerGroup, champ.advancePerGroup),
+    advanceByGroup: ou(cat.advanceByGroup, champ.advanceByGroup),
+    groupStages: ou(cat.groupStages, champ.groupStages),
+    leagueQualifiers: ou(cat.leagueQualifiers ?? cat.qualifiers, champ.leagueQualifiers),
+    bracket: ou(cat.bracket, champ.bracket),
+    thirdPlace: ou(cat.thirdPlace, champ.thirdPlace),
+    doubleRound: ou(cat.doubleRound, champ.doubleRound),
+    autoKnockout: ou(cat.autoKnockout, champ.autoKnockout),
+  }
+}
+
+/** A categoria define alguma coisa da estrutura, ou herda tudo? */
+export function estruturaPropria(cat: Category | null | undefined): boolean {
+  if (!cat) return false
+  return (
+    cat.numGroups !== undefined ||
+    cat.teamsPerGroup !== undefined ||
+    cat.advancePerGroup !== undefined ||
+    cat.advanceByGroup !== undefined ||
+    cat.groupStages !== undefined ||
+    cat.leagueQualifiers !== undefined ||
+    cat.bracket !== undefined ||
+    cat.thirdPlace !== undefined ||
+    cat.doubleRound !== undefined
+  )
+}
+
+/**
  * A categoria a mostrar quando a tela abre.
  *
  * Prefere a que está em andamento — é onde o organizador tem trabalho. Sem

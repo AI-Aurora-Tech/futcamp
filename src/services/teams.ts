@@ -196,6 +196,71 @@ export async function ensureChampTeamToken(championshipId: string): Promise<stri
   })
 }
 
+/**
+ * Link de criação DIRECIONADO a uma ou mais categorias.
+ *
+ * O mesmo conjunto de categorias devolve sempre o mesmo endereço — clicar duas
+ * vezes em "link do Sub-13" não cria dois links vivos para a mesma coisa.
+ */
+export async function ensureChampCategoryToken(
+  championshipId: string,
+  categoryIds: string[],
+): Promise<string> {
+  if (!categoryIds.length) return ensureChampTeamToken(championshipId)
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('ensure_champ_category_invite', {
+      p_champ: championshipId,
+      p_categories: categoryIds,
+    })
+    if (error) {
+      throw new Error(
+        /does not exist|PGRST202/i.test(error.message ?? '')
+          ? 'Os links por categoria ainda não foram liberados neste servidor (migration 0034).'
+          : error.message,
+      )
+    }
+    return data as string
+  }
+  // Demo: o token carrega o escopo, para a página de criação saber o que abrir.
+  return mutate((d) => {
+    const c = d.championships.find((x) => x.id === championshipId)
+    if (!c) throw new Error('Campeonato não encontrado.')
+    c.categoryTokens = c.categoryTokens ?? {}
+    const chave = [...categoryIds].sort().join('|')
+    if (!c.categoryTokens[chave]) c.categoryTokens[chave] = accessToken()
+    return c.categoryTokens[chave]
+  })
+}
+
+/**
+ * Quais categorias este link libera.
+ *
+ * Link aberto devolve TODAS as do campeonato — é o responsável que escolhe.
+ * Link direcionado devolve só as dele. Nulo = link inválido ou expirado.
+ */
+export async function championshipInviteScope(
+  championshipId: string,
+  token: string,
+): Promise<string[] | null> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('champ_invite_scope', {
+      p_champ: championshipId,
+      p_token: token,
+    })
+    // RPC ausente (migration 0034 pendente): não trava a página — cai no
+    // comportamento antigo, que é o link valer para o campeonato inteiro.
+    if (error) return null
+    return Array.isArray(data) ? (data as string[]) : null
+  }
+  return query((d) => {
+    const c = d.championships.find((x) => x.id === championshipId)
+    if (!c) return null
+    if (c.teamCreateToken && c.teamCreateToken === token) return c.categories.map((x) => x.id)
+    const achou = Object.entries(c.categoryTokens ?? {}).find(([, t]) => t === token)
+    return achou ? achou[0].split('|') : null
+  })
+}
+
 export interface CreateTeamViaLinkInput {
   name: string
   shortName?: string
@@ -204,6 +269,8 @@ export interface CreateTeamViaLinkInput {
   coach?: string
   phone?: string
   group?: string
+  /** Categorias que o responsável escolheu. Vazio = todas as que o link libera. */
+  categoryIds?: string[]
 }
 
 /**
@@ -227,6 +294,7 @@ export async function createTeamViaLink(
       p_coach: input.coach?.trim() || null,
       p_phone: input.phone?.trim() || null,
       p_group: input.group || null,
+      p_categories: input.categoryIds?.length ? input.categoryIds : null,
     })
     if (error) throw erroDeLimite(error)
     const row = data as { team_id: string; token: string }
@@ -234,12 +302,26 @@ export async function createTeamViaLink(
   }
   return mutate((d) => {
     const c = d.championships.find((x) => x.id === championshipId)
-    if (!c || !c.teamCreateToken || c.teamCreateToken !== token) {
-      throw new Error('Link de criação inválido ou expirado.')
-    }
+    if (!c) throw new Error('Link de criação inválido ou expirado.')
+
+    // O token pode ser o do link ABERTO ou o de um link DIRECIONADO — os dois
+    // criam time; o que muda é em quais categorias ele entra.
+    const dirigido = Object.entries(c.categoryTokens ?? {}).find(([, t]) => t === token)
+    const aberto = Boolean(c.teamCreateToken) && c.teamCreateToken === token
+    if (!aberto && !dirigido) throw new Error('Link de criação inválido ou expirado.')
+
+    const escopo = dirigido ? dirigido[0].split('|') : c.categories.map((x) => x.id)
+
     const atuais = d.teams.filter((t) => t.championshipId === championshipId).length
     if (!cabeMaisUmTime(c.plan, atuais)) throw new Error(motivoLimiteDeTimes(c.plan))
     const tok = accessToken()
+
+    const pedidas = input.categoryIds?.length ? input.categoryIds : escopo
+    // O escopo do link é a palavra final: escolher fora dele é o que o banco
+    // recusa, e aqui não pode ser diferente.
+    const foraDoEscopo = pedidas.filter((x) => !escopo.includes(x))
+    if (foraDoEscopo.length) throw new Error('Este link não dá acesso a essa categoria.')
+    const escolhidas = pedidas
     const team: Team = {
       id: uid('team'),
       championshipId,
@@ -251,6 +333,10 @@ export async function createTeamViaLink(
       phone: input.phone?.trim() || undefined,
       group: input.group || undefined,
       accessToken: tok,
+      categoryIds: escolhidas,
+      groupByCategory: input.group
+        ? Object.fromEntries(escolhidas.map((c2) => [c2, input.group as string]))
+        : undefined,
       createdAt: new Date().toISOString(),
     }
     d.teams.push(team)

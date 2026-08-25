@@ -70,6 +70,27 @@ export interface Category {
   /** Quando esta categoria foi encerrada (mantém o campeão na vitrine). */
   finishedAt?: string
 
+  /**
+   * A ESTRUTURA da competição desta categoria.
+   *
+   * A forma de disputa (pontos corridos, grupos + mata-mata, mata-mata) é do
+   * campeonato e vale para todas. Os NÚMEROS são de cada uma: o Sub-11 pode ter
+   * 2 grupos classificando 2, e o Sub-17 ter 4 grupos classificando 1.
+   *
+   * Campo ausente = herda o do campeonato. É o que mantém funcionando tudo o
+   * que foi criado antes da separação, sem obrigar ninguém a repreencher.
+   */
+  numGroups?: number
+  teamsPerGroup?: number
+  advancePerGroup?: number
+  advanceByGroup?: Record<string, number>
+  groupStages?: GroupStage[]
+  leagueQualifiers?: number
+  bracket?: BracketPairing[]
+  thirdPlace?: boolean
+  doubleRound?: boolean
+  autoKnockout?: boolean
+
   /* --- Regras de jogo (entram no regulamento) --------------------------- */
 
   /** Duração de CADA tempo, em minutos. */
@@ -308,6 +329,11 @@ export interface Championship {
    * `#/novo-time/<championshipId>?k=<token>` e o responsável cria o próprio time.
    */
   teamCreateToken?: string
+  /**
+   * Tokens dos links DIRECIONADOS a categorias, no modo demo:
+   * `{ 's11|s15': 'abc…' }`. No Supabase eles vivem em `champ_team_invites`.
+   */
+  categoryTokens?: Record<string, string>
   /** Plano contratado. Pode ser trocado depois, sem perder nada (0032). */
   plan?: PlanKey
   /**

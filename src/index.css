@@ -673,6 +673,36 @@ table { border-collapse: collapse; width: 100%; }
   display: flex; flex-direction: column; gap: 0.55rem; align-items: flex-start;
 }
 .plano-troca__pendente p { margin: 0; font-size: 0.88rem; line-height: 1.45; }
+
+/* Escolha de categorias na criação do time (link aberto). */
+.cat-pick { display: grid; gap: 0.4rem; }
+.cat-pick__list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
+.cat-pick__item {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  border: 1.5px solid var(--line-strong); border-radius: 999px;
+  padding: 0.42rem 0.85rem; cursor: pointer; font-weight: 600; font-size: 0.9rem;
+  background: var(--surface); transition: border-color .15s, background .15s;
+}
+.cat-pick__item:hover { border-color: var(--brand); }
+.cat-pick__item.is-on { border-color: var(--brand); background: rgba(22,163,74,0.12); color: var(--brand-dark); }
+.cat-pick__item input { width: 16px; height: 16px; flex: none; accent-color: var(--brand); }
+.cat-pick__unica {
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 0.55rem 0.75rem;
+}
+
+/* Links de criação de time direcionados a uma categoria. */
+.cat-links {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem;
+  margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px dashed var(--line-strong);
+}
+.cat-links__label { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-right: 0.2rem; }
+.cat-links__btn {
+  border: 1.5px solid var(--line-strong); background: var(--surface-2); color: var(--ink-soft);
+  border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; transition: border-color .15s, color .15s;
+}
+.cat-links__btn:hover { border-color: var(--brand); color: var(--brand-dark); }
 .link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
 .link-btn--add:hover { color: var(--brand); }
 
@@ -913,6 +943,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
   min-width: 0;
 }
 .presence-item.is-present { background: color-mix(in srgb, var(--accent, #16a34a) 10%, transparent); }
+
+/* Atleta cumprindo suspensão: fora da escalação, e visivelmente fora. O nome
+   continua na lista de propósito — sumir com ele faria o time procurar onde
+   foi parar. */
+.presence-item.is-suspenso { background: #fef2f2; }
+.presence-item.is-suspenso .presence-item__check { cursor: not-allowed; }
+.presence-item.is-suspenso .presence-item__nome { text-decoration: line-through; color: #991b1b; }
+/* O nome encolhe; a etiqueta não. Ao contrário, a reticência comia justamente
+   o motivo da suspensão — a informação que a mesa precisa ler. */
+.presence-item__label { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.presence-item__nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.susp-tag {
+  flex: none; white-space: nowrap;
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase;
+  background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;
+  border-radius: 999px; padding: 0.08rem 0.4rem; text-decoration: none;
+}
 .presence-item__check {
   display: flex;
   align-items: center;
