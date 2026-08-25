@@ -26,6 +26,15 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0018_push_notifications.sql` | **Notificações push**: `push_subscriptions`, fila `push_outbox` e gatilhos (gol → times do grupo; alteração de time → organizador) + RPCs `push_subscribe`/`push_unsubscribe`. |
 | `migrations/0019_penalty_shootout.sql` | **Disputa por pênaltis**: colunas `matches.penalty_home`/`penalty_away`, `match_winner()` ciente das cobranças (o vencedor dos pênaltis avança em `advance_bracket`) e `mesa_update_match` com os dois novos parâmetros. |
 | `migrations/0020_finished_at.sql` | **Campeão em cartaz**: `championships.finished_at` carimbado por gatilho no encerramento — a vitrine pública mantém o campeonato (e o campeão) por 10 dias. |
+| `migrations/0021_payments.sql` | **Cobrança do campeonato**: `plan`, `payment_status`, `amount_cents`, `payment_ref`, `paid_at` em `championships`, a função de preço `plan_price_cents()` e o gatilho `set_championship_price()` (o valor é calculado no banco — o cliente não escolhe quanto paga), tabela `payments` e a RPC `mark_championship_paid()` restrita ao `service_role`. |
+| `migrations/0022_asaas.sql` | **Troca do provedor de pagamento** (Mercado Pago → Asaas): `payments.provider` e `payments.checkout_id`. O histórico antigo fica marcado como `mercadopago`. |
+| `migrations/0025_federated_athletes.sql` | **Atletas federados** (infantil): `championships.allow_federated` / `max_federated`, `players.federated` / `federated_in`, e o limite conferido no banco (`assert_federated_allowed`) dentro das RPCs de inscrição — validar só no navegador do time seria pedir para burlar. A `team_registration` passa a devolver também as regras do campeonato, para o time baixar o regulamento (lista fechada de campos: nada de dono, cobrança ou token). |
+| `migrations/0026_federated_per_category.sql` | **Federados viram regra de categoria**: a permissão e o limite passam para dentro de `championships.categories` (jsonb) e as colunas da 0025 saem — o valor delas é copiado para as categorias antes. `assert_federated_allowed` passa a receber a categoria e contar só os federados dela. |
+| `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente, refaz o pedido sem Pix quando a conta não tem chave cadastrada, e grava o vínculo do checkout em `championships.payment_ref` (`checkout:<id>`) além da tabela `payments`. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`, `ASAAS_BILLING_TYPES` (opcional). Publique com `--no-verify-jwt`. |
+| `migrations/0023_master_release.sql` | **Liberação manual pelo master**: `master_release_championship()`, a única exceção à trava de pagamento — e ela exige `is_master()`, verificado no banco. Para quando o pagamento entra por fora (dinheiro, transferência, cortesia). |
+| `migrations/0024_push_outbox_cascade.sql` | **Corrige a exclusão de campeonato**: o gatilho de avisos disparava na cascata (times e atletas removidos junto) e tentava enfileirar notificação de um campeonato que já não existia — a chave estrangeira recusava e a exclusão inteira falhava. Agora o gatilho confere se o campeonato ainda existe antes de enfileirar. |
+| `functions/asaas-status/` | Pergunta ao Asaas se o campeonato já foi pago e libera na hora — é o que o botão "Já paguei" chama. Rede de segurança para quando o webhook falha. Um `GET ?championshipId=…` mostra onde a busca parou. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`. Publique com `--no-verify-jwt`. |
+| `functions/asaas-webhook/` | Recebe a notificação do Asaas, reconsulta o pagamento na API oficial e libera o campeonato quando confirmado. Secrets: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
@@ -57,6 +66,12 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0018_push_notifications.sql`
    - `migrations/0019_penalty_shootout.sql`
    - `migrations/0020_finished_at.sql`
+   - `migrations/0021_payments.sql`
+   - `migrations/0022_asaas.sql`
+   - `migrations/0023_master_release.sql`
+   - `migrations/0024_push_outbox_cascade.sql`
+   - `migrations/0025_federated_athletes.sql`
+   - `migrations/0026_federated_per_category.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');
@@ -76,6 +91,76 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 supabase start
 supabase db reset      # aplica as migrations e o seed
 ```
+
+## Pagamento do campeonato (Asaas)
+
+O valor é **calculado no banco**: o gatilho `set_championship_price()` roda o
+`plan_price_cents(plan, nº de categorias)` a cada inserção e grava
+`amount_cents` + `payment_status`. Um cliente adulterado não consegue criar um
+campeonato pago por R$ 0 nem marcar-se como pago: fora do `service_role`, o
+gatilho restaura os campos de pagamento em qualquer `update`.
+
+1. **Secrets** (Project Settings → Edge Functions → Secrets, ou pelo CLI):
+   ```bash
+   supabase secrets set ASAAS_API_KEY="$aact_..." \
+                        ASAAS_ENV="producao" \
+                        ASAAS_WEBHOOK_TOKEN="uma-senha-sua" \
+                        APP_URL="https://seu-app.com.br"
+   ```
+   A chave **nunca** vai para o `.env` do front nem para a Vercel: tudo que
+   começa com `VITE_` é embutido no JavaScript e fica visível para qualquer
+   visitante. Use `ASAAS_ENV=sandbox` para testar (a chave de homologação, com
+   `hmlg` no meio, também é detectada sozinha).
+2. **Publique as funções**:
+   ```bash
+   supabase functions deploy asaas-checkout --no-verify-jwt
+   supabase functions deploy asaas-webhook  --no-verify-jwt
+   supabase functions deploy asaas-status   --no-verify-jwt
+   ```
+   O `--no-verify-jwt` é obrigatório nas duas: no webhook porque quem chama é
+   o Asaas, sem sessão de usuário; na cobrança porque o portão do Supabase
+   devolve `401 Invalid credentials` sem explicação em projetos com chave de
+   API do formato novo (`sb_publishable_...`) ou com as chaves legadas
+   desativadas. A `asaas-checkout` confere o dono do campeonato dentro da
+   própria função, com `auth.getUser()` — a autorização não some, só muda de
+   lugar.
+3. **Chave Pix**: cadastre uma no painel do Asaas (**Pix → Minhas chaves**).
+   Sem ela o Asaas recusa a cobrança inteira, não só a forma Pix. A função
+   contorna sozinha (refaz o pedido só com boleto e cartão), e o secret
+   opcional `ASAAS_BILLING_TYPES="BOLETO,CREDIT_CARD"` fixa as formas aceitas.
+4. **Notificações**: no painel do Asaas (Integrações → Webhooks), aponte para
+   `https://<project-ref>.supabase.co/functions/v1/asaas-webhook`, marque os
+   eventos de **Cobranças** (`PAYMENT_RECEIVED` e `PAYMENT_CONFIRMED`) e
+   informe no campo de token o mesmo valor de `ASAAS_WEBHOOK_TOKEN`.
+
+   > ⚠️ Os dois tokens precisam bater **exatamente**. Se o secret existir no
+   > Supabase e o painel do Asaas mandar outro (ou nenhum), a função responde
+   > `401` a cada notificação — e o Asaas **pausa a fila** depois de algumas
+   > falhas seguidas. Sintoma: pagamento confirmado no painel e nada acontece
+   > no app, com o log da função vazio ou cheio de 401. Na dúvida, apague o
+   > secret `ASAAS_WEBHOOK_TOKEN`: sem ele a verificação é desligada e nada
+   > fica menos seguro do que já é — a liberação depende da reconsulta à API
+   > do Asaas, não do que chegou na notificação. Marque
+   também os eventos de **Checkout** (`CHECKOUT_PAID`) — o webhook entende os
+   dois formatos, e ter os dois cobre o caso de a cobrança nascer sem o
+   `externalReference` do checkout.
+
+   **O webhook não é o único caminho.** A `asaas-status` pergunta ao Asaas sob
+   demanda: o app chama a cada 20 s enquanto a tela de cobrança está aberta, e
+   também quando o organizador clica em "Já paguei". Isso evita que uma
+   entrega perdida deixe alguém que pagou travado — mas configure o webhook
+   assim mesmo, porque ele libera quem já fechou o navegador.
+
+**Fluxo:** o organizador escolhe o plano → cria o campeonato (nasce
+`pending`) → `asaas-checkout` cria o Checkout e devolve o `link` → ele paga por
+Pix, boleto ou cartão → o Asaas avisa a `asaas-webhook`, que **reconsulta**
+`GET /payments/<id>` (a notificação sozinha não é prova de nada), confere se o
+valor cobre o devido e chama `mark_championship_paid()`. O campeonato passa a
+`paid` e o painel abre.
+
+O CPF do pagador é pedido pelo Asaas, na página dele: por isso a integração usa
+o **Checkout hospedado** e não a cobrança direta, que exigiria `cpfCnpj` na
+chamada da API — o Tabelaço não coleta nem guarda dado fiscal do organizador.
 
 ## Modelo de acesso (RLS)
 

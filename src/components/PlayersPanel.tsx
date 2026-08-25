@@ -1,7 +1,15 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPlayer, deletePlayer, updatePlayer, type NewPlayer } from '../services/players'
 import { checkEligibility, checkRosterLimit, formatCpf, isValidCpf } from '../lib/eligibility'
 import { checkCpfConflict } from '../lib/duplicates'
+import {
+  MODALIDADE_LABELS,
+  permiteFederados,
+  podeMarcarFederado,
+  regraVale,
+  vagasFederados,
+  type ModalidadeFederado,
+} from '../lib/federated'
 import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
@@ -128,7 +136,14 @@ export function PlayersPanel({
                     <span className="athlete-cell">
                       <span className="athlete-photo">{p.photo ? <img src={p.photo} alt="" /> : '👤'}</span>
                       <span>
-                        <span className="strong">{p.name}</span>
+                        <span className="strong">
+                          {p.name}
+                          {p.federated && (
+                            <span className="fed-tag" title="Atleta federado">
+                              FEDERADO{p.federatedIn ? ` · ${MODALIDADE_LABELS[p.federatedIn]}` : ''}
+                            </span>
+                          )}
+                        </span>
                         {p.cpf && <span className="athlete-cpf">{formatCpf(p.cpf)}</span>}
                       </span>
                     </span>
@@ -183,6 +198,8 @@ export function PlayersPanel({
               birthdate: i.birthdate,
               categoryId: i.categoryId,
               role: i.role,
+              federated: i.federated,
+              federatedIn: i.federatedIn,
             })
           }}
           onClose={() => setImporting(false)}
@@ -224,9 +241,24 @@ function PlayerForm({
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [federated, setFederated] = useState(Boolean(initial?.federated))
+  const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>(initial?.federatedIn ?? 'campo')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const category = categories.find((c) => c.id === categoryId)
+
+  // A permissão é DA CATEGORIA escolhida. As vagas desconsideram o próprio
+  // atleta: reeditar um federado que já existe não pode esbarrar no limite por
+  // causa dele mesmo.
+  const vagasFed = vagasFederados(category, teamPlayers, initial?.id)
+  const mostraFederado =
+    role === 'atleta' && regraVale(championship) && permiteFederados(category)
+  const semVaga = !federated && vagasFed <= 0
+
+  // Trocar para uma categoria que não aceita desmarca a federação.
+  useEffect(() => {
+    if (federated && !permiteFederados(category)) setFederated(false)
+  }, [category, federated])
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -272,6 +304,13 @@ function PlayerForm({
       setError(limit.reason ?? 'Limite da categoria atingido.')
       return
     }
+    if (mostraFederado && federated) {
+      const v = podeMarcarFederado(category, teamPlayers, initial?.id)
+      if (!v.ok) {
+        setError(v.motivo ?? 'Atleta federado não permitido.')
+        return
+      }
+    }
     setBusy(true)
     try {
       // Validação CPF × data de nascimento quando ambos informados.
@@ -293,6 +332,8 @@ function PlayerForm({
         position,
         categoryId: categoryId || undefined,
         role,
+        federated: mostraFederado ? federated : false,
+        federatedIn: mostraFederado && federated ? federatedIn : undefined,
       }
       if (initial) await updatePlayer(initial.id, payload)
       else await createPlayer(payload)
@@ -344,6 +385,46 @@ function PlayerForm({
               ))}
             </select>
           </Field>
+        )}
+
+        {mostraFederado && (
+          <div className="fed-box">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={federated}
+                disabled={semVaga}
+                onChange={(e) => setFederated(e.target.checked)}
+              />
+              <span>
+                Este atleta é <b>federado</b>
+                {categories.length > 1 && <span className="muted small"> em {category?.name}</span>}
+                {Number.isFinite(vagasFed) && (
+                  <span className="muted small">
+                    {' '}— {semVaga ? 'sem vagas restantes' : `${vagasFed} vaga(s) restante(s)`}
+                  </span>
+                )}
+              </span>
+            </label>
+            {federated && (
+              <label className="mini-field">
+                <span className="mini-field__label">Federado em</span>
+                <select
+                  value={federatedIn}
+                  onChange={(e) => setFederatedIn(e.target.value as ModalidadeFederado)}
+                >
+                  {(Object.keys(MODALIDADE_LABELS) as ModalidadeFederado[]).map((m) => (
+                    <option key={m} value={m}>{MODALIDADE_LABELS[m]}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {semVaga && (
+              <p className="field__hint">
+                Este time já usou todas as vagas de atleta federado{category ? ` em ${category.name}` : ''}.
+              </p>
+            )}
+          </div>
         )}
 
         <div className="form-row">

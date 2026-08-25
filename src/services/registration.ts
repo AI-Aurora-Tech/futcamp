@@ -15,9 +15,10 @@ import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
+import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { registrationLockForTeam } from '../lib/matchWindow'
-import type { Category, Match, Player, Position, Team } from '../types'
+import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -38,6 +39,8 @@ export interface RegistrationData {
   closedRounds: number[]
   /** Partidas do time (para calcular a trava de inscrição). */
   matches: Match[]
+  /** Regras do campeonato, para o time baixar o regulamento. */
+  championship?: Championship
 }
 
 export interface TeamInfoPatch {
@@ -58,6 +61,17 @@ export interface PlayerInput {
   position?: Position
   categoryId?: string
   role?: 'atleta' | 'comissao'
+  federated?: boolean
+  federatedIn?: 'campo' | 'futsal' | 'ambos'
+}
+
+/**
+ * A RPC reclamou por não conhecer os parâmetros de federado? Sinal de que a
+ * migration 0025 ainda não foi aplicada.
+ */
+function semMigration0025(error: { message?: string; code?: string }): boolean {
+  const m = (error?.message ?? '').toLowerCase()
+  return error?.code === 'PGRST202' || m.includes('does not exist') || m.includes('p_federated')
 }
 
 /** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
@@ -80,7 +94,41 @@ function playerFromRow(r: any): Player {
     photo: r.photo ?? undefined,
     cpf: r.cpf ?? undefined,
     categoryId: r.category_id ?? undefined,
+    role: r.role ?? undefined,
+    federated: r.federated ?? false,
+    federatedIn: r.federated_in ?? undefined,
     createdAt: r.created_at,
+  }
+}
+
+/**
+ * Campeonato como o time o enxerga: só as regras da competição, que é o que
+ * entra no regulamento. A RPC nem devolve o resto.
+ */
+function champFromRow(r: any): Championship {
+  return {
+    id: r.id,
+    ownerId: '',
+    name: r.name,
+    sport: r.sport,
+    audience: r.audience ?? 'adulto',
+    categories: Array.isArray(r.categories) ? r.categories : [],
+    format: r.format ?? 'league',
+    season: r.season ?? '',
+    status: 'active',
+    description: r.description ?? undefined,
+    logo: r.logo ?? undefined,
+    pointsWin: r.points_win ?? 3,
+    pointsDraw: r.points_draw ?? 1,
+    registrationCutoffHours: r.registration_cutoff_hours ?? 0,
+    doubleRound: Boolean(r.double_round),
+    numGroups: r.num_groups ?? undefined,
+    teamsPerGroup: r.teams_per_group ?? undefined,
+    advancePerGroup: r.advance_per_group ?? undefined,
+    leagueQualifiers: r.league_qualifiers ?? undefined,
+    thirdPlace: r.third_place ?? undefined,
+    tiebreakers: r.tiebreakers ?? undefined,
+    createdAt: new Date().toISOString(),
   }
 }
 
@@ -120,6 +168,7 @@ export async function loadRegistration(
       registrationCutoffHours: data.registration_cutoff_hours ?? 0,
       closedRounds: Array.isArray(data.closed_rounds) ? data.closed_rounds : [],
       matches: Array.isArray(data.matches) ? data.matches.map(matchFromRow) : [],
+      championship: data.championship ? champFromRow(data.championship) : undefined,
     }
   }
 
@@ -133,6 +182,7 @@ export async function loadRegistration(
       championshipName: champ?.name ?? 'Campeonato',
       championshipLogo: champ?.logo,
       audience: champ?.audience ?? 'adulto',
+      championship: champ ?? undefined,
       categories: champ?.categories ?? [],
       players: d.players
         .filter((p) => p.teamId === teamId)
@@ -387,11 +437,19 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
 
   const limit = checkRosterLimit({ category, role, existingInCategory: existing })
   if (!limit.ok) throw new Error(limit.reason ?? 'Limite da categoria atingido.')
+
+  // Federados: no Supabase quem barra é a `assert_federated_allowed` (0025);
+  // no modo demo não há servidor, então a regra vale aqui.
+  if (input.federated) {
+    const doTime = query((d) => d.players.filter((p) => p.teamId === teamId))
+    const v = podeMarcarFederado(category, doTime, excludePlayerId)
+    if (!v.ok) throw new Error(v.motivo ?? 'Atleta federado não permitido.')
+  }
 }
 
 export async function addRegPlayer(teamId: string, token: string, input: PlayerInput): Promise<void> {
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.rpc('reg_add_player', {
+    const base = {
       p_team: teamId,
       p_token: token,
       p_name: input.name,
@@ -402,7 +460,19 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
       p_position: input.position ?? null,
       p_category: input.categoryId ?? null,
       p_role: input.role ?? 'atleta',
+    }
+    const { error } = await supabase.rpc('reg_add_player', {
+      ...base,
+      p_federated: input.federated ?? false,
+      p_federated_in: input.federatedIn ?? null,
     })
+    // Banco sem a migration 0025: a RPC ainda não tem os parâmetros novos.
+    // Inscrever sem a marcação é melhor do que não inscrever.
+    if (error && semMigration0025(error)) {
+      const { error: e2 } = await supabase.rpc('reg_add_player', base)
+      if (e2) throw e2
+      return
+    }
     if (error) throw error
     return
   }
@@ -423,6 +493,8 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
       position: input.position,
       categoryId: input.categoryId,
       role: input.role ?? 'atleta',
+      federated: input.federated ?? false,
+      federatedIn: input.federated ? input.federatedIn : undefined,
       createdAt: new Date().toISOString(),
     })
   })
@@ -435,7 +507,7 @@ export async function updateRegPlayer(
   input: PlayerInput,
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.rpc('reg_update_player', {
+    const base = {
       p_team: teamId,
       p_token: token,
       p_player: playerId,
@@ -447,7 +519,17 @@ export async function updateRegPlayer(
       p_position: input.position ?? null,
       p_category: input.categoryId ?? null,
       p_role: input.role ?? 'atleta',
+    }
+    const { error } = await supabase.rpc('reg_update_player', {
+      ...base,
+      p_federated: input.federated ?? false,
+      p_federated_in: input.federatedIn ?? null,
     })
+    if (error && semMigration0025(error)) {
+      const { error: e2 } = await supabase.rpc('reg_update_player', base)
+      if (e2) throw e2
+      return
+    }
     if (error) throw error
     return
   }
@@ -466,6 +548,8 @@ export async function updateRegPlayer(
         position: input.position,
         categoryId: input.categoryId,
         role: input.role ?? 'atleta',
+        federated: input.federated ?? false,
+        federatedIn: input.federated ? input.federatedIn : undefined,
       }
     }
   })

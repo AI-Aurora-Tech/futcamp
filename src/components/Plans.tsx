@@ -1,25 +1,7 @@
+import { CONTACT_EMAIL } from '../lib/checkout'
 import { PLANS, formatBRL, type PlanInfo } from '../lib/pricing'
 import { rememberPlan } from '../lib/planChoice'
 import { ChampLogo } from './ui'
-
-/**
- * WhatsApp do consultor, para o plano Diamante (preço sob consulta).
- *
- * `wa.me` resolve os dois casos sem gambiarra: no celular abre o aplicativo,
- * no computador abre o WhatsApp Web. O número vai com o código do país (55) e
- * só dígitos — é o formato que o link exige.
- *
- * Trocar de número sem mexer no código: `VITE_WHATSAPP` no .env.
- */
-const WHATSAPP =
-  ((import.meta.env.VITE_WHATSAPP as string | undefined) ?? '5511992835438').replace(/\D/g, '')
-
-const MENSAGEM_DIAMANTE =
-  'Olá! Vi o plano Diamante no Tabelaço e gostaria de falar com um consultor.'
-
-export const whatsappDiamante = WHATSAPP
-  ? `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(MENSAGEM_DIAMANTE)}`
-  : ''
 
 const Check = () => (
   <svg className="plan-feats__ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
@@ -34,12 +16,10 @@ const Check = () => (
 function PlanCta({ plan, onChoose }: { plan: PlanInfo; onChoose: (p: PlanInfo) => void }) {
   const cls = `btn ${plan.featured ? 'btn--primary' : 'btn--ghost'} plan-btn`
 
-  // Diamante: o preço é negociado, então o botão abre a conversa no WhatsApp
-  // já com a mensagem escrita — quem clica não precisa explicar de onde veio.
   if (plan.consult) {
-    return whatsappDiamante ? (
-      <a className={cls} href={whatsappDiamante} target="_blank" rel="noopener noreferrer">
-        💬 {plan.cta}
+    return CONTACT_EMAIL ? (
+      <a className={cls} href={`mailto:${CONTACT_EMAIL}?subject=Plano Diamante — Tabelaço`}>
+        {plan.cta}
       </a>
     ) : (
       <button type="button" className={cls} onClick={() => onChoose(plan)}>

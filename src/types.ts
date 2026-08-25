@@ -10,6 +10,17 @@ export type ChampionshipFormat = 'league' | 'groups_knockout' | 'knockout'
 
 export type ChampionshipStatus = 'draft' | 'active' | 'finished'
 
+/** Plano contratado para o campeonato (ver `lib/pricing.ts`). */
+export type PlanKey = 'gratis' | 'bronze' | 'prata' | 'ouro' | 'diamante'
+
+/**
+ * Situação da cobrança do campeonato:
+ *  • `free`    — plano grátis (ou Diamante, acertado fora do app): liberado;
+ *  • `pending` — criado, aguardando o pagamento: fica bloqueado;
+ *  • `paid`    — pagamento confirmado pelo Asaas: liberado.
+ */
+export type PaymentStatus = 'free' | 'pending' | 'paid'
+
 /** Público-alvo do campeonato. */
 export type Audience = 'infantil' | 'adulto'
 
@@ -26,6 +37,13 @@ export type Audience = 'infantil' | 'adulto'
 export interface Category {
   id: string
   name: string
+  /**
+   * Atletas federados (campo/futsal): a permissão é DE CATEGORIA, não do
+   * campeonato — o mesmo torneio de base costuma proibir no Sub-11 e liberar
+   * dois no Sub-15. `maxFederated` ausente ou nulo = sem limite.
+   */
+  allowFederated?: boolean
+  maxFederated?: number | null
   birthYear?: number
   birthYearMode?: 'min' | 'max'
   /** Nº de atletas por time que podem furar a regra de ano de nascimento. */
@@ -224,6 +242,16 @@ export interface Championship {
    * `#/novo-time/<championshipId>?k=<token>` e o responsável cria o próprio time.
    */
   teamCreateToken?: string
+  /** Plano contratado na criação do campeonato. */
+  plan?: PlanKey
+  /** Situação da cobrança — `pending` mantém o campeonato bloqueado. */
+  paymentStatus?: PaymentStatus
+  /** Valor cobrado (centavos): plano + categorias adicionais. */
+  amountCents?: number
+  /** Identificador do pagamento no Asaas, quando confirmado. */
+  paymentRef?: string
+  /** Momento da confirmação do pagamento. */
+  paidAt?: string
   /**
    * Momento em que o campeonato foi encerrado. Preenchido automaticamente na
    * troca de status — é o que mantém o campeão na vitrine pública pelos dias
@@ -292,6 +320,10 @@ export interface Player {
   categoryId?: string
   /** Atleta (jogador) ou membro da comissão técnica. */
   role?: 'atleta' | 'comissao'
+  /** Atleta federado (campeonatos infantis, quando o regulamento permite). */
+  federated?: boolean
+  /** Em qual modalidade é federado. */
+  federatedIn?: 'campo' | 'futsal' | 'ambos'
   createdAt: string
 }
 

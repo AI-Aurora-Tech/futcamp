@@ -3,15 +3,16 @@ import { parseAthletesRows, parseAthletesText, type ParsedAthlete } from '../lib
 import { readSpreadsheet, SpreadsheetError, type SheetRows } from '../lib/spreadsheet'
 import { checkEligibility, checkRosterLimit, formatCpf } from '../lib/eligibility'
 import { checkCpfConflict } from '../lib/duplicates'
+import { limiteFederados, permiteFederados, podeMarcarFederado } from '../lib/federated'
 import type { Category, Player } from '../types'
 import { Button, Field, Modal } from './ui'
 
 /** Modelo de planilha para o organizador preencher (CSV que o Excel abre). */
 function downloadTemplate() {
   const csv = [
-    'Nome;CPF;Data de nascimento',
-    'Maria Souza;529.982.247-25;12/03/2004',
-    'Carlos Lima;111.444.777-35;21/07/2005',
+    'Nome;CPF;Data de nascimento;Federado',
+    'Maria Souza;529.982.247-25;12/03/2004;',
+    'Carlos Lima;111.444.777-35;21/07/2005;sim',
   ].join('\r\n')
   // BOM para o Excel abrir os acentos corretamente.
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
@@ -31,6 +32,8 @@ export interface ImportInput {
   birthdate: string
   categoryId?: string
   role: 'atleta'
+  federated?: boolean
+  federatedIn?: 'campo' | 'futsal' | 'ambos'
 }
 
 interface EvalRow {
@@ -40,6 +43,8 @@ interface EvalRow {
   birthdate: string
   ok: boolean
   reason?: string
+  /** Entrou como federado (depois de conferida a regra da categoria). */
+  federated?: boolean
 }
 
 export function ImportAthletesModal({
@@ -129,6 +134,17 @@ export function ImportAthletesModal({
       if (!elig.ok) return { ...p, ok: false, reason: elig.reason }
       const lim = checkRosterLimit({ category, role: 'atleta', existingInCategory: running })
       if (!lim.ok) return { ...p, ok: false, reason: lim.reason }
+
+      // Federado marcado na planilha: só entra se a categoria aceitar e ainda
+      // houver vaga. Contamos os já aceitos neste mesmo arquivo, senão uma
+      // planilha com cinco federados passaria toda.
+      let federado = Boolean(p.federated)
+      if (federado) {
+        const v = podeMarcarFederado(category, running)
+        if (!v.ok) return { ...p, ok: false, reason: v.motivo }
+      }
+      if (federado && !permiteFederados(category)) federado = false
+
       const pending: Player = {
         id: `tmp-${i}`,
         teamId: teamId ?? '',
@@ -138,11 +154,12 @@ export function ImportAthletesModal({
         birthdate: p.birthdate,
         categoryId,
         role: 'atleta',
+        federated: federado,
         createdAt: '',
       }
       running.push(pending)
       inFile.push(pending)
-      return { ...p, ok: true }
+      return { ...p, ok: true, federated: federado }
     })
   }, [text, sheet, categoryId, categories, existing, championshipPlayers, teamId, teamName])
 
@@ -156,7 +173,15 @@ export function ImportAthletesModal({
     for (const r of rows) {
       if (!r.ok) continue
       try {
-        await onAdd({ name: r.name, cpf: r.cpf, birthdate: r.birthdate, categoryId: categoryId || undefined, role: 'atleta' })
+        await onAdd({
+          name: r.name,
+          cpf: r.cpf,
+          birthdate: r.birthdate,
+          categoryId: categoryId || undefined,
+          role: 'atleta',
+          federated: r.federated ?? false,
+          federatedIn: r.federated ? 'campo' : undefined,
+        })
         added++
       } catch (err) {
         failed++
@@ -176,6 +201,17 @@ export function ImportAthletesModal({
         atleta: <b>Nome</b>, <b>CPF</b> e <b>Data de nascimento</b>. Se a primeira linha for o
         cabeçalho, as colunas são reconhecidas pelo nome — em qualquer ordem.
       </p>
+
+      {permiteFederados(categories.find((c) => c.id === categoryId)) && (
+        <p className="muted small">
+          🎽 Esta categoria aceita atletas <b>federados</b>
+          {Number.isFinite(limiteFederados(categories.find((c) => c.id === categoryId)))
+            ? ` (até ${limiteFederados(categories.find((c) => c.id === categoryId))} por time)`
+            : ' (sem limite)'}
+          . Acrescente uma coluna <b>Federado</b> e escreva <code>sim</code> nos que forem — quem
+          passar do limite é recusado com o motivo, sem entrar pela metade.
+        </p>
+      )}
 
       <div className="import-controls">
         <input

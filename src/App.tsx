@@ -9,6 +9,7 @@ import { TeamRegistration } from './components/TeamRegistration'
 import { CreateTeamViaLink } from './components/CreateTeamViaLink'
 import { MesaPortal } from './components/MesaPortal'
 import { Plans } from './components/Plans'
+import { PaymentReturn } from './components/PaymentReturn'
 import { InstallGuide } from './components/InstallGuide'
 import { Spinner } from './components/ui'
 
@@ -44,6 +45,14 @@ function readCreateTeamRoute(): { championshipId: string; token: string } | null
   return { championshipId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
 }
 
+/** Extrai `#/pagamento/<championshipId>?status=…` (volta do Asaas). */
+function readPaymentRoute(): { championshipId: string; status: string | null } | null {
+  const m = window.location.hash.match(/^#\/pagamento\/([^?]+)(?:\?(.*))?$/)
+  if (!m) return null
+  const params = new URLSearchParams(m[2] ?? '')
+  return { championshipId: decodeURIComponent(m[1]), status: params.get('status') }
+}
+
 /** Extrai `#/mesa/<championshipId>` (portal do mesário), se houver. */
 function readMesaId(): string | null {
   const m = window.location.hash.match(/^#\/mesa\/([^?]+)$/)
@@ -56,6 +65,7 @@ export default function App() {
   const [teamRoute, setTeamRoute] = useState(readTeamRoute())
   const [createTeamRoute, setCreateTeamRoute] = useState(readCreateTeamRoute())
   const [mesaId, setMesaId] = useState<string | null>(readMesaId())
+  const [payRoute, setPayRoute] = useState(readPaymentRoute())
   const [planos, setPlanos] = useState(readPlanos())
   const [instalar, setInstalar] = useState(readInstalar())
   const [selected, setSelected] = useState<string | null>(null)
@@ -66,6 +76,7 @@ export default function App() {
       setTeamRoute(readTeamRoute())
       setCreateTeamRoute(readCreateTeamRoute())
       setMesaId(readMesaId())
+      setPayRoute(readPaymentRoute())
       setPlanos(readPlanos())
       setInstalar(readInstalar())
     }
@@ -81,6 +92,7 @@ export default function App() {
     setTeamRoute(null)
     setCreateTeamRoute(null)
     setMesaId(null)
+    setPayRoute(null)
     setPlanos(false)
     setInstalar(false)
     setSelected(null)
@@ -128,7 +140,17 @@ export default function App() {
     <div className="app">
       <Header onHome={goHome} />
       <main>
-        {selected ? (
+        {payRoute ? (
+          <PaymentReturn
+            championshipId={payRoute.championshipId}
+            status={payRoute.status}
+            onOpen={(id) => {
+              goHome()
+              setSelected(id)
+            }}
+            onHome={goHome}
+          />
+        ) : selected ? (
           <ManageChampionship championshipId={selected} onBack={() => setSelected(null)} />
         ) : (
           <Dashboard onOpen={(id) => setSelected(id)} />

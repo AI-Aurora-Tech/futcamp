@@ -37,7 +37,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🧑‍⚖️🏟️ **Cadastro de árbitros e campos**: escale o árbitro e informe o local de cada jogo (aparecem na súmula e no calendário).
 - 📆 **Calendário de jogos**: agenda das partidas por data, com horário, local e árbitro.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
-- 💳 **Planos com pagamento**: os botões de Bronze, Prata e Ouro abrem o link de pagamento do **Mercado Pago**; nenhuma credencial fica no navegador.
+- 💳 **Planos com pagamento**: o organizador escolhe o plano, o sistema soma as categorias adicionais e gera a cobrança no **Asaas** (Pix, boleto ou cartão). Confirmado o pagamento, o campeonato é liberado sozinho — nenhuma credencial fica no navegador.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento **e dos campeões recentes** — o campeonato encerrado fica na vitrine por **10 dias**, com o campeão em destaque.
 - 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
 - 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela. A página pública mantém o **placar da final** (mata-mata) ou os **pontos do campeão** (pontos corridos).
@@ -97,6 +97,17 @@ Como definir quem é master:
    insert into public.master_admins (email) values ('fulano@exemplo.com');
    ```
 
+O master administra **em qualquer situação**: rascunho, em andamento,
+encerrado — e também campeonato com **pagamento pendente**, que para o
+organizador dono fica fechado na tela de cobrança. Ele abre o painel completo,
+edita as informações e exclui normalmente; um aviso 🔒 no topo lembra que a
+cobrança ainda não foi confirmada.
+
+> Os dois cadastros precisam bater. Se o e-mail estiver só no
+> `VITE_MASTER_ADMINS` e não na tabela `master_admins`, o app mostra os botões
+> de master mas o banco recusa a escrita — o app agora avisa isso em vez de
+> fingir que salvou.
+
 No **modo demo** basta entrar com um e-mail da lista `VITE_MASTER_ADMINS`
 (padrão: `master@tabelaco.app`) para navegar como master.
 
@@ -128,6 +139,13 @@ inicial** por **10 dias** (`PUBLIC_FINISHED_DAYS`), num cartão dourado com
 quantos dias ainda faltam. Depois desse prazo o campeonato sai da vitrine,
 mas **o link direto continua funcionando** — e ainda mostra o campeão.
 
+A home mostra os **5 campeonatos em andamento mais recentes** e os **5
+encerrados mais recentes**, em blocos separados — ela é a porta de entrada do
+app, não um catálogo. Encerrado ordena pela data de **encerramento**, não pela
+de criação: quem terminou por último aparece primeiro. A busca por nome ou
+temporada levanta esse teto, porque quem digitou um nome quer achar aquele
+campeonato.
+
 A contagem começa no momento em que o organizador marca o status como
 *Encerrado* (`championships.finished_at`, carimbado por gatilho). Reabrir o
 campeonato limpa a data e ele volta a aparecer como *em andamento*.
@@ -147,35 +165,179 @@ quando o jogo está empatado, e o organizador **ou o mesário** pode preenchê-l
   de campeão quando a decisão é a final.
 - Pênaltis empatados não decidem nada — o confronto continua pendente.
 
-## 💳 Pagamentos (Mercado Pago)
+## 💳 Pagamentos (Asaas)
 
-Os botões da página **Planos e preços** (`#/planos`) levam ao **link de
-pagamento** do Mercado Pago de cada plano:
+A página **Planos e preços** (`#/planos`) é o começo do caminho: o organizador
+escolhe o plano, cai no formulário de criação já com ele marcado, e o sistema
+**soma o plano com as categorias adicionais** antes de gerar o link de
+pagamento.
 
-| Plano | Link |
-|---|---|
-| Bronze | <https://mpago.la/2Af73pB> |
-| Prata | <https://mpago.la/2Ko31QH> |
-| Ouro | <https://mpago.la/18CTFci> |
+| Plano | Valor | Categoria adicional | Equipes por categoria |
+|---|---|---|---|
+| Grátis | R$ 0,00 | — | 8 (1 categoria, 1 campeonato) |
+| Bronze | R$ 59,90 | + R$ 39,90 | 16 |
+| Prata | R$ 79,90 | + R$ 49,90 | 32 |
+| Ouro | R$ 109,90 | + R$ 59,90 | ilimitadas |
+| Diamante | sob consulta | — | ilimitadas |
 
-Os links ficam em [`src/lib/checkout.ts`](src/lib/checkout.ts) e podem ser
-trocados sem mexer no código, por `VITE_MP_LINK_BRONZE` / `VITE_MP_LINK_PRATA`
-/ `VITE_MP_LINK_OURO`. O plano **Diamante** abre o e-mail de contato quando
-`VITE_CONTACT_EMAIL` está definido.
+O valor já inclui a primeira categoria. Ex.: Ouro com 3 categorias =
+`109,90 + 2 × 59,90 = R$ 229,70`.
+
+A tabela vive em [`src/lib/pricing.ts`](src/lib/pricing.ts) — e é espelhada em
+SQL na função `plan_price_cents()` da migration `0021_payments.sql`, que é
+**quem manda**: o preço é recalculado por gatilho no banco a cada campeonato
+criado, então um cliente adulterado não consegue pagar menos nem se marcar como
+pago (fora do `service_role`, o gatilho restaura os campos de pagamento).
+
+### Fluxo
+
+1. **Criou** — o campeonato nasce com `payment_status = 'pending'` e fica
+   **bloqueado**: na lista aparece com 🔒 *pagamento pendente* e, ao abrir,
+   mostra só a cobrança.
+2. **Pagou** — a Edge Function `asaas-checkout` cria um **Checkout** no Asaas e
+   devolve o link; o app abre a página do Asaas em outra aba, onde o pagador
+   escolhe **Pix, boleto ou cartão** e informa os próprios dados. O app fica
+   conferindo o campeonato a cada 5 s.
+3. **Confirmou** — o Asaas chama a Edge Function `asaas-webhook`, que
+   **reconsulta o pagamento na API oficial** (a notificação sozinha não prova
+   nada), confere o valor e libera o campeonato. O painel abre sozinho.
+
+Webhook falha — não configurado, evento não marcado, entrega perdida. Por isso
+existe a `asaas-status`, que **pergunta ao Asaas sob demanda**: o app consulta a
+cada 20 s enquanto a tela de cobrança está aberta, e na hora quando o
+organizador clica em "Já paguei". Quem decide continua sendo a API do Asaas; o
+app nunca diz que pagou.
+
+Plano **Grátis** não passa por cobrança nenhuma (`payment_status = 'free'`), e
+**Diamante** abre o e-mail de contato quando `VITE_CONTACT_EMAIL` está
+definido. No **modo demo** (sem Supabase) o pagamento é simulado na hora, para
+dar para testar o fluxo inteiro sem backend.
+
+> O CPF do pagador é pedido pelo Asaas, na página dele — o Tabelaço não coleta
+> nem guarda dado fiscal de ninguém. Foi por isso que a integração usa o
+> Checkout hospedado, e não a cobrança direta (que exigiria `cpfCnpj` na API).
+
+### Configuração
+
+```bash
+supabase secrets set ASAAS_API_KEY="$aact_..." \
+                     ASAAS_ENV="producao" \
+                     ASAAS_WEBHOOK_TOKEN="uma-senha-sua" \
+                     APP_URL="https://tabelaco.auroratech.app.br"
+supabase functions deploy asaas-checkout --no-verify-jwt
+supabase functions deploy asaas-webhook  --no-verify-jwt
+supabase functions deploy asaas-status   --no-verify-jwt
+```
+
+E no painel do Asaas (**Integrações → Webhooks**) aponte para
+`https://<project-ref>.supabase.co/functions/v1/asaas-webhook`, marque os
+eventos de **Cobranças** (`PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`) e informe o
+mesmo `ASAAS_WEBHOOK_TOKEN` no campo de token de autenticação.
+
+Para testar sem dinheiro real, use a chave de sandbox e `ASAAS_ENV=sandbox`.
+
+> **Forma de pagamento indisponível derruba a cobrança inteira.** Se a conta
+> não tem chave Pix cadastrada, ou o boleto ainda não foi liberado, o Asaas
+> recusa o pedido todo — nem cartão passa. A `asaas-checkout` tenta a lista
+> completa, depois vai tirando uma forma de cada vez, até uma combinação ser
+> aceita; o log diz qual funcionou. Para fixar de vez, use o secret opcional
+> `ASAAS_BILLING_TYPES="PIX,CREDIT_CARD"`.
+
+### Conferir o que está publicado
+
+A função responde a `GET` dizendo a própria versão e como está configurada —
+sem revelar a chave:
+
+```bash
+curl -s https://SEU_REF.supabase.co/functions/v1/asaas-checkout | jq
+# { "versao": "3", "chave": "$aact_YTU5…(164 caracteres)",
+#   "ambiente": "https://api.asaas.com/v3", "appUrl": "https://…",
+#   "formas": [["PIX","BOLETO","CREDIT_CARD"], ...] }
+```
+
+Se a `versao` não for a esperada, o deploy não pegou — republique antes de
+investigar qualquer outra coisa. A versão também aparece no fim de toda
+mensagem de erro que o app mostra.
+
+**Saída de emergência.** O administrador master libera qualquer campeonato sem
+cobrança — em *Ajustes → Pagamento*, ou no próprio painel de cobrança. Serve
+para pagamento em dinheiro, transferência direta, cortesia, ou uma confirmação
+que o Asaas não entregou. O motivo fica registrado em `payment_ref`. Quem
+valida é o banco (`master_release_championship`, migration `0023`): o navegador
+não decide isso.
+
+**Pagou e não liberou?** A `asaas-status` conta onde a procura parou:
+
+```bash
+curl -s "https://SEU_REF.supabase.co/functions/v1/asaas-status?championshipId=<uuid-do-campeonato>"
+```
+
+> O vínculo entre o checkout e o campeonato é gravado em **dois** lugares: na
+> tabela `payments` e em `championships.payment_ref` (`checkout:<id>`). O
+> segundo existe porque o primeiro depende da migration `0022`: sem ela o
+> registro falha em silêncio e o pagamento fica órfão, impossível de
+> reencontrar. Um vínculo só, numa coluna que pode não existir, é um vínculo
+> que se perde.
+
+A resposta mostra, em ordem: o que o banco guardou (`registroLocal` — se vier
+`ERRO`, a migration `0022` não foi aplicada), o que o Asaas devolve para
+`payments?externalReference`, para `checkouts?externalReference` e para cada
+checkout guardado. Acrescentando `&token=<ASAAS_WEBHOOK_TOKEN>` ela também
+lista as últimas cobranças da conta — é a parte que mostra movimento alheio ao
+campeonato, por isso pede o token.
 
 ### Onde vai cada credencial
 
 | Credencial | Onde | Por quê |
 |---|---|---|
-| **Link de pagamento** (`mpago.la/...`) | `src/lib/checkout.ts` ou `.env` | É público — não carrega credencial nenhuma. |
-| **Chave pública** (`APP_USR-...`) | `.env` → `VITE_MP_PUBLIC_KEY` (e nas *Environment Variables* da Vercel) | É pública por definição; só faz falta se o checkout passar a rodar dentro do app (Checkout Bricks). Com os links acima, nem é necessária. |
-| **Access token de produção** | **Nunca** no front. Secret de servidor: `supabase secrets set MP_ACCESS_TOKEN="APP_USR-..."` | Tudo que começa com `VITE_` é embutido no JavaScript e fica visível para qualquer visitante. O token dá acesso à sua conta. |
+| **Chave de API do Asaas** (`$aact_...`) | **Nunca** no front. Só como secret de servidor: Supabase → *Project Settings → Edge Functions → Secrets* → `ASAAS_API_KEY` | Tudo que começa com `VITE_` é embutido no JavaScript e fica visível para qualquer visitante. A chave movimenta a sua conta — ela só é lida no servidor, com `Deno.env.get('ASAAS_API_KEY')`. |
+| **Token do webhook** | Secret `ASAAS_WEBHOOK_TOKEN` + o mesmo valor no painel do Asaas | Garante que a notificação veio mesmo do Asaas. É opcional, mas sem ele qualquer um que descubra a URL pode tentar um "pagou" falso — que ainda assim não libera nada, porque a função reconsulta a API antes. |
 
-Enquanto a cobrança for por **link de pagamento**, o app não precisa de token:
-ele só abre a página do Mercado Pago. O token passa a ser necessário quando a
-liberação do plano tiver de ser automática — aí entra um **webhook** do Mercado
-Pago numa Edge Function, que consulta o pagamento com o token (no servidor) e
-marca o campeonato como pago.
+## 🎽 Atletas federados (base)
+
+Em campeonato **infantil**, cada **categoria** decide se aceita **atletas
+federados** (campo/futsal) e **quantos por time**. A permissão é da categoria,
+não do campeonato: o mesmo torneio costuma proibir no Sub-11 e liberar dois no
+Sub-15.
+
+No link de inscrição o time vê a regra de todas as categorias, uma por linha:
+
+> ✅ **Sub-13**: aceita até 2 atleta(s) federado(s) por time. Marcados: **2** de 2.
+> ⛔ **Sub-11**: não aceita atletas federados (campo ou futsal).
+
+O time marca cada atleta federado e escolhe a modalidade (campo, futsal ou
+ambos); na lista do elenco eles ficam com a etiqueta `FEDERADO`. O
+**organizador** tem a mesma marcação ao inscrever pela aba *Elencos* — ele
+também cadastra atletas, e a regra vale igual. Na
+**importação por planilha** vale uma coluna **Federado** — `sim`, `x` ou `1`
+marcam o atleta, e quem passar do limite da categoria é recusado com o motivo,
+sem entrar pela metade. Trocar o
+atleta para uma categoria que não aceita **desmarca** a federação — a regra
+acompanha a categoria escolhida, não o atleta.
+
+Quando as vagas de uma categoria acabam, a caixa fica desabilitada com o
+motivo — e lotar o Sub-13 não trava o Sub-15. Mas quem **barra de verdade** é
+o banco: `assert_federated_allowed` (migration `0026`) roda dentro da RPC de
+inscrição. O portal do time é uma página aberta no navegador de quem se
+inscreve — validar só lá seria pedir para burlar.
+
+## 📄 Regulamento em PDF
+
+O organizador não escreve regulamento: ele é **montado a partir do que já está
+cadastrado** — formato, categorias e faixas de idade, pontuação, ordem de
+desempate, prazo de inscrição, mata-mata e atletas federados. Baixam o PDF:
+
+- o **organizador**, em *Ajustes → Regulamento*;
+- os **times**, pelo próprio link de inscrição.
+
+O documento carimba a data de emissão, porque é derivado do cadastro: mudou uma
+regra no app, o próximo download já sai diferente.
+
+O gerador é próprio ([`src/lib/pdf.ts`](src/lib/pdf.ts), ~250 linhas) em vez de
+uma biblioteca. As bibliotecas de PDF pesam centenas de KB — mais que o app
+inteiro — para produzir um documento de texto. Aqui é Helvetica, normal e
+negrito, com acentuação por WinAnsiEncoding. Sem imagens e sem tabelas: se um
+dia o regulamento precisar disso, aí vale reconsiderar.
 
 ## 🔔 Notificações push
 

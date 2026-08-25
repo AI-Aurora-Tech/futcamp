@@ -9,6 +9,7 @@ import { listTeams } from '../services/teams'
 import { listEvents, listMatches } from '../services/matches'
 import { computePodium } from '../lib/champion'
 import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
+import { vitrine } from '../lib/vitrine'
 import { Button, ChampLogo, Field } from './ui'
 
 /** Campeão de cada campeonato encerrado, para a vitrine pública. */
@@ -51,6 +52,78 @@ async function loadChampions(finished: Championship[]): Promise<Record<string, C
     }),
   )
   return Object.fromEntries(entries.filter(Boolean) as (readonly [string, ChampionInfo])[])
+}
+
+/**
+ * Um bloco da vitrine (em andamento OU encerrados). Some quando não há nada
+ * para mostrar — bloco vazio na home é ruído.
+ */
+function Vitrine({
+  titulo,
+  vazio,
+  itens,
+  sobrando,
+  champions,
+}: {
+  titulo: string
+  vazio: string
+  itens: Championship[]
+  sobrando: number
+  champions: Record<string, ChampionInfo>
+}) {
+  if (itens.length === 0) return <p className="muted pub-vitrine__vazio">{vazio}</p>
+
+  return (
+    <div className="pub-vitrine">
+      <div className="pub-vitrine__head">
+        <h3>{titulo}</h3>
+        {sobrando > 0 && (
+          <span className="muted small">
+            mostrando os {itens.length} mais recentes · + {sobrando} — use a busca acima
+          </span>
+        )}
+      </div>
+      <div className="champ-grid">
+        {itens.map((c) => {
+          const done = c.status === 'finished'
+          const champion = champions[c.id]
+          const days = done ? daysLeftPublic(c) : null
+          return (
+            <button
+              key={c.id}
+              className={`champ-card ${done ? 'champ-card--done' : ''}`}
+              onClick={() => openPublic(c.id)}
+              style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}
+            >
+              <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>
+              <div className="champ-card__body">
+                <div className="champ-card__top">
+                  <h3>{c.name}</h3>
+                  <span className={`pill ${done ? 'pill--done' : 'pill--active'}`}>
+                    {done ? 'encerrado' : 'ao vivo'}
+                  </span>
+                </div>
+                <p className="champ-card__meta">
+                  {SPORT_LABELS[c.sport]} · {FORMAT_LABELS[c.format]}{c.season ? ` · ${c.season}` : ''}
+                </p>
+                {done && champion && (
+                  <p className="champ-card__champion">
+                    <span aria-hidden>🏆</span> Campeão: <strong>{champion.name}</strong>
+                    {champion.how && <span className="champ-card__how">{champion.how}</span>}
+                  </p>
+                )}
+                <p className="champ-card__desc">
+                  {done
+                    ? `Ver resultado final${days ? ` · em cartaz por mais ${days} dia(s)` : ''} →`
+                    : 'Ver classificação e estatísticas →'}
+                </p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export function Landing() {
@@ -98,13 +171,10 @@ export function Landing() {
     { icon: '⚽', title: 'Artilharia & cartões', text: 'Registre gols e cartões por jogador.' },
   ]
 
-  const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-  const q = normalize(search.trim())
-  const filtered = q
-    ? ongoing.filter(
-        (c) => normalize(c.name).includes(q) || normalize(c.season ?? '').includes(q),
-      )
-    : ongoing
+  // Dois blocos, cada um com os mais recentes. Buscando, o teto cai — quem
+  // digitou um nome quer achar aquele campeonato.
+  const { ativos, encerrados, maisAtivos, maisEncerrados } = vitrine(ongoing, search)
+  const nada = ativos.length === 0 && encerrados.length === 0
 
   return (
     <div className="landing-page">
@@ -212,7 +282,7 @@ export function Landing() {
             <p className="muted">
               Acompanhe a classificação e as estatísticas — acesso público, sem login. Os
               campeonatos encerrados ficam aqui, com o campeão em destaque, por{' '}
-              {PUBLIC_FINISHED_DAYS} dias.
+              {PUBLIC_FINISHED_DAYS} dias. Procurando um que não está na lista? Use a busca.
             </p>
           </div>
           {ongoing.length > 0 && (
@@ -230,50 +300,29 @@ export function Landing() {
             </div>
           )}
         </div>
-        {ongoing.length === 0 ? (
-          <p className="muted">Nenhum campeonato em andamento no momento.</p>
-        ) : filtered.length === 0 ? (
-          <p className="muted">Nenhum campeonato encontrado para “{search}”.</p>
+        {nada ? (
+          <p className="muted">
+            {search
+              ? `Nenhum campeonato encontrado para “${search}”.`
+              : 'Nenhum campeonato em andamento no momento.'}
+          </p>
         ) : (
-          <div className="champ-grid">
-            {filtered.map((c) => {
-              const done = c.status === 'finished'
-              const champion = champions[c.id]
-              const days = done ? daysLeftPublic(c) : null
-              return (
-                <button
-                  key={c.id}
-                  className={`champ-card ${done ? 'champ-card--done' : ''}`}
-                  onClick={() => openPublic(c.id)}
-                  style={{ '--accent': c.primaryColor ?? '#16a34a' } as React.CSSProperties}
-                >
-                  <div className="champ-card__logo"><ChampLogo logo={c.logo} /></div>
-                  <div className="champ-card__body">
-                    <div className="champ-card__top">
-                      <h3>{c.name}</h3>
-                      <span className={`pill ${done ? 'pill--done' : 'pill--active'}`}>
-                        {done ? 'encerrado' : 'ao vivo'}
-                      </span>
-                    </div>
-                    <p className="champ-card__meta">
-                      {SPORT_LABELS[c.sport]} · {FORMAT_LABELS[c.format]}{c.season ? ` · ${c.season}` : ''}
-                    </p>
-                    {done && champion && (
-                      <p className="champ-card__champion">
-                        <span aria-hidden>🏆</span> Campeão: <strong>{champion.name}</strong>
-                        {champion.how && <span className="champ-card__how">{champion.how}</span>}
-                      </p>
-                    )}
-                    <p className="champ-card__desc">
-                      {done
-                        ? `Ver resultado final${days ? ` · em cartaz por mais ${days} dia(s)` : ''} →`
-                        : 'Ver classificação e estatísticas →'}
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
+          <>
+            <Vitrine
+              titulo="⚽ Em andamento"
+              vazio="Nenhum campeonato em andamento no momento."
+              itens={ativos}
+              sobrando={maisAtivos}
+              champions={champions}
+            />
+            <Vitrine
+              titulo="🏆 Campeões recentes"
+              vazio={`Nenhum campeonato encerrado nos últimos ${PUBLIC_FINISHED_DAYS} dias.`}
+              itens={encerrados}
+              sobrando={maisEncerrados}
+              champions={champions}
+            />
+          </>
         )}
       </div>
     </section>

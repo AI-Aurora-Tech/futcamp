@@ -11,12 +11,24 @@ import {
   type PlayerInput,
   type RegistrationData,
 } from '../services/registration'
+import {
+  algumaPermite,
+  contarFederados,
+  limiteFederados,
+  MODALIDADE_LABELS,
+  permiteFederados,
+  regraVale,
+  textoRegra,
+  vagasFederados,
+  type ModalidadeFederado,
+} from '../lib/federated'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { validateAthlete } from '../services/validation'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import { POSITIONS, type Category, type Player, type Position } from '../types'
+import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 
@@ -91,6 +103,11 @@ export function TeamRegistration({
               <p className="reg__eyebrow">Inscrição · {data.team.name}</p>
               <h1>{data.championshipName}</h1>
             </div>
+            {data.championship && (
+              <div className="reg__doc">
+                <RegulamentoButton champ={data.championship} variant="soft" />
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -479,6 +496,26 @@ function RosterCard({
         </div>
       )}
 
+      {regraVale(data) && (
+        <div className={`fed-note ${algumaPermite(data, data.categories) ? '' : 'fed-note--no'}`}>
+          <b>Atletas federados (campo / futsal)</b>
+          <ul className="fed-note__list">
+            {data.categories.map((cat) => {
+              const usadas = contarFederados(data.players, cat.id)
+              const limite = limiteFederados(cat)
+              return (
+                <li key={cat.id}>
+                  {permiteFederados(cat) ? '✅' : '⛔'} <b>{cat.name}</b>: {textoRegra(cat)}
+                  {permiteFederados(cat) && (
+                    <> Marcados: <b>{usadas}</b>{Number.isFinite(limite) && ` de ${limite}`}.</>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
       {data.players.length === 0 ? (
         <EmptyState icon="👤" title="Nenhum atleta inscrito">
           <p>Comece inscrevendo os atletas do elenco.</p>
@@ -503,7 +540,14 @@ function RosterCard({
                     <span className="athlete-cell">
                       <span className="athlete-photo">{p.photo ? <img src={p.photo} alt="" /> : '👤'}</span>
                       <span>
-                        <span className="strong">{p.name}</span>
+                        <span className="strong">
+                          {p.name}
+                          {p.federated && (
+                            <span className="fed-tag" title="Atleta federado">
+                              FEDERADO{p.federatedIn ? ` · ${MODALIDADE_LABELS[p.federatedIn]}` : ''}
+                            </span>
+                          )}
+                        </span>
                         {p.cpf && <span className="athlete-cpf">{formatCpf(p.cpf)}</span>}
                       </span>
                     </span>
@@ -526,6 +570,8 @@ function RosterCard({
           teamId={teamId}
           token={token}
           categories={data.categories}
+          audience={data.audience}
+          elenco={data.players}
           initial={editing ?? undefined}
           onClose={() => {
             setAdding(false)
@@ -551,6 +597,8 @@ function RosterCard({
               birthdate: i.birthdate,
               categoryId: i.categoryId,
               role: i.role,
+              federated: i.federated,
+              federatedIn: i.federatedIn,
             })
           }}
           onClose={() => setImporting(false)}
@@ -565,6 +613,8 @@ export function AthleteDialog({
   teamId,
   token,
   categories,
+  audience,
+  elenco,
   initial,
   onClose,
   onSaved,
@@ -572,6 +622,10 @@ export function AthleteDialog({
   teamId: string
   token: string
   categories: Category[]
+  /** Público do campeonato: federados só existem na base. */
+  audience?: 'infantil' | 'adulto'
+  /** Elenco atual, para saber quantas vagas de federado restam. */
+  elenco?: Player[]
   initial?: Player
   onClose: () => void
   onSaved: () => Promise<void>
@@ -584,6 +638,8 @@ export function AthleteDialog({
   const [position, setPosition] = useState<Position>(initial?.position ?? 'ATA')
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
+  const [federated, setFederated] = useState(Boolean(initial?.federated))
+  const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>(initial?.federatedIn ?? 'campo')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -596,6 +652,17 @@ export function AthleteDialog({
       : `Aceita nascidos em ${category.birthYear} ou antes${category.exceptions ? ` (até ${category.exceptions} exceção(ões) por time)` : ''}.`
     : null
   const outOfRule = Boolean(category?.birthYear && birthdate && !withinAgeRule(category, birthYearOf(birthdate)))
+
+  // A permissão é DA CATEGORIA escolhida — trocar de categoria muda a regra.
+  // Vagas desconsiderando o próprio atleta: reeditar um federado que já existe
+  // não pode esbarrar no limite por causa dele mesmo.
+  const vagasFed = vagasFederados(category, elenco, initial?.id)
+  const mostraFederado = isAthlete && regraVale({ audience }) && permiteFederados(category)
+  const semVaga = !federated && vagasFed <= 0
+
+  useEffect(() => {
+    if (federated && !permiteFederados(category)) setFederated(false)
+  }, [category, federated])
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -625,6 +692,8 @@ export function AthleteDialog({
       const payload: PlayerInput = {
         name: name.trim(),
         cpf: cpf.replace(/\D/g, '') || undefined,
+        federated: mostraFederado ? federated : false,
+        federatedIn: mostraFederado && federated ? federatedIn : undefined,
         birthdate: birthdate || undefined,
         photo,
         number: number ? Number(number) : undefined,
@@ -683,6 +752,46 @@ export function AthleteDialog({
             </select>
           </Field>
         )}
+        {mostraFederado && (
+          <div className="fed-box">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={federated}
+                disabled={semVaga}
+                onChange={(e) => setFederated(e.target.checked)}
+              />
+              <span>
+                Este atleta é <b>federado</b>
+                {categories.length > 1 && <span className="muted small"> em {category?.name}</span>}
+                {Number.isFinite(vagasFed) && (
+                  <span className="muted small">
+                    {' '}— {semVaga ? 'sem vagas restantes' : `${vagasFed} vaga(s) restante(s)`}
+                  </span>
+                )}
+              </span>
+            </label>
+            {federated && (
+              <label className="mini-field">
+                <span className="mini-field__label">Federado em</span>
+                <select
+                  value={federatedIn}
+                  onChange={(e) => setFederatedIn(e.target.value as ModalidadeFederado)}
+                >
+                  {(Object.keys(MODALIDADE_LABELS) as ModalidadeFederado[]).map((m) => (
+                    <option key={m} value={m}>{MODALIDADE_LABELS[m]}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {semVaga && (
+              <p className="field__hint">
+                O time já usou todas as vagas de atleta federado{category ? ` em ${category.name}` : ''}.
+              </p>
+            )}
+          </div>
+        )}
+
         {isAthlete && ruleHint && (
           <p className={`rule-hint ${outOfRule ? 'rule-hint--warn' : ''}`}>
             {outOfRule ? '⚠️ Fora da faixa: ' : 'ℹ️ '}

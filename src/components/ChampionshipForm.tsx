@@ -12,6 +12,7 @@ import {
   type Championship,
   type ChampionshipFormat,
   type GroupStage,
+  type PlanKey,
   type QualifierSlot,
   type Sport,
   type TiebreakerId,
@@ -19,6 +20,7 @@ import {
 import { Button, ChampLogo, Field, Modal } from './ui'
 import { uid } from '../lib/id'
 import { fileToDataUrl } from '../lib/image'
+import { PLANS, breakdown, formatBRL, planOf } from '../lib/pricing'
 import { phaseForPairs, slotLabel, suggestBracket } from '../lib/knockout'
 import {
   groupStagesOf,
@@ -40,6 +42,10 @@ interface CatDraft {
   exceptionYear: string
   maxAthletes: string
   maxStaff: string
+  /** Atletas federados: a permissão é desta categoria, não do campeonato. */
+  allowFederated: boolean
+  /** Vazio = sem limite. Texto para o campo aceitar ser apagado. */
+  maxFederated: string
 }
 
 function toDraft(c: Category): CatDraft {
@@ -51,11 +57,16 @@ function toDraft(c: Category): CatDraft {
     exceptionYear: c.exceptionYear != null ? String(c.exceptionYear) : '',
     maxAthletes: c.maxAthletes != null ? String(c.maxAthletes) : '',
     maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
+    allowFederated: Boolean(c.allowFederated),
+    maxFederated: c.maxFederated != null ? String(c.maxFederated) : '',
   }
 }
 
 function emptyDraft(): CatDraft {
-  return { id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '', maxAthletes: '', maxStaff: '' }
+  return {
+    id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
+    maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
+  }
 }
 
 /** Seleciona uma vaga do chaveamento: "Nº X do grupo Y" (ou vaga livre/bye). */
@@ -103,14 +114,19 @@ function SlotPicker({
 
 export function ChampionshipForm({
   initial,
+  plan: planFromPlans,
   onClose,
   onSave,
 }: {
   initial?: Championship
+  /** Plano escolhido na página de planos, quando o organizador veio de lá. */
+  plan?: PlanKey
   onClose: () => void
   onSave: (data: NewChampionship) => Promise<void>
 }) {
   const [name, setName] = useState(initial?.name ?? '')
+  // O plano só é escolhido na criação: um campeonato já pago não troca de plano.
+  const [plan, setPlan] = useState<PlanKey>(initial?.plan ?? planFromPlans ?? 'gratis')
   const [sport, setSport] = useState<Sport>(initial?.sport ?? 'futebol')
   const [audience, setAudience] = useState<Audience>(initial?.audience ?? 'adulto')
   const [cats, setCats] = useState<CatDraft[]>(
@@ -183,9 +199,19 @@ export function ChampionshipForm({
           exceptionYear: audience === 'adulto' && c.exceptionYear ? Number(c.exceptionYear) : undefined,
           maxAthletes: c.maxAthletes ? Number(c.maxAthletes) : undefined,
           maxStaff: c.maxStaff ? Number(c.maxStaff) : undefined,
+          // Federados só existem na base.
+          allowFederated: audience === 'infantil' && c.allowFederated,
+          maxFederated:
+            audience === 'infantil' && c.allowFederated && c.maxFederated.trim()
+              ? Math.max(1, Number(c.maxFederated))
+              : null,
         }
       })
   }
+
+  // Valor do campeonato, refeito a cada categoria digitada: é o mesmo cálculo
+  // que o banco aplica na criação (plano + categorias adicionais).
+  const price = breakdown(plan, Math.max(1, cats.filter((c) => c.name.trim()).length))
 
   /* ---------------------------------------------------------------------- */
   /* Fases de grupos, critérios de classificação e chaveamento               */
@@ -277,6 +303,14 @@ export function ChampionshipForm({
       setError('Informe ao menos uma categoria.')
       return
     }
+    const limite = planOf(plan).maxCategories
+    if (!initial && limite != null && categories.length > limite) {
+      setError(
+        `O plano ${planOf(plan).tier} permite ${limite} categoria(s). ` +
+          'Escolha outro plano para incluir mais categorias.',
+      )
+      return
+    }
     if (audience === 'infantil' && categories.some((c) => !c.birthYear)) {
       setError('No campeonato infantil, informe o ano de nascimento de cada categoria.')
       return
@@ -290,6 +324,8 @@ export function ChampionshipForm({
       format,
       season: season.trim(),
       status: initial?.status ?? 'draft',
+      // O plano vale para a cobrança; o valor definitivo é calculado no banco.
+      plan: initial?.plan ?? plan,
       description: description.trim() || undefined,
       logo,
       primaryColor,
@@ -318,6 +354,35 @@ export function ChampionshipForm({
   return (
     <Modal title={initial ? 'Editar campeonato' : 'Novo campeonato'} onClose={onClose}>
       <form onSubmit={submit} className="form-grid">
+        {!initial && (
+          <div className="plan-pick">
+            <div className="cats__head">
+              <span className="field__label">Plano</span>
+              <a className="link-btn" href="#/planos" target="_blank" rel="noopener noreferrer">ver detalhes dos planos</a>
+            </div>
+            <div className="plan-pick__opts">
+              {PLANS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  className={`plan-pick__opt ${plan === p.key ? 'is-active' : ''}`}
+                  style={{ '--tier': p.tint } as React.CSSProperties}
+                  onClick={() => setPlan(p.key)}
+                >
+                  <span className="plan-pick__tier">{p.gem} {p.tier}</span>
+                  <span className="plan-pick__price">
+                    {p.consult ? 'sob consulta' : p.priceCents === 0 ? 'grátis' : formatBRL(p.priceCents)}
+                  </span>
+                  <span className="plan-pick__lim">
+                    {p.maxTeams == null ? 'equipes ilimitadas' : `até ${p.maxTeams} equipes`}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="field__hint">{planOf(plan).cap}</p>
+          </div>
+        )}
+
         <Field label="Nome do campeonato">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Copa de Verão 2026" required />
         </Field>
@@ -402,6 +467,33 @@ export function ChampionshipForm({
                       {audience === 'infantil' ? 'nascidos neste ano ou depois' : 'nascidos neste ano ou antes'}
                     </small>
                   </label>
+
+                  {audience === 'infantil' && (
+                    <div className="fed-cat">
+                      <label className="check">
+                        <input
+                          type="checkbox"
+                          checked={c.allowFederated}
+                          onChange={(e) => updateCat(c.id, { allowFederated: e.target.checked })}
+                        />
+                        <span>Aceita atletas <b>federados</b> (campo / futsal)</span>
+                      </label>
+                      {c.allowFederated && (
+                        <label className="fed-cat__qtd">
+                          <span className="fed-cat__label">Quantos por time?</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={c.maxFederated}
+                            onChange={(e) => updateCat(c.id, { maxFederated: e.target.value })}
+                            placeholder="sem limite"
+                          />
+                          <small className="fed-cat__hint">Em branco = sem limite.</small>
+                        </label>
+                      )}
+                    </div>
+                  )}
 
                   {audience === 'adulto' && (
                     <label className="mini-field">
@@ -774,10 +866,45 @@ export function ChampionshipForm({
 
         {error && <p className="auth-error">{error}</p>}
 
+        {!initial && (
+          <div className="plan-total">
+            <div className="plan-total__lines">
+              <span>
+                Plano {price.plan.tier}
+                {price.extraCategories > 0 && ` + ${price.extraCategories} categoria(s)`}
+              </span>
+              <strong className="plan-total__val">
+                {price.plan.consult
+                  ? 'sob consulta'
+                  : price.totalCents === 0
+                    ? 'grátis'
+                    : formatBRL(price.totalCents)}
+              </strong>
+            </div>
+            {price.extraCategories > 0 && (
+              <p className="field__hint">
+                {formatBRL(price.baseCents)} do plano + {price.extraCategories} ×{' '}
+                {formatBRL(price.plan.addonCents)} por categoria adicional.
+              </p>
+            )}
+            {price.totalCents > 0 && (
+              <p className="field__hint">
+                O campeonato é criado e liberado assim que o pagamento for confirmado.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
           <Button type="submit" disabled={busy || !name.trim()}>
-            {busy ? 'Salvando…' : initial ? 'Salvar alterações' : 'Criar campeonato'}
+            {busy
+              ? 'Salvando…'
+              : initial
+                ? 'Salvar alterações'
+                : price.totalCents > 0
+                  ? `Criar e pagar ${formatBRL(price.totalCents)}`
+                  : 'Criar campeonato'}
           </Button>
         </div>
       </form>

@@ -20,6 +20,8 @@ export interface ParsedAthlete {
   name: string
   cpf: string // apenas dígitos
   birthdate: string // ISO aaaa-mm-dd (ou '' se inválida)
+  /** Coluna "federado" da planilha, quando existir. */
+  federated?: boolean
   error?: string
 }
 
@@ -78,14 +80,25 @@ const norm = (s: string) =>
     .toLowerCase()
     .trim()
 
-/** Colunas de nome, CPF e nascimento — descobertas pelo cabeçalho. */
+/** Colunas reconhecidas pelo cabeçalho. `federated` é opcional. */
 interface ColumnMap {
   name: number
   cpf: number
   birthdate: number
+  federated?: number
 }
 
 const DEFAULT_COLUMNS: ColumnMap = { name: 0, cpf: 1, birthdate: 2 }
+
+/**
+ * "Sim" numa planilha vem de muitos jeitos: sim, s, x, 1, true, verdadeiro.
+ * Célula vazia é não — quem não escreveu nada não está declarando federação.
+ */
+export function ehSim(valor: string): boolean {
+  const v = norm(valor)
+  if (!v) return false
+  return ['sim', 's', 'x', '1', 'true', 'verdadeiro', 'v', 'yes', 'y', 'federado'].includes(v)
+}
 
 /**
  * Reconhece a linha de cabeçalho e mapeia as colunas. Devolve `null` quando a
@@ -97,15 +110,23 @@ export function detectHeader(row: string[]): ColumnMap | null {
   const name = find((c) => c === 'nome' || c.startsWith('nome') || c.includes('atleta') || c.includes('jogador'))
   const cpf = find((c) => c.includes('cpf') || c.includes('documento'))
   const birthdate = find((c) => c.includes('nasc') || c.includes('data'))
+  const federated = find((c) => c.includes('federad'))
   if (name < 0 || (cpf < 0 && birthdate < 0)) return null
   return {
     name,
     cpf: cpf >= 0 ? cpf : DEFAULT_COLUMNS.cpf,
     birthdate: birthdate >= 0 ? birthdate : DEFAULT_COLUMNS.birthdate,
+    federated: federated >= 0 ? federated : undefined,
   }
 }
 
-function evaluate(name: string, cpfRaw: string, dateRaw: string, raw: string): ParsedAthlete {
+function evaluate(
+  name: string,
+  cpfRaw: string,
+  dateRaw: string,
+  raw: string,
+  federated?: boolean,
+): ParsedAthlete {
   const cpf = normalizeCpf(cpfRaw)
   const birthdate = normalizeDate(dateRaw)
   let error: string | undefined
@@ -114,7 +135,7 @@ function evaluate(name: string, cpfRaw: string, dateRaw: string, raw: string): P
   else if (!isValidCpf(cpf)) error = 'CPF inválido.'
   else if (!dateRaw.trim()) error = 'Data de nascimento não informada.'
   else if (!birthdate) error = 'Data de nascimento inválida.'
-  return { raw, name, cpf, birthdate, error }
+  return { raw, name, cpf, birthdate, federated, error }
 }
 
 /**
@@ -132,7 +153,8 @@ export function parseAthletesRows(rows: SheetRows): ParsedAthlete[] {
   return body.map((row) => {
     const cell = (i: number) => (row[i] ?? '').trim()
     const raw = row.join(' | ')
-    return evaluate(cell(cols.name), cell(cols.cpf), cell(cols.birthdate), raw)
+    const federado = cols.federated !== undefined ? ehSim(cell(cols.federated)) : undefined
+    return evaluate(cell(cols.name), cell(cols.cpf), cell(cols.birthdate), raw, federado)
   })
 }
 
