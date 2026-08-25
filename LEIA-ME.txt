@@ -1,71 +1,70 @@
-Tabelaço — o plano contratado passa a limitar o número de equipes
-==================================================================
+Tabelaço — trocar o plano de um campeonato já criado
+=====================================================
 
-O QUE ESTAVA ERRADO
--------------------
-O limite ("até 8 equipes", "até 16"...) aparecia só no cartão do plano,
-como promessa. Nada conferia: nem o botão "Adicionar time", nem o link
-público de criação de time, nem o banco. Um campeonato no plano Grátis
-cadastrava 40 equipes sem uma palavra.
+Continuação do pacote do limite de equipes. Aplique aquele primeiro.
 
 1) BANCO — Supabase → SQL Editor:
 
-     supabase/migrations/0031_plan_team_limit.sql
+     supabase/migrations/0032_change_plan.sql
 
-   Idempotente. Rode DEPOIS das anteriores (0028 a 0030).
+   Rode DEPOIS da 0031. Idempotente.
 
 2) FRONT — copie por cima, mantendo os caminhos:
 
+     src/types.ts
      src/index.css
-     src/lib/pricing.ts
-     src/services/teams.ts
-     src/components/TeamsPanel.tsx
-     src/components/CreateTeamViaLink.tsx
+     src/services/championships.ts
+     src/components/PlanoBlock.tsx          (NOVO)
+     src/components/ManageChampionship.tsx
+     src/components/PaymentPanel.tsx
+     src/components/Dashboard.tsx
 
    Depois: npm run build
 
 
-LIMITES POR PLANO
------------------
-     Grátis    →  8 equipes
-     Bronze    → 16
-     Prata     → 32
-     Ouro      → ilimitado
-     Diamante  → ilimitado
-
-(São os mesmos números que já apareciam nos cartões dos planos.)
-
-
-COMO FICA
+ONDE FICA
 ---------
-• Quem recusa é o BANCO, num gatilho na tabela de equipes — não dentro
-  das funções. Assim os dois caminhos (organizador e link público) e
-  qualquer caminho futuro passam pela mesma régua. O link público roda
-  no navegador de quem se inscreve; validar só na tela seria pedir
-  licença para burlar.
+Em DOIS lugares, de propósito:
 
-• A tela avisa ANTES, para ninguém digitar à toa:
-    - o cabeçalho vira "Times (7 de 8)" e diz quantas vagas restam;
-    - cheio, os botões "Adicionar time" e "Link para criar time" ficam
-      desabilitados, com a mensagem e um atalho para os planos;
-    - a página pública do link mostra "As inscrições deste campeonato
-      estão completas" em vez do formulário.
+  • Ajustes do campeonato → bloco "Plano do campeonato".
+  • Na própria tela de cobrança. Esse é o que importa para quem
+    escolheu um plano grande demais e travou: de lá dá para descer de
+    plano e liberar o campeonato na hora.
 
 
-DOIS PONTOS IMPORTANTES
------------------------
-1. Campeonato que JÁ passou do limite NÃO perde equipe nenhuma. O
-   gatilho só vale para novas inclusões: o que está cadastrado continua
-   valendo, e o que não cabe mais é o próximo cadastro. Se você já tem
-   campeonatos assim, eles seguem funcionando normalmente.
+COMO FUNCIONA
+-------------
+Trocar de plano NÃO APAGA NADA. Times, elencos, tabela e súmulas
+continuam exatamente onde estão, nas duas direções.
 
-2. Trocar de plano libera na hora — nenhum dado precisa ser migrado.
+SUBIR de plano (ex.: Grátis → Ouro)
+  Cobra o valor do novo plano e o campeonato volta para "pagamento
+  pendente" até o Asaas confirmar — o painel fecha, os dados ficam.
+  Enquanto não estiver pago, aparece o botão "↩ Desfazer e voltar para
+  <plano anterior>", que devolve tudo ao que era, sem cobrar.
+
+DESCER de plano (ex.: Ouro → Bronze, ou → Grátis)
+  Vale na hora e o campeonato continua liberado. NÃO há devolução do
+  que já foi pago — a tela diz isso antes do clique.
+
+Se você descer para um plano que não comporta as equipes já
+cadastradas (20 equipes → Grátis, que permite 8), nenhuma equipe é
+apagada. Você só não conseguirá cadastrar novas enquanto estiver acima
+do limite. A tela avisa com o número exato antes de confirmar.
+
+
+SEGURANÇA
+---------
+Quem troca é o BANCO, não o app. O gatilho de preço continua recusando
+qualquer mexida do cliente nos campos de cobrança — ninguém se promove
+para Ouro pelo navegador. A função confere o dono do campeonato e
+recalcula o valor no servidor.
 
 
 CONFERÊNCIA
 -----------
-A suíte SQL enche um campeonato Grátis até 8, prova que a 9ª é recusada
-pelos DOIS caminhos, que o Bronze aceita, que o Ouro não tem teto, e que
-rebaixar o plano não apaga equipe nenhuma. Um teste do app compara a
-tabela de limites do front com a do banco: mexer em uma sem mexer na
-outra falha.
+A suíte SQL cobre: subir cobra e bloqueia sem apagar time nem atleta;
+desfazer devolve plano, valor e liberação; pagar limpa a troca pendente
+e o "desfazer" some; descer vale na hora sem bloquear; plano inventado
+é recusado; campeonato de outro organizador não pode ser trocado; e o
+app escrevendo direto na tabela continua sem conseguir se promover.

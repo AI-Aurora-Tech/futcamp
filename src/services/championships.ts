@@ -2,8 +2,8 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
-import { totalCents } from '../lib/pricing'
-import type { Championship } from '../types'
+import { planOf, totalCents } from '../lib/pricing'
+import type { Championship, PlanKey } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -40,6 +40,15 @@ function fromRow(r: any): Championship {
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
     plan: r.plan ?? undefined,
+    planChange: r.plan_change
+      ? {
+          plan: r.plan_change.plan ?? undefined,
+          amountCents: r.plan_change.amount_cents ?? undefined,
+          paymentStatus: r.plan_change.payment_status ?? undefined,
+          paymentRef: r.plan_change.payment_ref ?? undefined,
+          paidAt: r.plan_change.paid_at ?? undefined,
+        }
+      : undefined,
     // Campeonato antigo (antes da cobrança) não tem situação: vale como pago.
     paymentStatus: r.payment_status ?? undefined,
     amountCents: r.amount_cents ?? undefined,
@@ -201,6 +210,114 @@ export async function getChampionship(id: string): Promise<Championship | null> 
     return data ? fromRow(data) : null
   }
   return query((d) => d.championships.find((c) => c.id === id) ?? null)
+}
+
+/** O que a troca de plano devolve, para a tela dizer o que aconteceu. */
+export interface TrocaDePlano {
+  plan: PlanKey
+  tier: string
+  amountCents: number
+  /** A troca gerou cobrança (subiu de plano)? */
+  cobra: boolean
+  aPagarCents: number
+}
+
+/**
+ * Troca o plano de um campeonato JÁ CRIADO, sem perder nada.
+ *
+ * Subir de plano cobra a diferença e devolve o campeonato para "pendente" até
+ * o pagamento — times, elencos e tabela ficam onde estão, só o painel fecha.
+ * Descer vale na hora e não devolve dinheiro.
+ *
+ * Quem decide isso é o BANCO (`change_championship_plan`): o gatilho de preço
+ * recusa qualquer mexida do cliente nos campos de cobrança, e é isso que
+ * impede alguém de se promover para Ouro pelo navegador.
+ */
+export async function changePlan(champId: string, plan: PlanKey): Promise<TrocaDePlano> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('change_championship_plan', {
+      p_champ: champId,
+      p_plan: plan,
+    })
+    if (error) {
+      throw new Error(
+        /does not exist|PGRST202/i.test(error.message ?? '')
+          ? 'A troca de plano ainda não foi liberada neste servidor (migration 0032).'
+          : error.message,
+      )
+    }
+    const r = data as any
+    return {
+      plan: r.plan,
+      tier: r.tier,
+      amountCents: r.amount_cents ?? 0,
+      cobra: Boolean(r.cobra),
+      aPagarCents: r.a_pagar ?? 0,
+    }
+  }
+
+  return mutate((d) => {
+    const c = d.championships.find((x) => x.id === champId)
+    if (!c) throw new Error('Campeonato não encontrado.')
+    if ((c.plan ?? 'gratis') === plan) {
+      throw new Error(`O campeonato já está no plano ${planOf(plan).tier}.`)
+    }
+    const novo = totalCents(plan, c.categories.length)
+    const jaPago = c.paymentStatus === 'paid' || c.paymentStatus === 'free' ? c.amountCents ?? 0 : 0
+    const sobe = novo > jaPago
+
+    if (sobe) {
+      c.planChange = c.planChange ?? {
+        plan: c.plan,
+        amountCents: c.amountCents,
+        paymentStatus: c.paymentStatus,
+        paymentRef: c.paymentRef,
+        paidAt: c.paidAt,
+      }
+      c.plan = plan
+      c.amountCents = novo
+      c.paymentStatus = 'pending'
+      c.paymentRef = undefined
+      c.paidAt = undefined
+    } else {
+      c.planChange = undefined
+      c.plan = plan
+      c.amountCents = novo
+      c.paymentStatus = novo > 0 ? c.paymentStatus ?? 'free' : 'free'
+      if (novo === 0) {
+        c.paymentRef = undefined
+        c.paidAt = undefined
+      }
+    }
+    return {
+      plan,
+      tier: planOf(plan).tier,
+      amountCents: novo,
+      cobra: sobe,
+      aPagarCents: sobe ? novo : 0,
+    }
+  })
+}
+
+/** Desfaz um upgrade que ainda não foi pago, devolvendo o campeonato ao que era. */
+export async function revertPlan(champId: string): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('revert_championship_plan', { p_champ: champId })
+    if (error) throw new Error(error.message)
+    return
+  }
+  mutate((d) => {
+    const c = d.championships.find((x) => x.id === champId)
+    if (!c?.planChange) throw new Error('Não há troca de plano pendente neste campeonato.')
+    const v = c.planChange
+    c.plan = v.plan
+    c.amountCents = v.amountCents
+    c.paymentStatus = v.paymentStatus
+    c.paymentRef = v.paymentRef
+    c.paidAt = v.paidAt
+    c.planChange = undefined
+    return null
+  })
 }
 
 export type NewChampionship = Omit<Championship, 'id' | 'createdAt' | 'ownerId'>

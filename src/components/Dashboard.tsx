@@ -55,6 +55,30 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
     else onOpen(champ.id)
   }
 
+  /**
+   * O organizador trocou o plano dentro do modal de cobrança.
+   *
+   * Descer de plano vale na hora: o campeonato pode ter sido LIBERADO, e aí não
+   * faz sentido continuar mostrando a cobrança. Isto roda em resposta ao
+   * clique, não durante a renderização — trocar de tela aqui é seguro.
+   */
+  async function handlePlanChanged() {
+    if (!organizer) return
+    const list = isMaster ? await listAllChampionships() : await listChampionships(organizer.id)
+    setItems(list)
+    const atual = paying ? list.find((c) => c.id === paying.id) : null
+    if (!atual) {
+      setPaying(null)
+      return
+    }
+    if (isLocked(atual)) {
+      setPaying(atual)
+    } else {
+      setPaying(null)
+      onOpen(atual.id)
+    }
+  }
+
   /** Pagamento confirmado: atualiza a lista e entra no campeonato. */
   function handlePaid(updated: Championship) {
     setItems((prev) => (prev ? prev.map((c) => (c.id === updated.id ? updated : c)) : prev))
@@ -138,7 +162,11 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
 
       {paying && (
         <Modal title="Liberar campeonato" onClose={() => setPaying(null)}>
-          <PaymentPanel champ={paying} onPaid={handlePaid} />
+          <PaymentPanel
+            champ={paying}
+            onPaid={handlePaid}
+            onChanged={() => void handlePlanChanged()}
+          />
         </Modal>
       )}
     </div>

@@ -36,6 +36,7 @@ import { ChampionshipForm } from './ChampionshipForm'
 import { PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
+import { PlanoBlock } from './PlanoBlock'
 import { formatBRL, isLocked } from '../lib/pricing'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
@@ -180,7 +181,7 @@ export function ManageChampionship({
     return (
       <div className="container pad-lg">
         <button className="back-link" onClick={onBack}>← Meus campeonatos</button>
-        <PaymentPanel champ={champ} onPaid={(updated) => setChamp(updated)} />
+        <PaymentPanel champ={champ} onPaid={(updated) => setChamp(updated)} onChanged={reload} />
       </div>
     )
   }
@@ -289,6 +290,8 @@ export function ManageChampionship({
                 </div>
               </div>
             )}
+
+            <PlanoBlock champ={champ} totalTimes={teams.length} onChanged={reload} />
 
             <div className="settings-block">
               <h3>Regulamento</h3>

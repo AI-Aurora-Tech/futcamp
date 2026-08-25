@@ -3,7 +3,9 @@ import { checkPayment, masterRelease, refreshPayment, startCheckout } from '../s
 import { useAuth } from '../context/AuthContext'
 import { breakdown, formatBRL } from '../lib/pricing'
 import type { Championship } from '../types'
-import { Button, Spinner } from './ui'
+import { LINK_SUPORTE_PAGAMENTO } from '../lib/whatsapp'
+import { PlanoBlock } from './PlanoBlock'
+import { Button, Spinner, SuporteLink } from './ui'
 
 /**
  * Cobrança do campeonato: mostra a conta (plano + categorias adicionais),
@@ -16,9 +18,12 @@ import { Button, Spinner } from './ui'
 export function PaymentPanel({
   champ,
   onPaid,
+  onChanged,
 }: {
   champ: Championship
   onPaid: (updated: Championship) => void
+  /** Recarrega o campeonato depois de uma troca de plano. */
+  onChanged?: () => void
 }) {
   const b = breakdown(champ.plan, champ.categories.length)
   const total = champ.amountCents ?? b.totalCents
@@ -194,7 +199,13 @@ export function PaymentPanel({
         Pagou e não liberou? A confirmação do Asaas pode levar alguns minutos (Pix é quase
         imediato; boleto leva até 2 dias úteis). O campeonato fica guardado como está — e
         o botão acima confere direto com o Asaas, quantas vezes você quiser.
+        {' '}Continua preso? <SuporteLink href={LINK_SUPORTE_PAGAMENTO}>Fale com o suporte</SuporteLink>.
       </p>
+
+      {/* Trocar de plano é a saída para quem escolheu grande demais e ainda não
+          pagou: descer para um plano mais barato (ou para o Grátis) libera o
+          campeonato na hora, sem perder o que já foi cadastrado. */}
+      <PlanoBlock champ={champ} onChanged={() => onChanged?.()} />
     </section>
   )
 }

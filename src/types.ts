@@ -297,8 +297,20 @@ export interface Championship {
    * `#/novo-time/<championshipId>?k=<token>` e o responsável cria o próprio time.
    */
   teamCreateToken?: string
-  /** Plano contratado na criação do campeonato. */
+  /** Plano contratado. Pode ser trocado depois, sem perder nada (0032). */
   plan?: PlanKey
+  /**
+   * Estado anterior do plano, guardado enquanto um upgrade não foi pago.
+   * É o que permite desfazer a troca e voltar o campeonato ao que era.
+   * Ausente = não há troca pendente.
+   */
+  planChange?: {
+    plan?: PlanKey
+    amountCents?: number
+    paymentStatus?: PaymentStatus
+    paymentRef?: string
+    paidAt?: string
+  }
   /** Situação da cobrança — `pending` mantém o campeonato bloqueado. */
   paymentStatus?: PaymentStatus
   /** Valor cobrado (centavos): plano + categorias adicionais. */
