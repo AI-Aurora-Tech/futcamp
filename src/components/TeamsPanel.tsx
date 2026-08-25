@@ -15,7 +15,7 @@ import {
 import type { Championship, Team } from '../types'
 import { fileToDataUrl } from '../lib/image'
 import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
-import { elencoDeTimes } from '../lib/categorias'
+import { competicaoDaCategoria, elencoDeTimes } from '../lib/categorias'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
 
 export function TeamsPanel({
@@ -255,6 +255,7 @@ export function TeamsPanel({
         <TeamForm
           championship={championship}
           teams={teams}
+          categoryId={categoryId}
           initial={editing ?? undefined}
           onClose={() => {
             setAdding(false)
@@ -347,31 +348,78 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
 function TeamForm({
   championship,
   teams,
+  categoryId,
   initial,
   onClose,
   onSaved,
 }: {
   championship: Championship
   teams: Team[]
+  /** Categoria aberta na aba — é a escolha que já vem marcada. */
+  categoryId?: string
   initial?: Team
   onClose: () => void
   onSaved: () => void
 }) {
+  const cats = championship.categories
+  /** Mais de uma categoria = mais de uma competição, e é preciso perguntar. */
+  const varias = cats.length > 1
+
   const [name, setName] = useState(initial?.name ?? '')
   const [logo, setLogo] = useState(initial?.logo ?? '')
   const [color, setColor] = useState(initial?.color ?? '#2563eb')
   const [coach, setCoach] = useState(initial?.coach ?? '')
   const [phone, setPhone] = useState(initial?.phone ?? '')
   const [group, setGroup] = useState(initial?.group ?? 'A')
+
+  /**
+   * Em quais categorias o clube joga.
+   *
+   * Editando, vem das inscrições que ele já tem — e o clube ANTIGO, sem
+   * inscrição nenhuma, aparece hoje em todas as abas; abrir a edição já
+   * marcando todas é dizer na tela o que o app faz por baixo, sem tirá-lo de
+   * lugar nenhum ao salvar.
+   */
+  const [escolhidas, setEscolhidas] = useState<string[]>(() => {
+    if (!varias) return []
+    if (initial) {
+      const suas = (initial.categoryIds ?? []).filter((id) => cats.some((c) => c.id === id))
+      return suas.length ? suas : cats.map((c) => c.id)
+    }
+    return categoryId ? [categoryId] : []
+  })
+  /** O grupo do clube EM CADA categoria — ele pode cair no A de uma e no C de outra. */
+  const [grupos, setGrupos] = useState<Record<string, string>>(() => ({
+    ...(initial?.groupByCategory ?? {}),
+  }))
+
   const [busy, setBusy] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
   const [logoError, setLogoError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const grouped = championship.format === 'groups_knockout'
-  const target = championship.teamsPerGroup
-  const groupOptions = Array.from({ length: championship.numGroups ?? 2 }, (_, i) =>
-    String.fromCharCode(65 + i),
-  )
-  const countIn = (g: string) => teams.filter((t) => t.group === g && t.id !== initial?.id).length
+
+  /** A estrutura de grupos é de cada categoria: número e meta podem diferir. */
+  const estrutura = (cat?: string) => {
+    const c = cat ? competicaoDaCategoria(championship, cat) : championship
+    return {
+      target: c.teamsPerGroup,
+      options: Array.from({ length: Math.max(1, c.numGroups ?? 2) }, (_, i) =>
+        String.fromCharCode(65 + i),
+      ),
+    }
+  }
+  /** Quantos clubes já estão neste grupo DESTA categoria (fora o que se edita). */
+  const countIn = (g: string, cat?: string) =>
+    elencoDeTimes(teams, cat).filter((t) => t.group === g && t.id !== initial?.id).length
+  const grupoDe = (cat: string) => grupos[cat] ?? initial?.group ?? 'A'
+
+  function alternar(id: string) {
+    setEscolhidas((atual) =>
+      atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id],
+    )
+    setErro(null)
+  }
 
   async function onLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -388,12 +436,34 @@ function TeamForm({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    // Aviso (não bloqueia) se o grupo atingiu a meta de times.
-    if (grouped && target && countIn(group) >= target) {
-      const okGo = confirm(`O Grupo ${group} já tem ${countIn(group)} time(s) (meta: ${target}). Adicionar mesmo assim?`)
-      if (!okGo) return
+    setErro(null)
+
+    // Sem categoria não há competição em que inscrever o clube — e um clube
+    // sem inscrição reapareceria em todas as abas, que é o contrário do que a
+    // separação por categoria promete.
+    if (varias && escolhidas.length === 0) {
+      setErro('Escolha ao menos uma categoria para inscrever o time.')
+      return
     }
+
+    // Aviso (não bloqueia) se algum grupo atingiu a meta de times.
+    if (grouped) {
+      const alvos = varias ? escolhidas : [undefined]
+      for (const cat of alvos) {
+        const g = cat ? grupoDe(cat) : group
+        const { target } = estrutura(cat)
+        const quantos = countIn(g, cat)
+        if (!target || quantos < target) continue
+        const onde = cat ? ` do ${cats.find((c) => c.id === cat)?.name}` : ''
+        if (!confirm(`O Grupo ${g}${onde} já tem ${quantos} time(s) (meta: ${target}). Adicionar mesmo assim?`)) return
+      }
+    }
+
     setBusy(true)
+    const inscricoes = escolhidas.map((c) => ({
+      categoryId: c,
+      group: grouped ? grupoDe(c) : undefined,
+    }))
     const payload: NewTeam = {
       championshipId: championship.id,
       name: name.trim(),
@@ -401,12 +471,29 @@ function TeamForm({
       color,
       coach: coach.trim() || undefined,
       phone: phone.trim() || undefined,
-      group: grouped ? group : undefined,
+      // O `group` do clube segue existindo como reserva (dado antigo e
+      // campeonato de categoria única); quem manda é o grupo da inscrição.
+      group: grouped ? (varias ? grupoDe(escolhidas[0]) : group) : undefined,
+      categoryIds: varias ? escolhidas : undefined,
+      groupByCategory: varias && grouped
+        ? Object.fromEntries(inscricoes.map((i) => [i.categoryId, i.group as string]))
+        : undefined,
     }
-    if (initial) await updateTeam(initial.id, payload)
-    else await createTeam(payload)
-    setBusy(false)
-    onSaved()
+    try {
+      if (initial) {
+        await updateTeam(initial.id, payload)
+        // `updateTeam` só mexe na ficha do clube: as inscrições são outra
+        // tabela, e é esta chamada que as reescreve.
+        if (varias) await setTeamCategories(initial.id, championship.id, inscricoes)
+      } else {
+        await createTeam(payload)
+      }
+      onSaved()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível salvar o time.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -440,17 +527,74 @@ function TeamForm({
         <Field label="Cor">
           <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
         </Field>
-        {grouped && (
-          <Field label="Grupo" hint={target ? `Meta: ${target} time(s) por grupo` : undefined}>
+        {/* Cada categoria é uma competição — tabela, rodadas e classificados
+            próprios. É aqui que o organizador diz em quais o clube disputa. */}
+        {varias && (
+          <div className="cat-pick">
+            <span className="field__label">Em quais categorias o time vai jogar?</span>
+            <p className="field__hint">
+              Cada categoria é uma competição separada. Marque todas em que o clube inscreve equipe —
+              o escudo, o responsável e o login são os mesmos.
+            </p>
+            <div className="cat-pick__list">
+              {cats.map((c) => (
+                <label key={c.id} className={`cat-pick__item ${escolhidas.includes(c.id) ? 'is-on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={escolhidas.includes(c.id)}
+                    onChange={() => alternar(c.id)}
+                  />
+                  <span>{c.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {grouped && !varias && (
+          <Field
+            label="Grupo"
+            hint={estrutura().target ? `Meta: ${estrutura().target} time(s) por grupo` : undefined}
+          >
             <select value={group} onChange={(e) => setGroup(e.target.value)}>
-              {groupOptions.map((g) => (
+              {estrutura().options.map((g) => (
                 <option key={g} value={g}>
-                  Grupo {g}{target ? ` (${countIn(g)}/${target})` : ` (${countIn(g)})`}
+                  Grupo {g}{estrutura().target ? ` (${countIn(g)}/${estrutura().target})` : ` (${countIn(g)})`}
                 </option>
               ))}
             </select>
           </Field>
         )}
+
+        {/* O grupo é da INSCRIÇÃO: o mesmo clube pode cair no A do Sub-11 e no
+            C do Sub-15, e cada categoria pode ter um número de grupos. */}
+        {grouped && varias && escolhidas.length > 0 && (
+          <div className="cat-grupos">
+            <span className="field__label">Grupo em cada categoria</span>
+            {cats
+              .filter((c) => escolhidas.includes(c.id))
+              .map((c) => {
+                const { target, options } = estrutura(c.id)
+                return (
+                  <label key={c.id} className="cat-grupos__item">
+                    <span className="cat-grupos__cat">{c.name}</span>
+                    <select
+                      value={grupoDe(c.id)}
+                      onChange={(e) => setGrupos((g) => ({ ...g, [c.id]: e.target.value }))}
+                    >
+                      {options.map((g) => (
+                        <option key={g} value={g}>
+                          Grupo {g}{target ? ` (${countIn(g, c.id)}/${target})` : ` (${countIn(g, c.id)})`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )
+              })}
+          </div>
+        )}
+
+        {erro && <p className="auth-error">{erro}</p>}
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
           <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>

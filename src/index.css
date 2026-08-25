@@ -691,6 +691,17 @@ table { border-collapse: collapse; width: 100%; }
   border-radius: var(--radius-sm); padding: 0.55rem 0.75rem;
 }
 
+/* Grupo por categoria: o mesmo clube pode cair no A do Sub-11 e no C do
+   Sub-15, então cada inscrição escolhe o seu. */
+.cat-grupos { display: grid; gap: 0.4rem; }
+.cat-grupos__item {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 0.4rem 0.6rem;
+}
+.cat-grupos__cat { flex: 1; min-width: 0; font-weight: 600; font-size: 0.9rem; }
+.cat-grupos__item select { flex: none; width: auto; min-width: 11rem; }
+
 /* Links de criação de time direcionados a uma categoria. */
 .cat-links {
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem;
