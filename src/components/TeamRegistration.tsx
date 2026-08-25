@@ -28,7 +28,14 @@ import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { validateAthlete } from '../services/validation'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
-import { POSITIONS, type Category, type Player, type Position } from '../types'
+import {
+  POSICAO_PADRAO,
+  opcoesDePosicao,
+  posicaoValePara,
+  type Category,
+  type Player,
+  type Position,
+} from '../types'
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
@@ -647,7 +654,9 @@ export function AthleteDialog({
   const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
   const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
   const [number, setNumber] = useState(initial?.number != null ? String(initial.number) : '')
-  const [position, setPosition] = useState<Position>(initial?.position ?? 'ATA')
+  const [position, setPosition] = useState<Position>(
+    initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
+  )
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
   const [federated, setFederated] = useState(Boolean(initial?.federated))
@@ -675,6 +684,14 @@ export function AthleteDialog({
   useEffect(() => {
     if (federated && !permiteFederados(category)) setFederated(false)
   }, [category, federated])
+
+  // Atleta escolhe posição em campo; comissão técnica escolhe função. Trocar
+  // de papel com um código da outra lista gravado deixaria o `select` sem
+  // opção correspondente — e o navegador mostraria a primeira, calado.
+  const opcoesPosicao = opcoesDePosicao(role)
+  useEffect(() => {
+    if (!posicaoValePara(role, position)) setPosition(POSICAO_PADRAO[role])
+  }, [role, position])
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -815,9 +832,9 @@ export function AthleteDialog({
           <Field label="Número (opcional)">
             <input type="number" min={1} max={99} value={number} onChange={(e) => setNumber(e.target.value)} placeholder="10" />
           </Field>
-          <Field label="Posição">
+          <Field label={isAthlete ? 'Posição' : 'Função'}>
             <select value={position} onChange={(e) => setPosition(e.target.value as Position)}>
-              {POSITIONS.map((p) => (
+              {opcoesPosicao.map((p) => (
                 <option key={p.id} value={p.id}>{p.label}</option>
               ))}
             </select>

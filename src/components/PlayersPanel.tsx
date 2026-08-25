@@ -12,7 +12,16 @@ import {
 } from '../lib/federated'
 import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
-import { POSITIONS, type Championship, type Player, type Position, type Team } from '../types'
+import {
+  POSICAO_PADRAO,
+  labelDaPosicao,
+  opcoesDePosicao,
+  posicaoValePara,
+  type Championship,
+  type Player,
+  type Position,
+  type Team,
+} from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 
@@ -150,7 +159,7 @@ export function PlayersPanel({
                   </td>
                   <td>{p.birthdate ? p.birthdate.split('-').reverse().join('/') : '—'}</td>
                   {championship.categories.length > 1 && <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>}
-                  <td>{POSITIONS.find((x) => x.id === p.position)?.label ?? '—'}</td>
+                  <td>{labelDaPosicao(p.position) || '—'}</td>
                   <td className="col-actions">
                     <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
                     <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
@@ -236,7 +245,9 @@ function PlayerForm({
   const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
   const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
   const [number, setNumber] = useState<string>(initial?.number != null ? String(initial.number) : '')
-  const [position, setPosition] = useState<Position>(initial?.position ?? 'ATA')
+  const [position, setPosition] = useState<Position>(
+    initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
+  )
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
   const [error, setError] = useState<string | null>(null)
@@ -259,6 +270,14 @@ function PlayerForm({
   useEffect(() => {
     if (federated && !permiteFederados(category)) setFederated(false)
   }, [category, federated])
+
+  // Atleta escolhe posição em campo; comissão escolhe função. Trocar de papel
+  // com um código da outra lista gravado deixaria o `select` sem opção
+  // correspondente — e o navegador mostraria a primeira, sem avisar ninguém.
+  const opcoesPosicao = opcoesDePosicao(role)
+  useEffect(() => {
+    if (!posicaoValePara(role, position)) setPosition(POSICAO_PADRAO[role])
+  }, [role, position])
 
   async function onPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -431,9 +450,9 @@ function PlayerForm({
           <Field label="Número">
             <input type="number" min={1} max={99} value={number} onChange={(e) => setNumber(e.target.value)} placeholder="10" />
           </Field>
-          <Field label="Posição">
+          <Field label={role === 'comissao' ? 'Função' : 'Posição'}>
             <select value={position} onChange={(e) => setPosition(e.target.value as Position)}>
-              {POSITIONS.map((p) => (
+              {opcoesPosicao.map((p) => (
                 <option key={p.id} value={p.id}>{p.label}</option>
               ))}
             </select>

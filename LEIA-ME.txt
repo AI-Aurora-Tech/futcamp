@@ -1,0 +1,32 @@
+Tabelaço — posições do atleta e funções da comissão técnica
+===========================================================
+
+Copie os 4 arquivos por cima dos existentes, mantendo os caminhos:
+
+  src/types.ts
+  src/components/PlayersPanel.tsx      (elenco pelo organizador)
+  src/components/TeamRegistration.tsx  (portal do time)
+  src/lib/sumula.ts                    (súmula impressa)
+
+O que muda
+----------
+O campo de posição passa a mostrar uma lista diferente conforme o tipo
+de inscrição escolhido no formulário:
+
+  Atleta   → Goleiro, Zagueiro, Lateral, Volante, Meia, Atacante
+  Comissão → Técnico, Auxiliar técnico, Massagista, Preparador físico,
+             Médico, Marketing
+
+O rótulo do campo também acompanha: "Posição" para atleta, "Função"
+para a comissão técnica.
+
+Nada muda no banco
+------------------
+Continua tudo na mesma coluna `position` (texto livre, sem restrição no
+Postgres). Não há migration para rodar. O código do técnico continua
+sendo 'TEC', então os técnicos já cadastrados seguem aparecendo como
+técnicos.
+
+Depois de copiar
+----------------
+  npm run build

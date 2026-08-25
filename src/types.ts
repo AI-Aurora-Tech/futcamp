@@ -293,17 +293,69 @@ export interface Team {
   createdAt: string
 }
 
-export type Position = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'ATA' | 'TEC'
+/** Posições em campo. Só valem para quem entra como ATLETA. */
+export type AthletePosition = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'ATA'
 
-export const POSITIONS: { id: Position; label: string }[] = [
+/** Funções da comissão técnica. Quem é comissão não tem posição em campo. */
+export type StaffFunction = 'TEC' | 'AUX' | 'MAS' | 'PRE' | 'MED' | 'MKT'
+
+/**
+ * O que vai gravado na coluna `position`. As duas listas dividem o mesmo
+ * campo — o que separa uma da outra é o `role` do inscrito. Os códigos são
+ * estáveis: 'TEC' continua sendo técnico, então quem já estava cadastrado
+ * não perde a função.
+ */
+export type Position = AthletePosition | StaffFunction
+
+export const POSITIONS: { id: AthletePosition; label: string }[] = [
   { id: 'GOL', label: 'Goleiro' },
   { id: 'ZAG', label: 'Zagueiro' },
   { id: 'LAT', label: 'Lateral' },
   { id: 'VOL', label: 'Volante' },
   { id: 'MEI', label: 'Meia' },
   { id: 'ATA', label: 'Atacante' },
-  { id: 'TEC', label: 'Técnico' },
 ]
+
+export const STAFF_FUNCTIONS: { id: StaffFunction; label: string }[] = [
+  { id: 'TEC', label: 'Técnico' },
+  { id: 'AUX', label: 'Auxiliar técnico' },
+  { id: 'MAS', label: 'Massagista' },
+  { id: 'PRE', label: 'Preparador físico' },
+  { id: 'MED', label: 'Médico' },
+  { id: 'MKT', label: 'Marketing' },
+]
+
+/** Posição padrão de cada papel, para abrir o formulário já preenchido. */
+export const POSICAO_PADRAO: Record<'atleta' | 'comissao', Position> = {
+  atleta: 'ATA',
+  comissao: 'TEC',
+}
+
+/** As opções que o papel aceita: posições para atleta, funções para comissão. */
+export function opcoesDePosicao(
+  role: 'atleta' | 'comissao' | undefined,
+): { id: Position; label: string }[] {
+  return role === 'comissao' ? STAFF_FUNCTIONS : POSITIONS
+}
+
+/**
+ * O rótulo de um código, venha ele de qual lista vier. Procurar nas duas é de
+ * propósito: quem trocou de atleta para comissão (ou o contrário) pode ter
+ * ficado com o código da outra lista gravado.
+ */
+export function labelDaPosicao(id: Position | undefined): string {
+  if (!id) return ''
+  const achou = [...POSITIONS, ...STAFF_FUNCTIONS].find((x) => x.id === id)
+  return achou?.label ?? id
+}
+
+/** O código pertence à lista do papel? */
+export function posicaoValePara(
+  role: 'atleta' | 'comissao' | undefined,
+  id: Position | undefined,
+): boolean {
+  return opcoesDePosicao(role).some((x) => x.id === id)
+}
 
 export interface Player {
   id: string
