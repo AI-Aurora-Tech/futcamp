@@ -2,6 +2,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { accessToken, uid } from '../lib/id'
+import { cabeMaisUmTime, motivoLimiteDeTimes } from '../lib/pricing'
 import type { Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -51,12 +52,40 @@ export async function listTeams(championshipId: string): Promise<Team[]> {
 
 export type NewTeam = Omit<Team, 'id' | 'createdAt'>
 
+/**
+ * O gatilho do banco (migration 0031) recusa a equipe que passa do plano. A
+ * mensagem dele já é escrita para quem lê a tela, então vai inteira — mas se o
+ * servidor ainda não recebeu a migration, o erro seria um "violates check
+ * constraint" cru. Aqui ele vira português.
+ */
+function erroDeLimite(error: { message?: string }): Error {
+  const m = error?.message ?? ''
+  if (/permite até \d+ equipe/i.test(m)) return new Error(m)
+  return new Error(m || 'Não foi possível cadastrar a equipe.')
+}
+
+/**
+ * Confere o limite do plano no MODO DEMO, onde não há banco para conferir.
+ * No Supabase quem recusa é o gatilho — este caminho nem chega lá.
+ */
+function assertLimiteDemo(championshipId: string): void {
+  query((d) => {
+    const c = d.championships.find((x) => x.id === championshipId)
+    const atuais = d.teams.filter((t) => t.championshipId === championshipId).length
+    if (c && !cabeMaisUmTime(c.plan, atuais)) {
+      throw new Error(motivoLimiteDeTimes(c.plan))
+    }
+    return null
+  })
+}
+
 export async function createTeam(input: NewTeam): Promise<Team> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.from('teams').insert(toRow(input)).select('*').single()
-    if (error) throw error
+    if (error) throw erroDeLimite(error)
     return fromRow(data)
   }
+  assertLimiteDemo(input.championshipId)
   const team: Team = {
     ...input,
     accessToken: input.accessToken ?? accessToken(),
@@ -138,7 +167,7 @@ export async function createTeamViaLink(
       p_phone: input.phone?.trim() || null,
       p_group: input.group || null,
     })
-    if (error) throw error
+    if (error) throw erroDeLimite(error)
     const row = data as { team_id: string; token: string }
     return { teamId: row.team_id, token: row.token }
   }
@@ -147,6 +176,8 @@ export async function createTeamViaLink(
     if (!c || !c.teamCreateToken || c.teamCreateToken !== token) {
       throw new Error('Link de criação inválido ou expirado.')
     }
+    const atuais = d.teams.filter((t) => t.championshipId === championshipId).length
+    if (!cabeMaisUmTime(c.plan, atuais)) throw new Error(motivoLimiteDeTimes(c.plan))
     const tok = accessToken()
     const team: Team = {
       id: uid('team'),

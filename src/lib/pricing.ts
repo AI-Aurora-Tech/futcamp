@@ -167,6 +167,45 @@ export function breakdown(key: PlanKey | undefined, categories: number): PriceBr
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Limite de equipes por plano                                                */
+/*                                                                            */
+/* O número aparecia só no cartão do plano, como promessa. Estas funções são a
+ * versão em TypeScript da regra que o BANCO aplica (migration 0031, gatilho em
+ * `teams`) — servem para a tela avisar antes e desabilitar o botão, não para
+ * autorizar. Quem autoriza é o Postgres: o link público de criação de time roda
+ * no navegador de quem se inscreve, e validar só ali seria pedir licença para
+ * burlar.                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** Quantas equipes o plano permite. `Infinity` quando é ilimitado. */
+export function limiteDeTimes(key: PlanKey | undefined): number {
+  const max = planOf(key).maxTeams
+  return max == null ? Number.POSITIVE_INFINITY : Math.max(0, max)
+}
+
+/** Quantas vagas de equipe ainda restam. */
+export function vagasDeTime(key: PlanKey | undefined, atuais: number): number {
+  return Math.max(0, limiteDeTimes(key) - Math.max(0, atuais))
+}
+
+/** Cabe mais uma equipe neste campeonato? */
+export function cabeMaisUmTime(key: PlanKey | undefined, atuais: number): boolean {
+  return vagasDeTime(key, atuais) > 0
+}
+
+/**
+ * A frase que explica por que não cabe mais. Igual à do banco, para o
+ * organizador ler a mesma coisa venha o bloqueio de onde vier.
+ */
+export function motivoLimiteDeTimes(key: PlanKey | undefined): string {
+  const plan = planOf(key)
+  return (
+    `O plano ${plan.tier} permite até ${plan.maxTeams} equipe(s) neste campeonato. ` +
+    'Troque de plano para inscrever mais.'
+  )
+}
+
 /** Formata centavos como moeda brasileira: 10990 → "R$ 109,90". */
 export function formatBRL(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { getChampionship } from '../services/championships'
-import { createTeamViaLink } from '../services/teams'
+import { createTeamViaLink, listTeams } from '../services/teams'
+import { cabeMaisUmTime } from '../lib/pricing'
 import { fileToDataUrl } from '../lib/image'
 import type { Championship } from '../types'
 import { Button, ChampLogo, Field, Spinner, TeamBadge } from './ui'
@@ -22,6 +23,9 @@ export function CreateTeamViaLink({
   const [champ, setChamp] = useState<Championship | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  // O campeonato já bateu no limite do plano? Vale saber ANTES de o
+  // responsável preencher escudo, cor e telefone para ouvir "não" no fim.
+  const [lotado, setLotado] = useState(false)
 
   const [name, setName] = useState('')
   const [logo, setLogo] = useState('')
@@ -35,10 +39,21 @@ export function CreateTeamViaLink({
   useEffect(() => {
     let active = true
     getChampionship(championshipId)
-      .then((c) => {
+      .then(async (c) => {
         if (!active) return
-        if (!c) setNotFound(true)
-        else setChamp(c)
+        if (!c) {
+          setNotFound(true)
+          return
+        }
+        setChamp(c)
+        // Se a contagem falhar, segue em frente: o banco ainda recusa na hora
+        // de salvar. Melhor deixar tentar do que barrar por engano.
+        try {
+          const times = await listTeams(championshipId)
+          if (active) setLotado(!cabeMaisUmTime(c.plan, times.length))
+        } catch {
+          /* ignore */
+        }
       })
       .catch(() => active && setNotFound(true))
       .finally(() => active && setLoading(false))
@@ -81,6 +96,19 @@ export function CreateTeamViaLink({
   }
 
   if (loading) return <div className="container pad-lg"><Spinner /></div>
+  if (champ && lotado) {
+    return (
+      <div className="container pad-lg center">
+        <div className="empty__icon">🚫</div>
+        <h2>As inscrições deste campeonato estão completas</h2>
+        <p className="muted">
+          O <b>{champ.name}</b> já atingiu o número de equipes do plano contratado. Fale com o
+          organizador — só ele pode ampliar o campeonato.
+        </p>
+        <button className="btn btn--primary" onClick={onHome}>Ir para o início</button>
+      </div>
+    )
+  }
   if (notFound || !champ) {
     return (
       <div className="container pad-lg center">

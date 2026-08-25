@@ -12,6 +12,7 @@ import {
 } from '../services/teams'
 import type { Championship, Team } from '../types'
 import { fileToDataUrl } from '../lib/image'
+import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
 
 export function TeamsPanel({
@@ -28,6 +29,12 @@ export function TeamsPanel({
   const [managing, setManaging] = useState<Team | null>(null)
   const [drawing, setDrawing] = useState(false)
   const [search, setSearch] = useState('')
+  // Limite do plano contratado. O botão some quando não cabe mais — deixar
+  // clicável para o banco recusar no fim do formulário é fazer o organizador
+  // digitar à toa.
+  const limite = limiteDeTimes(championship.plan)
+  const vagas = vagasDeTime(championship.plan, teams.length)
+  const semVagas = vagas <= 0
   const grouped = championship.format === 'groups_knockout'
   const numGroups = Math.max(1, championship.numGroups ?? 2)
 
@@ -107,8 +114,14 @@ export function TeamsPanel({
     <section className="panel">
       <div className="panel__head">
         <div>
-          <h2>Times ({teams.length})</h2>
-          <p className="muted">Cadastre os clubes participantes do campeonato.</p>
+          <h2>
+            Times ({teams.length}
+            {Number.isFinite(limite) ? ` de ${limite}` : ''})
+          </h2>
+          <p className="muted">
+            Cadastre os clubes participantes do campeonato.
+            {Number.isFinite(limite) && !semVagas && ` Restam ${vagas} vaga(s) no plano ${planOf(championship.plan).tier}.`}
+          </p>
         </div>
         <div className="panel__head-actions">
           {grouped && (
@@ -116,10 +129,17 @@ export function TeamsPanel({
               {drawing ? 'Sorteando…' : '🎲 Sortear grupos'}
             </Button>
           )}
-          <Button variant="soft" onClick={() => void copyCreateTeamLink()}>🔗 Link para criar time</Button>
-          <Button onClick={() => setAdding(true)}>＋ Adicionar time</Button>
+          <Button variant="soft" onClick={() => void copyCreateTeamLink()} disabled={semVagas}>🔗 Link para criar time</Button>
+          <Button onClick={() => setAdding(true)} disabled={semVagas}>＋ Adicionar time</Button>
         </div>
       </div>
+
+      {semVagas && (
+        <p className="plano-cheio">
+          🚫 {motivoLimiteDeTimes(championship.plan)}{' '}
+          <a href="#/planos" target="_blank" rel="noopener noreferrer">Ver planos</a>
+        </p>
+      )}
 
       {teams.length > 0 && (
         <SearchField

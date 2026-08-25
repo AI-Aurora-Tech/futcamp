@@ -639,6 +639,14 @@ table { border-collapse: collapse; width: 100%; }
   background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm);
   padding: 0.55rem 0.75rem; margin: 0.2rem 0 0.6rem; line-height: 1.45;
 }
+
+/* Campeonato que bateu no limite de equipes do plano contratado. */
+.plano-cheio {
+  background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+  border-radius: var(--radius-sm); padding: 0.6rem 0.8rem; margin: 0.6rem 0 0;
+  font-size: 0.88rem; line-height: 1.45;
+}
+.plano-cheio a { color: inherit; font-weight: 700; text-decoration: underline; }
 .link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
 .link-btn--add:hover { color: var(--brand); }
 
