@@ -248,7 +248,10 @@ begin
     'audience', c.audience,
     'categories', c.categories,
     'registration_cutoff_hours', c.registration_cutoff_hours,
-    'closed_rounds', to_jsonb(coalesce(c.closed_rounds, '{}'::int[])),
+    -- `closed_rounds` já é jsonb (migration 0007). Tratar como int[] aqui
+    -- fazia a função inteira falhar em tempo de execução, e o portal do
+    -- time respondia "link inválido" com o link correto.
+    'closed_rounds', coalesce(c.closed_rounds, '[]'::jsonb),
     -- Regras do campeonato que entram no regulamento que o time baixa. É uma
     -- lista fechada: nada de dono, cobrança ou token — o time vê as regras da
     -- competição, não a administração dela.

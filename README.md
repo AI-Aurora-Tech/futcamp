@@ -478,6 +478,7 @@ vercel --prod # produção
 | Comando | Descrição |
 |---|---|
 | `npm run dev` | Servidor de desenvolvimento (Vite). |
+| `supabase/tests/run.sh` | Aplica as migrations num Postgres temporário e testa as regras do banco. |
 | `npm run build` | Type-check + build de produção. |
 | `npm run preview` | Pré-visualiza a build. |
 | `npm run lint` | Verificação de tipos (`tsc --noEmit`). |

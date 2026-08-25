@@ -30,6 +30,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `migrations/0022_asaas.sql` | **Troca do provedor de pagamento** (Mercado Pago → Asaas): `payments.provider` e `payments.checkout_id`. O histórico antigo fica marcado como `mercadopago`. |
 | `migrations/0025_federated_athletes.sql` | **Atletas federados** (infantil): `championships.allow_federated` / `max_federated`, `players.federated` / `federated_in`, e o limite conferido no banco (`assert_federated_allowed`) dentro das RPCs de inscrição — validar só no navegador do time seria pedir para burlar. A `team_registration` passa a devolver também as regras do campeonato, para o time baixar o regulamento (lista fechada de campos: nada de dono, cobrança ou token). |
 | `migrations/0026_federated_per_category.sql` | **Federados viram regra de categoria**: a permissão e o limite passam para dentro de `championships.categories` (jsonb) e as colunas da 0025 saem — o valor delas é copiado para as categorias antes. `assert_federated_allowed` passa a receber a categoria e contar só os federados dela. **Roda sozinha e pode ser repetida**: a cópia só acontece se as colunas da 0025 existirem, e as colunas do atleta são criadas com `if not exists`. |
+| `migrations/0027_release_bypass.sql` | **Corrige a liberação do campeonato**: o gatilho de preço desfazia a escrita das duas funções autorizadas (`mark_championship_paid` fora da service role e `master_release_championship`), que respondiam sucesso sem liberar nada. Agora elas marcam a transação e o gatilho as reconhece — o app continua sem conseguir se liberar sozinho. |
 | `functions/asaas-checkout/` | Cria o Checkout no Asaas e devolve o link (Pix, boleto ou cartão). Confere o dono do campeonato internamente, refaz o pedido sem Pix quando a conta não tem chave cadastrada, e grava o vínculo do checkout em `championships.payment_ref` (`checkout:<id>`) além da tabela `payments`. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`, `APP_URL`, `ASAAS_BILLING_TYPES` (opcional). Publique com `--no-verify-jwt`. |
 | `migrations/0023_master_release.sql` | **Liberação manual pelo master**: `master_release_championship()`, a única exceção à trava de pagamento — e ela exige `is_master()`, verificado no banco. Para quando o pagamento entra por fora (dinheiro, transferência, cortesia). |
 | `migrations/0024_push_outbox_cascade.sql` | **Corrige a exclusão de campeonato**: o gatilho de avisos disparava na cascata (times e atletas removidos junto) e tentava enfileirar notificação de um campeonato que já não existia — a chave estrangeira recusava e a exclusão inteira falhava. Agora o gatilho confere se o campeonato ainda existe antes de enfileirar. |
@@ -72,6 +73,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
    - `migrations/0024_push_outbox_cascade.sql`
    - `migrations/0025_federated_athletes.sql`
    - `migrations/0026_federated_per_category.sql`
+   - `migrations/0027_release_bypass.sql`
    Depois da `0015`, cadastre o administrador master:
    ```sql
    insert into public.master_admins (email) values ('master@exemplo.com');
@@ -168,6 +170,17 @@ chamada da API — o Tabelaço não coleta nem guarda dado fiscal do organizador
   eventos — é o que alimenta as páginas públicas.
 - **Somente o organizador dono** do campeonato pode criar/editar/excluir seus
   dados (validado por `owns_championship()`).
+
+## Testar as regras antes de aplicar
+
+As regras que protegem dinheiro e inscrição moram aqui, não no navegador.
+`supabase/tests/run.sh` sobe um Postgres temporário, aplica as migrations na
+ordem e verifica cada regra — inclusive as que precisam **recusar**. Ver
+[`tests/README.md`](tests/README.md).
+
+```bash
+supabase/tests/run.sh
+```
 
 ## Solução de problemas
 
