@@ -11,7 +11,7 @@ import {
 import { CONTRATO_VERSAO, contratoDiamante, totalDoContrato } from '../lib/contrato'
 import type { Subscription } from '../types'
 import { useAuth } from '../context/AuthContext'
-import { breakdown, formatBRL } from '../lib/pricing'
+import { breakdown, formatBRL, planOf } from '../lib/pricing'
 import type { Championship } from '../types'
 import { LINK_DIAMANTE, LINK_SUPORTE_PAGAMENTO } from '../lib/whatsapp'
 import { PlanoBlock } from './PlanoBlock'
@@ -146,11 +146,11 @@ export function PaymentPanel({
   // Diamante: o valor não vem da tabela de preços, vem da negociação. Enquanto
   // o consultor não registra quanto ficou, não há o que cobrar.
   const diamante = b.plan.consult
-  const combinado = champ.negotiatedCents ?? 0
+  // Sem negociação, vale o preço de tabela — desde a 0038 o Diamante tem um, e
+  // o cliente contrata sozinho. O consultor entra só para fechar diferente.
+  const mensal = diamante && (champ.negotiatedKind ?? 'mensal') === 'mensal'
+  const combinado = champ.negotiatedCents ?? (mensal ? (b.plan.monthlyCents ?? 0) : 0)
   const aCombinar = diamante && combinado <= 0
-  // Vendido como assinatura: a cobrança é mensal, da CONTA, e passa pelo
-  // aceite do contrato antes de virar link de pagamento.
-  const mensal = diamante && champ.negotiatedKind === 'mensal' && combinado > 0
 
   return (
     <section className="pay">
@@ -310,7 +310,11 @@ export function DiamanteNegociacao({
    * outro plano; a liberação continua sendo do webhook.
    */
   async function combinar(kind: 'avulso' | 'mensal') {
-    const atual = combinado ? (combinado / 100).toFixed(2) : ''
+    // Sem valor combinado ainda, sugere o de tabela: o consultor confirma em
+    // vez de digitar, e negocia diferente quando o caso pedir.
+    const tabela = kind === 'mensal' ? (planOf('diamante').monthlyCents ?? 0) : 0
+    const sugerido = combinado || tabela
+    const atual = sugerido ? (sugerido / 100).toFixed(2) : ''
     const digitado = prompt(
       kind === 'mensal'
         ? `Mensalidade do Diamante para "${champ.name}".\n\n` +
@@ -387,9 +391,9 @@ export function DiamanteNegociacao({
           )
         ) : (
           <>
-            Ainda <b>a combinar</b>. O campeonato fica fechado até você registrar o valor e o
-            cliente pagar. Registrado aqui, o link de pagamento sai pelo Asaas já amarrado a
-            este campeonato — não precisa criar cobrança no painel do Asaas.
+            Sem negociação: vale o <b>plano de tabela</b> —{' '}
+            {formatBRL(planOf('diamante').monthlyCents ?? 0)}/mês por 12 meses, e o cliente pode
+            contratar sozinho. Registre um valor aqui só para fechar diferente do padrão.
           </>
         )}
       </p>
@@ -398,7 +402,7 @@ export function DiamanteNegociacao({
       {!pago && (
         <div className="panel__head-actions">
           <Button variant="soft" onClick={() => void combinar('mensal')} disabled={busy}>
-            {busy ? 'Registrando…' : '◆ Assinatura mensal'}
+            {busy ? 'Registrando…' : '◆ Mensalidade diferente'}
           </Button>
           <Button variant="ghost" onClick={() => void combinar('avulso')} disabled={busy}>
             {busy ? 'Registrando…' : '◆ Valor único'}

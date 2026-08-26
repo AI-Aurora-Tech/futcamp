@@ -703,6 +703,22 @@ table { border-collapse: collapse; width: 100%; }
   margin: 0.2rem 0 0;
 }
 
+/* O consultor virou a segunda opção do Diamante, e não a única: fica abaixo
+   do botão, discreto, para quem prefere conversar antes de assinar. */
+.plan-btn__consultor {
+  display: block; text-align: center; margin-top: 0.5rem;
+  font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  text-decoration: none;
+}
+.plan-btn__consultor:hover { color: var(--brand-dark); text-decoration: underline; }
+
+/* "/mês" ao lado do preço: menor e mais discreto que o número, porque quem
+   compara planos lê o valor primeiro e a unidade depois. */
+.plan-price__mes {
+  font-size: 0.95rem; font-weight: 600; color: var(--muted);
+  align-self: flex-end; margin-bottom: 0.35rem; margin-left: 0.15rem;
+}
+
 /* Assinatura do Diamante: o contrato precisa caber na tela sem empurrar o
    resto para baixo, e precisa parecer um documento — porque é um. */
 .assina { display: grid; gap: 0.75rem; margin-top: 0.4rem; }

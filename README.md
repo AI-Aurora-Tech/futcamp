@@ -178,10 +178,16 @@ pagamento.
 | Bronze | R$ 59,90 | + R$ 39,90 | 16 |
 | Prata | R$ 79,90 | + R$ 49,90 | 32 |
 | Ouro | R$ 109,90 | + R$ 59,90 | ilimitadas |
-| Diamante | sob consulta | — | ilimitadas |
+| Diamante | **R$ 200,00/mês** | — | ilimitadas |
 
 O valor já inclui a primeira categoria. Ex.: Ouro com 3 categorias =
 `109,90 + 2 × 59,90 = R$ 229,70`.
+
+O **Diamante é o único cobrado por mês**, e da **conta** — não do campeonato:
+R$ 200,00/mês dão campeonatos, categorias e equipes ilimitados, com
+compromisso de 12 meses, no **cartão de crédito** (débito recorrente, não
+parcelamento). O cliente contrata sozinho; o consultor só entra para fechar
+condição diferente do padrão.
 
 A tabela vive em [`src/lib/pricing.ts`](src/lib/pricing.ts) — e é espelhada em
 SQL na função `plan_price_cents()` da migration `0021_payments.sql`, que é
@@ -209,8 +215,9 @@ organizador clica em "Já paguei". Quem decide continua sendo a API do Asaas; o
 app nunca diz que pagou.
 
 Plano **Grátis** não passa por cobrança nenhuma (`payment_status = 'free'`), e
-**Diamante** (preço sob consulta) abre a conversa no **WhatsApp** já com a
-mensagem escrita — `wa.me` abre o aplicativo no celular e o WhatsApp Web no
+**Diamante** (R$ 200,00/mês, assinatura recorrente no cartão) é contratado
+pelo próprio cliente; o link do consultor no **WhatsApp** fica como segunda
+opção, já com a mensagem escrita — `wa.me` abre o aplicativo no celular e o WhatsApp Web no
 computador. O número está em `src/components/Plans.tsx` e pode ser trocado sem
 mexer no código, por `VITE_WHATSAPP` no `.env`. No **modo demo** (sem Supabase) o pagamento é simulado na hora, para
 dar para testar o fluxo inteiro sem backend.
@@ -288,26 +295,32 @@ checkout guardado. Acrescentando `&token=<ASAAS_WEBHOOK_TOKEN>` ela também
 lista as últimas cobranças da conta — é a parte que mostra movimento alheio ao
 campeonato, por isso pede o token.
 
-### ◆ Plano Diamante — valor negociado
+### ◆ Plano Diamante — R$ 200,00/mês
 
-O Diamante não tem preço de tabela: o consultor negocia com o cliente e cada
-contrato sai por um valor. Isso **não** significa criar a cobrança na mão no
+O Diamante é **contratado pelo próprio cliente**, como qualquer outro plano:
+ele escolhe na tabela, lê e aceita o contrato de 12 meses e assina no cartão.
+A cobrança é **recorrente e só no cartão de crédito** — R$ 200,00 debitados
+mês a mês, e não um parcelamento, então o limite dele não fica preso no total.
+
+O consultor continua no jogo, mas como **exceção e não como porta**: em
+*Ajustes* ele registra um valor diferente do padrão (mensal ou avulso) para o
+cliente que negociou. Apagar essa negociação devolve o campeonato ao plano de
+tabela. Isso **não** significa criar a cobrança na mão no
 painel do Asaas — o app faz o link, e é ele que amarra o pagamento ao
 campeonato.
 
 O caminho é este:
 
 1. O cliente cria o campeonato escolhendo **Diamante**. Ele nasce **fechado**,
-   com valor *a combinar*, e a tela diz para falar com o consultor.
-2. O consultor negocia e, no app, abre o campeonato → **Ajustes** →
-   *"◆ Plano Diamante — valor negociado"* → escolhe **assinatura mensal** ou
-   **valor único**, informa o valor (e o prazo, no mensal) e uma anotação. Só o
-   **administrador master** vê esse bloco; quem valida é o banco
-   (`set_negotiated_price`).
-3. No **valor único**, o cliente vê a cobrança e paga com Pix, boleto ou
-   cartão. No **mensal**, ele lê e **aceita o contrato** e depois assina no
-   cartão — o débito é mensal e não compromete o limite dele.
-4. O Asaas confirma, o webhook libera. **Nada de novo na integração.**
+   já com o valor de tabela e a modalidade mensal de 12 meses.
+2. Na tela de cobrança ele lê o contrato, **aceita** (nome, documento — e o
+   texto integral fica gravado) e clica em *Assinar com cartão de crédito*.
+3. O Asaas confirma a primeira cobrança, o webhook ativa a assinatura e abre
+   **todos** os campeonatos Diamante daquela conta.
+4. *(Opcional)* Se o cliente negociou condição diferente, o **master** entra
+   antes do passo 2, em **Ajustes** → *"◆ Plano Diamante — valor negociado"*, e
+   registra o valor — mensal ou avulso. Quem valida é o banco
+   (`set_negotiated_price`); só o master enxerga o bloco.
 
 O valor combinado mora em `championships.negotiated_cents`, e não em
 `amount_cents`, porque o gatilho de preço recalcula `amount_cents` a cada

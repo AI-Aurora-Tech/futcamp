@@ -866,9 +866,14 @@ values (:'dia', '11111111-1111-1111-1111-111111111111', 'Copa Diamante', 'futebo
 
 select pg_temp.checa('Diamante nasce BLOQUEADO, não de graça',
   (select payment_status from championships where id = :'dia') = 'pending');
-select pg_temp.checa('  e com valor a combinar',
-  (select amount_cents from championships where id = :'dia') = 0
+-- Desde a 0038 o Diamante tem preço de tabela: nasce mensal, 12 meses,
+-- R$ 200,00 — pronto para o cliente contratar sozinho.
+select pg_temp.checa('  já com o preço de tabela, sem depender de consultor',
+  (select amount_cents from championships where id = :'dia') = 20000
   and (select negotiated_cents from championships where id = :'dia') is null);
+select pg_temp.checa('  e como assinatura mensal de 12 meses',
+  (select negotiated_kind from championships where id = :'dia') = 'mensal'
+  and (select negotiated_months from championships where id = :'dia') = 12);
 
 -- Nem tentando gravar o valor na marra pelo caminho do app.
 set request.jwt.claim.role = 'authenticated';
@@ -932,8 +937,8 @@ select pg_temp.checa('subir do Grátis para o Diamante cobra',
   (public.change_championship_plan(:'gra', 'diamante')->>'cobra')::boolean);
 select pg_temp.checa('  e fecha o campeonato até o pagamento',
   (select payment_status from championships where id = :'gra') = 'pending');
-select pg_temp.checa('  com o valor ainda a combinar',
-  (select amount_cents from championships where id = :'gra') = 0);
+select pg_temp.checa('  pelo valor de tabela do plano',
+  (select amount_cents from championships where id = :'gra') = 20000);
 
 -- ===========================================================================
 -- Diamante por assinatura mensal (0037)
@@ -963,10 +968,20 @@ select public.mark_championship_paid(:'as3', 'pay_avulso_1') as _;
 -- --------------------------------------------------------------------------
 -- O consultor registra a proposta MENSAL
 -- --------------------------------------------------------------------------
-select pg_temp.recusa('sem contrato aceito não há assinatura',
-  $q$ select public.assinatura_aceitar('ee000000-0000-0000-0000-000000000001',
+-- O Diamante já nasce mensal, então o aceite vale desde o primeiro dia.
+select pg_temp.checa('Diamante nasce pronto para assinar, no valor de tabela',
+  (select amount_cents from championships where id = :'as1') = 20000
+  and (select negotiated_kind from championships where id = :'as1') = 'mensal');
+
+-- Negociado como pagamento ÚNICO, porém, não vira assinatura.
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select public.set_negotiated_price(:'as2', 300000, 'avulso combinado', 'avulso') as _;
+set request.jwt.claims = '';
+set request.jwt.claim.sub = :'dono';
+select pg_temp.recusa('campeonato avulso não vira assinatura',
+  $q$ select public.assinatura_aceitar('ee000000-0000-0000-0000-000000000002',
         'Fulano', '52998224725', 'v1', 'texto') $q$,
-  'não foi negociado como assinatura mensal');
+  'pagamento único');
 
 set request.jwt.claims = '{"email":"org@teste.com"}';
 select public.set_negotiated_price(:'as1', 20000, 'Diamante mensal', 'mensal', 12) as _;
@@ -1082,3 +1097,51 @@ select pg_temp.checa('o consultor cancela e os campeonatos fecham',
   and not public.assinatura_ativa(:'dono')
   and (select count(*) from championships
         where owner_id = :'dono' and plan = 'diamante' and payment_status = 'pending') = 2);
+
+-- --------------------------------------------------------------------------
+-- Diamante contratado SEM consultor (0038)
+--
+-- É o caminho que a tabela de preços promete: o cliente lê R$ 200,00/mês,
+-- escolhe o plano, aceita o contrato e assina. Ninguém precisa registrar
+-- valor nenhum antes.
+-- --------------------------------------------------------------------------
+\set solo 'ee999999-9999-9999-9999-999999999998'
+\set cs1  'ef000000-0000-0000-0000-000000000001'
+insert into auth.users (id, email) values (:'solo', 'sozinho@teste.com') on conflict do nothing;
+reset request.jwt.claims;
+set request.jwt.claim.sub = :'solo';
+
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'cs1', :'solo', 'Copa Sozinho', 'futebol', 'league', '2026', 'diamante',
+        '[{"id":"a","name":"A"}]'::jsonb);
+
+select pg_temp.checa('nasce contratável, sem passar por consultor',
+  (select amount_cents from championships where id = :'cs1') = 20000
+  and (select negotiated_kind from championships where id = :'cs1') = 'mensal'
+  and (select negotiated_cents from championships where id = :'cs1') is null);
+
+select public.assinatura_aceitar(:'cs1', 'Sozinho da Silva', '52998224725', 'diamante-v1',
+  'Contrato Diamante — 12 meses, R$ 200,00/mês.') as _;
+select pg_temp.checa('o cliente aceita e a assinatura nasce no valor de tabela',
+  (select cents from subscriptions where owner_id = :'solo') = 20000
+  and (select months from subscriptions where owner_id = :'solo') = 12);
+
+select public.assinatura_atualizar(:'solo', 'paga', 'sub_solo', 'chk_solo') as _;
+select pg_temp.checa('  e o pagamento libera o campeonato',
+  (select payment_status from championships where id = :'cs1') = 'paid');
+
+-- Zerar o valor negociado devolve o plano à tabela, e não a um limbo sem preço.
+set request.jwt.claims = '{"email":"org@teste.com"}';
+\set cs2 'ef000000-0000-0000-0000-000000000002'
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'cs2', :'solo', 'Copa Zerada', 'futebol', 'league', '2026', 'diamante',
+        '[{"id":"a","name":"A"}]'::jsonb);
+select public.set_negotiated_price(:'cs2', 50000, 'desconto', 'mensal', 24) as _;
+select pg_temp.checa('consultor fecha diferente do padrão',
+  (select amount_cents from championships where id = :'cs2') = 50000
+  and (select negotiated_months from championships where id = :'cs2') = 24);
+select public.set_negotiated_price(:'cs2', 0) as _;
+select pg_temp.checa('  e apagar a negociação volta ao plano de tabela',
+  (select amount_cents from championships where id = :'cs2') = 20000
+  and (select negotiated_kind from championships where id = :'cs2') = 'mensal'
+  and (select negotiated_months from championships where id = :'cs2') = 12);

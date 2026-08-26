@@ -27,8 +27,16 @@ export interface PlanInfo {
   maxCategories: number | null
   /** Quantos campeonatos o organizador pode ter neste plano (null = sem limite). */
   maxChampionships: number | null
-  /** Plano sob consulta: não gera cobrança automática. */
+  /** Plano sob consulta: não entra na conta por campeonato + categorias. */
   consult?: boolean
+  /**
+   * Mensalidade publicada, em centavos.
+   *
+   * O Diamante é o único plano cobrado por MÊS, e da conta inteira — não por
+   * campeonato. Este é o valor de tabela: o consultor pode fechar por outro,
+   * e é o valor negociado que vira a cobrança.
+   */
+  monthlyCents?: number
   unit: string
   addon: string
   feats: string[]
@@ -112,17 +120,35 @@ export const PLANS: PlanInfo[] = [
     cap: 'Para organizações que rodam vários campeonatos o ano todo.',
     priceCents: 0,
     addonCents: 0,
+    monthlyCents: 20000,
     maxTeams: null,
     maxCategories: null,
     maxChampionships: null,
     consult: true,
-    unit: 'plano anual',
-    addon: 'Categorias ilimitadas — sem cobrança por adicional',
-    feats: ['Equipes ilimitadas', 'Categorias ilimitadas', 'Todas as funcionalidades'],
-    cta: 'Falar com a gente',
-    badge: 'Anual',
+    unit: 'por mês · campeonatos ilimitados',
+    addon: 'Compromisso de 12 meses · sem cobrança por categoria',
+    feats: [
+      'Campeonatos ilimitados na sua conta',
+      'Equipes e categorias ilimitadas',
+      'Todas as funcionalidades',
+    ],
+    cta: 'Assinar o Diamante',
+    badge: 'Mensal',
   },
 ]
+
+/**
+ * O preço de tabela do plano, em uma linha.
+ *
+ * Um lugar só porque a mesma frase aparece na página de planos, no formulário
+ * de criação e na troca de plano — e um deles ficando para trás é como o
+ * "sob consulta" sobreviveu depois de o Diamante ganhar preço.
+ */
+export function precoDeTabela(plan: PlanInfo): string {
+  if (plan.monthlyCents) return `${formatBRL(plan.monthlyCents)}/mês`
+  if (plan.consult) return 'sob consulta'
+  return plan.priceCents === 0 ? 'grátis' : formatBRL(plan.priceCents)
+}
 
 /** Plano pelo identificador. */
 export function planOf(key: PlanKey | undefined): PlanInfo {

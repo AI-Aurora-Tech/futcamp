@@ -19,23 +19,26 @@ const Check = () => (
 function PlanCta({ plan, onChoose }: { plan: PlanInfo; onChoose: (p: PlanInfo) => void }) {
   const cls = `btn ${plan.featured ? 'btn--primary' : 'btn--ghost'} plan-btn`
 
-  // Diamante: o preço é negociado, então o botão abre a conversa no WhatsApp
-  // já com a mensagem escrita — quem clica não precisa explicar de onde veio.
-  if (plan.consult) {
-    return whatsappDiamante ? (
-      <a className={cls} href={whatsappDiamante} target="_blank" rel="noopener noreferrer">
-        💬 {plan.cta}
-      </a>
-    ) : (
+  // Diamante: com preço na tabela, o botão contrata como o de qualquer outro
+  // plano. O consultor continua a um clique de distância, mas deixou de ser
+  // o único caminho — publicar preço e exigir intermediário para cobrá-lo é
+  // pedir para a pessoa desistir no meio.
+  return (
+    <>
       <button type="button" className={cls} onClick={() => onChoose(plan)}>
         {plan.cta}
       </button>
-    )
-  }
-  return (
-    <button type="button" className={cls} onClick={() => onChoose(plan)}>
-      {plan.cta}
-    </button>
+      {plan.monthlyCents && whatsappDiamante && (
+        <a
+          className="plan-btn__consultor"
+          href={whatsappDiamante}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          💬 ou fale com um consultor
+        </a>
+      )}
+    </>
   )
 }
 
@@ -61,7 +64,8 @@ export function Plans({ onHome }: { onHome: () => void }) {
           </div>
           <p className="plans-lede">
             Cada <b>categoria é um campeonato à parte</b>. Escolha o plano pela quantidade de equipes,
-            monte o campeonato e pague só o que usar — sem mensalidade surpresa.
+            monte o campeonato e pague só o que usar. Quem organiza o ano inteiro tem o{' '}
+            <b>Diamante</b>, mensal e com campeonatos ilimitados.
           </p>
         </div>
       </header>
@@ -78,12 +82,17 @@ export function Plans({ onHome }: { onHome: () => void }) {
               <div className="plan-card__tier"><span className="plan-card__gem">{p.gem}</span> {p.tier}</div>
               <p className="plan-card__cap">{p.cap}</p>
               <div className="plan-price">
-                {!p.consult && <span className="plan-price__cur">R$</span>}
-                <span className={`plan-price__val ${p.consult ? 'plan-price__val--consult' : ''}`}>
-                  {p.consult
-                    ? 'Preço a consultar'
-                    : formatBRL(p.priceCents).replace('R$', '').trim()}
+                {(!p.consult || p.monthlyCents) && <span className="plan-price__cur">R$</span>}
+                <span
+                  className={`plan-price__val ${p.consult && !p.monthlyCents ? 'plan-price__val--consult' : ''}`}
+                >
+                  {p.monthlyCents
+                    ? formatBRL(p.monthlyCents).replace('R$', '').trim()
+                    : p.consult
+                      ? 'Preço a consultar'
+                      : formatBRL(p.priceCents).replace('R$', '').trim()}
                 </span>
+                {p.monthlyCents && <span className="plan-price__mes">/mês</span>}
               </div>
               <div className="plan-price__unit">{p.unit}</div>
               <div className="plan-addon">{p.addon}</div>
