@@ -288,6 +288,79 @@ checkout guardado. Acrescentando `&token=<ASAAS_WEBHOOK_TOKEN>` ela também
 lista as últimas cobranças da conta — é a parte que mostra movimento alheio ao
 campeonato, por isso pede o token.
 
+### ◆ Plano Diamante — valor negociado
+
+O Diamante não tem preço de tabela: o consultor negocia com o cliente e cada
+contrato sai por um valor. Isso **não** significa criar a cobrança na mão no
+painel do Asaas — o app faz o link, e é ele que amarra o pagamento ao
+campeonato.
+
+O caminho é este:
+
+1. O cliente cria o campeonato escolhendo **Diamante**. Ele nasce **fechado**,
+   com valor *a combinar*, e a tela diz para falar com o consultor.
+2. O consultor negocia e, no app, abre o campeonato → **Ajustes** →
+   *"◆ Plano Diamante — valor negociado"* → escolhe **assinatura mensal** ou
+   **valor único**, informa o valor (e o prazo, no mensal) e uma anotação. Só o
+   **administrador master** vê esse bloco; quem valida é o banco
+   (`set_negotiated_price`).
+3. No **valor único**, o cliente vê a cobrança e paga com Pix, boleto ou
+   cartão. No **mensal**, ele lê e **aceita o contrato** e depois assina no
+   cartão — o débito é mensal e não compromete o limite dele.
+4. O Asaas confirma, o webhook libera. **Nada de novo na integração.**
+
+O valor combinado mora em `championships.negotiated_cents`, e não em
+`amount_cents`, porque o gatilho de preço recalcula `amount_cents` a cada
+alteração do campeonato enquanto ele está pendente — guardado ali, o combinado
+sumiria assim que o cliente acrescentasse uma categoria.
+
+#### Mensal ou avulso
+
+O consultor escolhe a modalidade na hora de registrar a proposta:
+
+| | **◆ Assinatura mensal** | **◆ Valor único** |
+|---|---|---|
+| Cobrança | R$ X **por mês** no cartão de crédito, pelo Asaas (`chargeTypes: RECURRENT`) | Uma vez, Pix/boleto/cartão |
+| Limite do cartão | **Não compromete** — cada mês é uma cobrança de R$ X, não uma autorização do total | — |
+| Vale para | A **conta** do organizador: todos os campeonatos Diamante dele | Aquele campeonato |
+| Contrato | O cliente aceita antes de assinar; nome, documento, data e o **texto integral** ficam gravados | — |
+| Atraso | 7 dias de carência, depois os campeonatos fecham (nada é apagado) | — |
+
+O Asaas **não tem fidelidade nem multa por cancelamento** — a assinatura dele
+recorre até alguém parar. O compromisso de 12 meses existe no **aceite**
+(`subscriptions`, migration 0037), que guarda o contrato inteiro: um número de
+versão sozinho seria confiar que ninguém mexeu no modelo depois.
+
+A assinatura é da **conta**, e não de um campeonato, porque o Diamante promete
+campeonatos ilimitados — cobrar por campeonato contradiz o que foi vendido.
+Ativa, todos os campeonatos Diamante daquele cliente abrem; encerrada, fecham
+— menos os que foram pagos avulsos, que já estão quitados por conta própria.
+
+> ⏰ **Agende a função `assinaturas-varrer` uma vez por dia.** A carência de 7
+> dias vence pelo relógio, e relógio nenhum dispara gatilho no banco. Sem o
+> agendamento, quem parou de pagar continua com os campeonatos abertos — a
+> assinatura cancelada para de gerar cobrança, então nenhum webhook chega para
+> avisar.
+
+> **Precisa mesmo cobrar por fora?** Se a cobrança for criada no painel do
+> Asaas, preencha a **Referência externa** (`externalReference`) com o **id do
+> campeonato** — é por ele que o webhook reencontra o campeonato. Um dígito
+> errado e o dinheiro entra sem liberar nada; por isso o caminho de cima é o
+> recomendado. Para recebimento fora do Asaas (transferência, dinheiro), use
+> **👑 Liberar sem cobrança**, que registra o motivo no campeonato.
+
+> ⚠️ **Antes da migration `0036`, escolher Diamante liberava o campeonato de
+> graça, na hora.** O preço zero de "sob consulta" caía no mesmo ramo do plano
+> Grátis. Para ver quem entrou por essa porta:
+> ```sql
+> select id, name, created_at from public.championships
+>  where lower(plan) = 'diamante' and payment_status = 'free'
+>  order by created_at desc;
+> ```
+> A migration não mexe nesses campeonatos de propósito — pode haver contrato
+> de verdade no meio, e fechar o campeonato de um cliente no meio da temporada
+> é pior do que o problema.
+
 ### Onde vai cada credencial
 
 | Credencial | Onde | Por quê |

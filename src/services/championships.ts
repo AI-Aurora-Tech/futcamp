@@ -52,6 +52,10 @@ function fromRow(r: any): Championship {
     // Campeonato antigo (antes da cobrança) não tem situação: vale como pago.
     paymentStatus: r.payment_status ?? undefined,
     amountCents: r.amount_cents ?? undefined,
+    negotiatedCents: r.negotiated_cents ?? undefined,
+    negotiatedNote: r.negotiated_note ?? undefined,
+    negotiatedKind: r.negotiated_kind ?? undefined,
+    negotiatedMonths: r.negotiated_months ?? undefined,
     paymentRef: r.payment_ref ?? undefined,
     paidAt: r.paid_at ?? undefined,
     benchSize: r.bench_size ?? undefined,

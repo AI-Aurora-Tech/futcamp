@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { checkPayment, masterRelease, refreshPayment, startCheckout } from '../services/payments'
+import {
+  acceptContract,
+  checkPayment,
+  getSubscription,
+  masterRelease,
+  refreshPayment,
+  setNegotiatedPrice,
+  startCheckout,
+} from '../services/payments'
+import { CONTRATO_VERSAO, contratoDiamante, totalDoContrato } from '../lib/contrato'
+import type { Subscription } from '../types'
 import { useAuth } from '../context/AuthContext'
 import { breakdown, formatBRL } from '../lib/pricing'
 import type { Championship } from '../types'
-import { LINK_SUPORTE_PAGAMENTO } from '../lib/whatsapp'
+import { LINK_DIAMANTE, LINK_SUPORTE_PAGAMENTO } from '../lib/whatsapp'
 import { PlanoBlock } from './PlanoBlock'
-import { Button, Spinner, SuporteLink } from './ui'
+import { Button, Field, Spinner, SuporteLink } from './ui'
 
 /**
  * Cobrança do campeonato: mostra a conta (plano + categorias adicionais),
@@ -133,6 +143,15 @@ export function PaymentPanel({
     }
   }
 
+  // Diamante: o valor não vem da tabela de preços, vem da negociação. Enquanto
+  // o consultor não registra quanto ficou, não há o que cobrar.
+  const diamante = b.plan.consult
+  const combinado = champ.negotiatedCents ?? 0
+  const aCombinar = diamante && combinado <= 0
+  // Vendido como assinatura: a cobrança é mensal, da CONTA, e passa pelo
+  // aceite do contrato antes de virar link de pagamento.
+  const mensal = diamante && champ.negotiatedKind === 'mensal' && combinado > 0
+
   return (
     <section className="pay">
       <div className="pay__head">
@@ -146,35 +165,87 @@ export function PaymentPanel({
       </div>
 
       <ul className="pay__lines">
-        <li>
-          <span>Plano {b.plan.tier} <span className="muted small">(1ª categoria inclusa)</span></span>
-          <span>{formatBRL(b.baseCents)}</span>
-        </li>
-        {b.extraCategories > 0 && (
+        {diamante ? (
           <li>
             <span>
-              {b.extraCategories} categoria(s) adicional(is)
-              <span className="muted small"> × {formatBRL(b.plan.addonCents)}</span>
+              Plano Diamante{' '}
+              <span className="muted small">
+                {mensal
+                  ? `assinatura mensal · ${champ.negotiatedMonths ?? 12} meses`
+                  : '(categorias e equipes ilimitadas)'}
+              </span>
             </span>
-            <span>{formatBRL(b.extraCents)}</span>
+            <span>{aCombinar ? '—' : mensal ? `${formatBRL(combinado)}/mês` : formatBRL(combinado)}</span>
           </li>
+        ) : (
+          <>
+            <li>
+              <span>Plano {b.plan.tier} <span className="muted small">(1ª categoria inclusa)</span></span>
+              <span>{formatBRL(b.baseCents)}</span>
+            </li>
+            {b.extraCategories > 0 && (
+              <li>
+                <span>
+                  {b.extraCategories} categoria(s) adicional(is)
+                  <span className="muted small"> × {formatBRL(b.plan.addonCents)}</span>
+                </span>
+                <span>{formatBRL(b.extraCents)}</span>
+              </li>
+            )}
+          </>
         )}
         <li className="pay__total">
-          <span>Total</span>
-          <span>{formatBRL(total)}</span>
+          <span>{mensal ? 'Por mês' : 'Total'}</span>
+          <span>
+            {aCombinar ? 'a combinar' : formatBRL(mensal || diamante ? combinado : total)}
+          </span>
         </li>
+        {mensal && (
+          <li className="muted small">
+            <span>Compromisso de {champ.negotiatedMonths ?? 12} meses</span>
+            <span>
+              {formatBRL(totalDoContrato({ cents: combinado, meses: champ.negotiatedMonths ?? 12 }))}
+            </span>
+          </li>
+        )}
       </ul>
+
+      {/* Diamante sem valor registrado: não há link a gerar, e é melhor dizer
+          isso do que oferecer um botão que responde erro. */}
+      {aCombinar && (
+        <p className="pay__consulta">
+          ◆ O <b>Diamante</b> é negociado caso a caso. Fale com o consultor: assim que o valor
+          for combinado, ele aparece aqui e o pagamento é liberado nesta mesma tela.
+          {' '}<SuporteLink href={LINK_DIAMANTE}>Falar com o consultor</SuporteLink>
+        </p>
+      )}
+
+      {diamante && !aCombinar && champ.negotiatedNote && (
+        <p className="muted small pay__note">◆ Negociação: {champ.negotiatedNote}</p>
+      )}
 
       {error && <p className="auth-error">{error}</p>}
 
-      <div className="pay__actions">
-        <Button onClick={() => void pay()} disabled={busy}>
-          {busy ? 'Gerando link…' : link ? '↻ Abrir pagamento de novo' : '💳 Pagar com Pix, boleto ou cartão'}
-        </Button>
-        <Button variant="ghost" onClick={() => void check()} disabled={checking}>
-          {checking ? 'Perguntando ao Asaas…' : 'Já paguei — conferir'}
-        </Button>
-      </div>
+      {mensal ? (
+        <AssinaturaDiamante
+          champ={champ}
+          cents={combinado}
+          meses={champ.negotiatedMonths ?? 12}
+          assinando={busy}
+          onAssinar={() => void pay()}
+          onConferir={() => void check()}
+          conferindo={checking}
+        />
+      ) : (
+        <div className="pay__actions">
+          <Button onClick={() => void pay()} disabled={busy || aCombinar}>
+            {busy ? 'Gerando link…' : link ? '↻ Abrir pagamento de novo' : '💳 Pagar com Pix, boleto ou cartão'}
+          </Button>
+          <Button variant="ghost" onClick={() => void check()} disabled={checking}>
+            {checking ? 'Perguntando ao Asaas…' : 'Já paguei — conferir'}
+          </Button>
+        </div>
+      )}
 
       {isMaster && (
         <div className="pay__master">
@@ -207,5 +278,294 @@ export function PaymentPanel({
           campeonato na hora, sem perder o que já foi cadastrado. */}
       <PlanoBlock champ={champ} onChanged={() => onChanged?.()} />
     </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Valor negociado do plano Diamante — visão do consultor (master)             */
+/*                                                                            */
+/* Fica nos Ajustes, e não na tela de cobrança, porque o master NUNCA vê a    */
+/* tela de cobrança: ele entra direto no campeonato, em qualquer situação.    */
+/* -------------------------------------------------------------------------- */
+export function DiamanteNegociacao({
+  champ,
+  onChanged,
+}: {
+  champ: Championship
+  onChanged: (c: Championship) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const combinado = champ.negotiatedCents ?? 0
+  const pago = champ.paymentStatus === 'paid'
+  const mensalidade = champ.negotiatedKind === 'mensal'
+  const meses = champ.negotiatedMonths ?? 12
+
+  /**
+   * Registra o valor combinado.
+   *
+   * O Diamante não tem preço de tabela — cada contrato sai por um valor. É o
+   * consultor quem sabe qual, e é aqui que ele entra no sistema. Definido o
+   * valor, o cliente vê a cobrança e paga pelo link do Asaas como em qualquer
+   * outro plano; a liberação continua sendo do webhook.
+   */
+  async function combinar(kind: 'avulso' | 'mensal') {
+    const atual = combinado ? (combinado / 100).toFixed(2) : ''
+    const digitado = prompt(
+      kind === 'mensal'
+        ? `Mensalidade do Diamante para "${champ.name}".\n\n` +
+            'Em reais, o valor de CADA mês (ex.: 200 ou 200,00).\n' +
+            'Deixe em branco (ou 0) para voltar a "a combinar".'
+        : `Valor único do Diamante para "${champ.name}".\n\n` +
+            'Em reais, como você negociou (ex.: 2500 ou 2500,00).\n' +
+            'Deixe em branco (ou 0) para voltar a "a combinar".',
+      atual,
+    )
+    if (digitado === null) return
+
+    const limpo = digitado.trim().replace(/[R$\s.]/g, '').replace(',', '.')
+    const reais = limpo === '' ? 0 : Number(limpo)
+    if (!Number.isFinite(reais) || reais < 0) {
+      setError('Valor inválido. Digite só o número, como 200 ou 200,00.')
+      return
+    }
+
+    let meses = champ.negotiatedMonths ?? 12
+    if (reais > 0 && kind === 'mensal') {
+      const m = prompt('Compromisso de quantos meses?', String(meses))
+      if (m === null) return
+      const n = Number(m.trim())
+      if (!Number.isFinite(n) || n < 1 || n > 60) {
+        setError('Prazo inválido. Use um número de meses entre 1 e 60.')
+        return
+      }
+      meses = Math.round(n)
+    }
+
+    const nota =
+      reais > 0
+        ? prompt('Anotação da negociação (proposta, contrato, condições):', champ.negotiatedNote ?? '')
+        : null
+    if (reais > 0 && nota === null) return
+
+    setBusy(true)
+    setError(null)
+    try {
+      const fresh = await setNegotiatedPrice(
+        champ.id, Math.round(reais * 100), nota ?? undefined, kind, meses,
+      )
+      if (fresh) onChanged(fresh)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="settings-block">
+      <h3>◆ Plano Diamante — valor negociado</h3>
+      <p className="muted small">
+        {pago ? (
+          <>
+            Contrato fechado por <b>{formatBRL(champ.amountCents ?? 0)}</b> e já pago. O valor não
+            muda mais.
+          </>
+        ) : combinado > 0 ? (
+          mensalidade ? (
+            <>
+              Combinado: <b>{formatBRL(combinado)}/mês</b> por <b>{meses} meses</b> (
+              {formatBRL(totalDoContrato({ cents: combinado, meses }))} no total). O cliente aceita o
+              contrato e assina no cartão; a partir daí <b>todos</b> os campeonatos Diamante da conta
+              dele ficam abertos enquanto a assinatura estiver em dia.
+            </>
+          ) : (
+            <>
+              Combinado: <b>{formatBRL(combinado)}</b>, pagamento único. O cliente já vê a cobrança e
+              o botão de pagar; quando o Asaas confirmar, o campeonato libera sozinho.
+            </>
+          )
+        ) : (
+          <>
+            Ainda <b>a combinar</b>. O campeonato fica fechado até você registrar o valor e o
+            cliente pagar. Registrado aqui, o link de pagamento sai pelo Asaas já amarrado a
+            este campeonato — não precisa criar cobrança no painel do Asaas.
+          </>
+        )}
+      </p>
+      {champ.negotiatedNote && <p className="muted small">Negociação: {champ.negotiatedNote}</p>}
+      {error && <p className="auth-error">{error}</p>}
+      {!pago && (
+        <div className="panel__head-actions">
+          <Button variant="soft" onClick={() => void combinar('mensal')} disabled={busy}>
+            {busy ? 'Registrando…' : '◆ Assinatura mensal'}
+          </Button>
+          <Button variant="ghost" onClick={() => void combinar('avulso')} disabled={busy}>
+            {busy ? 'Registrando…' : '◆ Valor único'}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Assinatura mensal do Diamante — visão do cliente                           */
+/*                                                                            */
+/* Duas etapas, nesta ordem, e a ordem é o ponto: primeiro o ACEITE do        */
+/* contrato, depois o cartão. O Asaas não sabe representar compromisso de 12  */
+/* meses — a assinatura dele recorre até alguém parar. O que segura o prazo   */
+/* é o aceite, e ele precisa existir antes de haver o que cobrar.             */
+/* -------------------------------------------------------------------------- */
+function AssinaturaDiamante({
+  champ,
+  cents,
+  meses,
+  assinando,
+  onAssinar,
+  onConferir,
+  conferindo,
+}: {
+  champ: Championship
+  cents: number
+  meses: number
+  assinando: boolean
+  onAssinar: () => void
+  onConferir: () => void
+  conferindo: boolean
+}) {
+  const [sub, setSub] = useState<Subscription | null | undefined>(undefined)
+  const [nome, setNome] = useState('')
+  const [documento, setDocumento] = useState('')
+  const [marcado, setMarcado] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const texto = contratoDiamante({ campeonato: champ.name, cents, meses })
+
+  useEffect(() => {
+    let vivo = true
+    getSubscription()
+      .then((s) => vivo && setSub(s))
+      .catch(() => vivo && setSub(null))
+    return () => {
+      vivo = false
+    }
+  }, [champ.id])
+
+  async function aceitar() {
+    if (!nome.trim() || !documento.trim()) {
+      setError('Preencha o nome e o documento de quem está aceitando.')
+      return
+    }
+    if (!marcado) {
+      setError('Marque a confirmação de que leu e aceita o contrato.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      setSub(await acceptContract({
+        championshipId: champ.id,
+        nome: nome.trim(),
+        documento: documento.trim(),
+        versao: CONTRATO_VERSAO,
+        texto,
+      }))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (sub === undefined) {
+    return <div className="pad-lg center"><Spinner /></div>
+  }
+
+  // Assinatura atrasada além da carência: não é hora de contrato novo, é hora
+  // de regularizar o cartão.
+  if (sub && sub.status === 'overdue') {
+    return (
+      <div className="assina">
+        <p className="assina__aviso">
+          ⚠️ A cobrança deste mês não foi paga. Regularize o cartão para o campeonato voltar ao ar —
+          nada foi apagado.
+        </p>
+        <div className="pay__actions">
+          <Button variant="ghost" onClick={onConferir} disabled={conferindo}>
+            {conferindo ? 'Perguntando ao Asaas…' : 'Já regularizei — conferir'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Contrato já aceito: falta o cartão.
+  if (sub && sub.contractAt) {
+    return (
+      <div className="assina">
+        <p className="assina__ok">
+          ✅ Contrato aceito por <b>{sub.contractName}</b> em{' '}
+          {new Date(sub.contractAt).toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+          })}
+          .
+        </p>
+        <p className="muted small">
+          O cartão é debitado em <b>{formatBRL(cents)}</b> por mês, durante {meses} meses. Não é
+          parcelamento: o limite do seu cartão não fica preso no valor total.
+        </p>
+        <div className="pay__actions">
+          <Button onClick={onAssinar} disabled={assinando}>
+            {assinando ? 'Gerando link…' : '💳 Assinar com cartão de crédito'}
+          </Button>
+          <Button variant="ghost" onClick={onConferir} disabled={conferindo}>
+            {conferindo ? 'Perguntando ao Asaas…' : 'Já assinei — conferir'}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="assina">
+      <h4 className="assina__titulo">Contrato da assinatura</h4>
+      <p className="muted small">
+        {formatBRL(cents)} por mês, durante {meses} meses —{' '}
+        {formatBRL(totalDoContrato({ cents, meses }))} no total. Leia e aceite para liberar o
+        pagamento.
+      </p>
+      <pre className="assina__texto">{texto}</pre>
+
+      <div className="form-row">
+        <Field label="Nome de quem aceita">
+          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome completo" />
+        </Field>
+        <Field label="CPF ou CNPJ">
+          <input
+            value={documento}
+            onChange={(e) => setDocumento(e.target.value)}
+            placeholder="000.000.000-00"
+          />
+        </Field>
+      </div>
+
+      <label className="assina__check">
+        <input type="checkbox" checked={marcado} onChange={(e) => setMarcado(e.target.checked)} />
+        <span>
+          Li e aceito o contrato acima, inclusive o compromisso de {meses} meses e a carência de 7
+          dias em caso de atraso.
+        </span>
+      </label>
+
+      {error && <p className="auth-error">{error}</p>}
+
+      <div className="pay__actions">
+        <Button onClick={() => void aceitar()} disabled={busy}>
+          {busy ? 'Registrando…' : '✍️ Aceitar contrato'}
+        </Button>
+      </div>
+    </div>
   )
 }

@@ -17,7 +17,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { getChampionship } from './championships'
 import { mutate } from './demo'
-import type { Championship } from '../types'
+import type { Championship, Subscription } from '../types'
 
 export interface CheckResult {
   champ: Championship | null
@@ -116,6 +116,58 @@ export async function checkPayment(championshipId: string): Promise<CheckResult>
  * que o Asaas não entregou). Quem valida é o banco, na
  * `master_release_championship`: o navegador não decide isso.
  */
+/**
+ * Registra o valor NEGOCIADO do plano Diamante (só o master).
+ *
+ * O Diamante não tem preço de tabela: o consultor combina com o cliente e é
+ * este valor que vira a cobrança. Depois disso o link de pagamento sai pelo
+ * mesmo caminho de todo mundo — `startCheckout` —, já amarrado ao campeonato.
+ *
+ * `cents` igual a zero devolve o campeonato para "a combinar".
+ */
+export async function setNegotiatedPrice(
+  championshipId: string,
+  cents: number,
+  nota?: string,
+  kind: 'avulso' | 'mensal' = 'avulso',
+  months = 12,
+): Promise<Championship | null> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('set_negotiated_price', {
+      p_champ: championshipId,
+      p_cents: Math.max(0, Math.round(cents)),
+      p_nota: nota ?? null,
+      p_kind: kind,
+      p_months: Math.max(1, Math.round(months)),
+    })
+    if (error) {
+      throw new Error(
+        /function .* does not exist/i.test(error.message)
+          ? 'As migrations 0036/0037 do plano Diamante ainda não foram aplicadas no Supabase.'
+          : error.message,
+      )
+    }
+    return refreshPayment(championshipId)
+  }
+
+  // Demo: guarda o valor no navegador, para dar para ver a tela funcionando.
+  mutate((d) => {
+    const i = d.championships.findIndex((c) => c.id === championshipId)
+    if (i >= 0) {
+      d.championships[i] = {
+        ...d.championships[i],
+        negotiatedCents: cents > 0 ? Math.round(cents) : undefined,
+        negotiatedNote: nota?.trim() || undefined,
+        negotiatedKind: cents > 0 ? kind : undefined,
+        negotiatedMonths: cents > 0 && kind === 'mensal' ? Math.max(1, Math.round(months)) : undefined,
+        amountCents: Math.max(0, Math.round(cents)),
+        paymentStatus: 'pending',
+      }
+    }
+  })
+  return getChampionship(championshipId)
+}
+
 export async function masterRelease(championshipId: string, nota?: string): Promise<Championship | null> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.rpc('master_release_championship', {
@@ -206,4 +258,99 @@ function pista(status: number, corpo: string): string {
     return 'A função asaas-checkout falhou. Veja o log em Supabase → Edge Functions → asaas-checkout → Logs.'
   }
   return ''
+}
+
+/* -------------------------------------------------------------------------- */
+/* Assinatura do plano Diamante                                               */
+/* -------------------------------------------------------------------------- */
+
+function subFromRow(r: Record<string, unknown>): Subscription {
+  return {
+    id: String(r.id),
+    ownerId: String(r.owner_id),
+    cents: Number(r.cents ?? 0),
+    months: Number(r.months ?? 12),
+    status: r.status as Subscription['status'],
+    startedAt: (r.started_at as string) ?? undefined,
+    nextDueAt: (r.next_due_at as string) ?? undefined,
+    endsAt: (r.ends_at as string) ?? undefined,
+    graceUntil: (r.grace_until as string) ?? undefined,
+    contractVersion: (r.contract_version as string) ?? undefined,
+    contractName: (r.contract_name as string) ?? undefined,
+    contractDocument: (r.contract_document as string) ?? undefined,
+    contractAt: (r.contract_at as string) ?? undefined,
+  }
+}
+
+/**
+ * A assinatura viva desta conta, se houver.
+ *
+ * A RLS já restringe: o organizador enxerga a própria, o master enxerga
+ * todas. Aqui não há filtro de dono de propósito — quem filtra é o banco.
+ */
+export async function getSubscription(): Promise<Subscription | null> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .in('status', ['pending', 'active', 'overdue'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    // Tabela ausente (migration 0037 não aplicada) não pode quebrar a tela.
+    if (error) return null
+    return data ? subFromRow(data as Record<string, unknown>) : null
+  }
+  return demoSub
+}
+
+/** Modo demo: a assinatura mora na memória, só para a tela dar para ver. */
+let demoSub: Subscription | null = null
+
+/**
+ * Aceite do contrato — é ele que cria a assinatura.
+ *
+ * O texto vai por inteiro para o banco: contrato é o que a pessoa leu naquele
+ * dia, e reconstruí-lo depois a partir de um número de versão seria confiar
+ * que ninguém mexeu no modelo.
+ */
+export async function acceptContract(params: {
+  championshipId: string
+  nome: string
+  documento: string
+  versao: string
+  texto: string
+}): Promise<Subscription | null> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('assinatura_aceitar', {
+      p_champ: params.championshipId,
+      p_nome: params.nome,
+      p_documento: params.documento,
+      p_versao: params.versao,
+      p_texto: params.texto,
+      p_ip: null,
+    })
+    if (error) {
+      throw new Error(
+        /function .* does not exist/i.test(error.message)
+          ? 'A migration 0037_assinatura_diamante.sql ainda não foi aplicada no Supabase.'
+          : error.message,
+      )
+    }
+    return getSubscription()
+  }
+
+  const champ = await getChampionship(params.championshipId)
+  demoSub = {
+    id: 'demo-sub',
+    ownerId: champ?.ownerId ?? 'demo',
+    cents: champ?.negotiatedCents ?? 0,
+    months: champ?.negotiatedMonths ?? 12,
+    status: 'pending',
+    contractVersion: params.versao,
+    contractName: params.nome,
+    contractDocument: params.documento,
+    contractAt: new Date().toISOString(),
+  }
+  return demoSub
 }

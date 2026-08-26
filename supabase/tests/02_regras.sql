@@ -849,3 +849,236 @@ select pg_temp.checa('categoria única não vira prefixo vazio',
    = 'Alfa × Beta · sáb 12/09 às 15:00');
 select pg_temp.checa('  e a partida sem categoria cai na primeira',
   (select category_id from push_outbox where dedupe_key = 'jogo:ac000000-0000-0000-0000-000000000001') = 'c1');
+
+-- ===========================================================================
+-- Plano Diamante com valor negociado (0036)
+--
+-- O Diamante não tem preço de tabela. Antes desta migration, "sem preço"
+-- virava "de graça": escolher Diamante liberava o campeonato na hora.
+-- ===========================================================================
+\set dia 'dd000000-0000-0000-0000-000000000001'
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
+
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'dia', '11111111-1111-1111-1111-111111111111', 'Copa Diamante', 'futebol', 'league',
+        '2026', 'diamante', '[{"id":"a","name":"A"},{"id":"b","name":"B"}]'::jsonb);
+
+select pg_temp.checa('Diamante nasce BLOQUEADO, não de graça',
+  (select payment_status from championships where id = :'dia') = 'pending');
+select pg_temp.checa('  e com valor a combinar',
+  (select amount_cents from championships where id = :'dia') = 0
+  and (select negotiated_cents from championships where id = :'dia') is null);
+
+-- Nem tentando gravar o valor na marra pelo caminho do app.
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claim.sub  = '11111111-1111-1111-1111-111111111111';
+update public.championships set negotiated_cents = 100, payment_status = 'free' where id = :'dia';
+select pg_temp.checa('o app não combina o próprio preço',
+  (select negotiated_cents from championships where id = :'dia') is null
+  and (select payment_status from championships where id = :'dia') = 'pending');
+
+select pg_temp.recusa('quem não é master não define o valor',
+  $q$ select public.set_negotiated_price('dd000000-0000-0000-0000-000000000001', 250000) $q$,
+  'Somente o administrador master');
+
+-- O consultor registra o que foi negociado.
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select public.set_negotiated_price(:'dia', 250000, 'contrato anual 2026') as _;
+select pg_temp.checa('o master registra o valor negociado',
+  (select amount_cents from championships where id = :'dia') = 250000);
+select pg_temp.checa('  e o campeonato continua fechado até pagar',
+  (select payment_status from championships where id = :'dia') = 'pending');
+select pg_temp.checa('  com a anotação da negociação',
+  (select negotiated_note from championships where id = :'dia') = 'contrato anual 2026');
+
+-- Mexer no campeonato não pode apagar o valor combinado — era o motivo de ele
+-- morar em coluna própria, e não em `amount_cents`.
+set request.jwt.claims = '';
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claim.sub  = '11111111-1111-1111-1111-111111111111';
+update public.championships
+   set categories = '[{"id":"a","name":"A"},{"id":"b","name":"B"},{"id":"c","name":"C"}]'::jsonb
+ where id = :'dia';
+select pg_temp.checa('acrescentar categoria não apaga o valor combinado',
+  (select amount_cents from championships where id = :'dia') = 250000);
+
+-- Pago: o webhook libera pelo caminho normal.
+select public.mark_championship_paid(:'dia', 'pay_diamante_1') as _;
+select pg_temp.checa('pagamento confirmado libera o Diamante',
+  (select payment_status from championships where id = :'dia') = 'paid');
+
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select pg_temp.recusa('depois de pago o valor não muda mais',
+  $q$ select public.set_negotiated_price('dd000000-0000-0000-0000-000000000001', 10) $q$,
+  'já está pago');
+select pg_temp.recusa('valor negociado só vale para o Diamante',
+  $q$ select public.set_negotiated_price('44444444-4444-4444-4444-444444444444', 10) $q$,
+  'plano Diamante');
+
+-- --------------------------------------------------------------------------
+-- Trocar para o Diamante também não pode liberar nada (o furo da 0032)
+-- --------------------------------------------------------------------------
+\set gra 'dd000000-0000-0000-0000-000000000002'
+set request.jwt.claims = '';
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'gra', '11111111-1111-1111-1111-111111111111', 'Copa Grátis', 'futebol', 'league',
+        '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb);
+select pg_temp.checa('campeonato grátis nasce liberado',
+  (select payment_status from championships where id = :'gra') = 'free');
+
+select pg_temp.checa('subir do Grátis para o Diamante cobra',
+  (public.change_championship_plan(:'gra', 'diamante')->>'cobra')::boolean);
+select pg_temp.checa('  e fecha o campeonato até o pagamento',
+  (select payment_status from championships where id = :'gra') = 'pending');
+select pg_temp.checa('  com o valor ainda a combinar',
+  (select amount_cents from championships where id = :'gra') = 0);
+
+-- ===========================================================================
+-- Diamante por assinatura mensal (0037)
+--
+-- A assinatura é da CONTA: ativa, abre TODOS os campeonatos Diamante daquele
+-- organizador. É o que faz "campeonatos ilimitados" ser verdade.
+-- ===========================================================================
+-- Um organizador SÓ deste bloco: os testes contam campeonatos por dono, e o
+-- organizador padrão já carrega Diamantes de blocos anteriores.
+\set dono 'ee999999-9999-9999-9999-999999999999'
+insert into auth.users (id, email) values (:'dono', 'assinante@teste.com') on conflict do nothing;
+\set as1  'ee000000-0000-0000-0000-000000000001'
+\set as2  'ee000000-0000-0000-0000-000000000002'
+\set as3  'ee000000-0000-0000-0000-000000000003'
+
+reset request.jwt.claims;
+set request.jwt.claim.sub = :'dono';
+
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories) values
+  (:'as1', :'dono', 'Liga Aurora',  'futebol', 'league', '2026', 'diamante', '[{"id":"a","name":"A"}]'::jsonb),
+  (:'as2', :'dono', 'Copa Aurora',  'futebol', 'league', '2026', 'diamante', '[{"id":"a","name":"A"}]'::jsonb),
+  (:'as3', :'dono', 'Torneio Solto','futebol', 'league', '2026', 'diamante', '[{"id":"a","name":"A"}]'::jsonb);
+
+-- O terceiro foi vendido avulso e já está quitado: a assinatura não manda nele.
+select public.mark_championship_paid(:'as3', 'pay_avulso_1') as _;
+
+-- --------------------------------------------------------------------------
+-- O consultor registra a proposta MENSAL
+-- --------------------------------------------------------------------------
+select pg_temp.recusa('sem contrato aceito não há assinatura',
+  $q$ select public.assinatura_aceitar('ee000000-0000-0000-0000-000000000001',
+        'Fulano', '52998224725', 'v1', 'texto') $q$,
+  'não foi negociado como assinatura mensal');
+
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select public.set_negotiated_price(:'as1', 20000, 'Diamante mensal', 'mensal', 12) as _;
+select pg_temp.checa('proposta mensal registrada',
+  (select negotiated_kind from championships where id = :'as1') = 'mensal'
+  and (select negotiated_cents from championships where id = :'as1') = 20000
+  and (select negotiated_months from championships where id = :'as1') = 12);
+select pg_temp.checa('  e o campeonato segue fechado — ninguém pagou ainda',
+  (select payment_status from championships where id = :'as1') = 'pending');
+
+select pg_temp.recusa('modalidade inventada é recusada',
+  $q$ select public.set_negotiated_price('ee000000-0000-0000-0000-000000000001', 20000, null, 'trimestral') $q$,
+  'Modalidade desconhecida');
+
+-- --------------------------------------------------------------------------
+-- O cliente aceita o contrato
+-- --------------------------------------------------------------------------
+set request.jwt.claims = '';
+set request.jwt.claim.sub = :'dono';
+select pg_temp.recusa('aceite sem nome e documento é recusado',
+  $q$ select public.assinatura_aceitar('ee000000-0000-0000-0000-000000000001',
+        '', '', 'v1', 'texto do contrato') $q$,
+  'nome e o documento');
+
+select public.assinatura_aceitar(:'as1', 'Fulano de Tal', '529.982.247-25', 'diamante-v1',
+  'Contrato Diamante — 12 meses, R$ 200,00/mês.') as _;
+
+select pg_temp.checa('o aceite cria a assinatura, ainda pendente',
+  (select status from subscriptions where owner_id = :'dono') = 'pending');
+select pg_temp.checa('  com o valor mensal e os 12 meses',
+  (select cents from subscriptions where owner_id = :'dono') = 20000
+  and (select months from subscriptions where owner_id = :'dono') = 12);
+select pg_temp.checa('  e o contrato guardado por inteiro',
+  (select contract_text from subscriptions where owner_id = :'dono')
+    = 'Contrato Diamante — 12 meses, R$ 200,00/mês.'
+  and (select contract_name from subscriptions where owner_id = :'dono') = 'Fulano de Tal');
+select pg_temp.checa('assinatura pendente ainda não vale',
+  not public.assinatura_ativa(:'dono'));
+select pg_temp.checa('  e os campeonatos continuam fechados',
+  (select count(*) from championships
+    where owner_id = :'dono' and plan = 'diamante' and payment_status = 'pending') = 2);
+
+-- Contrato de campeonato alheio.
+insert into auth.users (id, email) values ('ef000000-0000-0000-0000-000000000009', 'outro@teste.com')
+  on conflict do nothing;
+set request.jwt.claim.sub = 'ef000000-0000-0000-0000-000000000009';
+select pg_temp.recusa('ninguém aceita contrato de campeonato alheio',
+  $q$ select public.assinatura_aceitar('ee000000-0000-0000-0000-000000000001',
+        'Intruso', '52998224725', 'v1', 'texto') $q$,
+  'Somente o organizador');
+set request.jwt.claim.sub = :'dono';
+
+-- --------------------------------------------------------------------------
+-- O Asaas confirma a primeira cobrança
+-- --------------------------------------------------------------------------
+select public.assinatura_atualizar(:'dono', 'paga', 'sub_asaas_1', 'chk_1', now() + interval '30 days') as _;
+
+select pg_temp.checa('primeira cobrança ativa a assinatura',
+  (select status from subscriptions where owner_id = :'dono') = 'active');
+select pg_temp.checa('  e os 12 meses passam a contar da primeira cobrança',
+  (select ends_at from subscriptions where owner_id = :'dono') > now() + interval '360 days');
+select pg_temp.checa('a assinatura abre TODOS os campeonatos Diamante da conta',
+  (select count(*) from championships
+    where owner_id = :'dono' and plan = 'diamante' and payment_status = 'paid') = 3);
+
+-- --------------------------------------------------------------------------
+-- O cartão falha: carência de 7 dias
+-- --------------------------------------------------------------------------
+select public.assinatura_atualizar(:'dono', 'atrasada') as _;
+select pg_temp.checa('cobrança atrasada não derruba na hora',
+  (select status from subscriptions where owner_id = :'dono') = 'overdue'
+  and public.assinatura_ativa(:'dono'));
+select pg_temp.checa('  e os campeonatos seguem abertos durante a carência',
+  (select count(*) from championships
+    where owner_id = :'dono' and plan = 'diamante' and payment_status = 'paid') = 3);
+select pg_temp.checa('  a varredura não fecha nada antes do prazo',
+  public.assinaturas_varrer() = 0);
+
+-- Passou a carência.
+update public.subscriptions set grace_until = now() - interval '1 hour' where owner_id = :'dono';
+select pg_temp.checa('passada a carência, a varredura encerra a assinatura',
+  public.assinaturas_varrer() = 1);
+select pg_temp.checa('  e fecha os campeonatos que dependiam dela',
+  (select count(*) from championships
+    where owner_id = :'dono' and plan = 'diamante' and payment_status = 'pending') = 2);
+select pg_temp.checa('  mas NÃO fecha o que foi pago avulso',
+  (select payment_status from championships where id = :'as3') = 'paid');
+
+-- --------------------------------------------------------------------------
+-- O cliente regulariza
+-- --------------------------------------------------------------------------
+update public.subscriptions set status = 'overdue', grace_until = now() + interval '2 days'
+ where owner_id = :'dono';
+select public.assinatura_atualizar(:'dono', 'paga') as _;
+select pg_temp.checa('regularizou: volta a valer e reabre os campeonatos',
+  (select status from subscriptions where owner_id = :'dono') = 'active'
+  and (select count(*) from championships
+        where owner_id = :'dono' and plan = 'diamante' and payment_status = 'paid') = 3);
+select pg_temp.checa('  e a carência é zerada',
+  (select grace_until from subscriptions where owner_id = :'dono') is null);
+
+-- --------------------------------------------------------------------------
+-- Cancelamento pelo consultor
+-- --------------------------------------------------------------------------
+select pg_temp.recusa('quem não é master não cancela assinatura',
+  $q$ select public.assinatura_cancelar('ee999999-9999-9999-9999-999999999999') $q$,
+  'Somente o administrador master');
+
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select public.assinatura_cancelar(:'dono', 'a pedido do cliente') as _;
+select pg_temp.checa('o consultor cancela e os campeonatos fecham',
+  (select status from subscriptions where owner_id = :'dono') = 'canceled'
+  and not public.assinatura_ativa(:'dono')
+  and (select count(*) from championships
+        where owner_id = :'dono' and plan = 'diamante' and payment_status = 'pending') = 2);

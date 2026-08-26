@@ -352,6 +352,21 @@ export interface Championship {
   paymentStatus?: PaymentStatus
   /** Valor cobrado (centavos): plano + categorias adicionais. */
   amountCents?: number
+  /**
+   * Valor combinado com o consultor para o plano Diamante, em centavos.
+   * Indefinido = ainda a combinar. Só o master grava, pela RPC
+   * `set_negotiated_price` — o app não escreve neste campo.
+   */
+  negotiatedCents?: number
+  /** Anotação do consultor sobre a negociação (proposta, contrato, condições). */
+  negotiatedNote?: string
+  /**
+   * Como o Diamante foi vendido: pagamento único do campeonato (`avulso`) ou
+   * assinatura mensal da conta (`mensal`).
+   */
+  negotiatedKind?: 'avulso' | 'mensal'
+  /** Meses de compromisso da assinatura. 12 é o padrão do contrato. */
+  negotiatedMonths?: number
   /** Identificador do pagamento no Asaas, quando confirmado. */
   paymentRef?: string
   /** Momento da confirmação do pagamento. */
@@ -665,4 +680,31 @@ export const FORMAT_LABELS: Record<ChampionshipFormat, string> = {
 export const AUDIENCE_LABELS: Record<Audience, string> = {
   infantil: 'Infantil',
   adulto: 'Adulto',
+}
+
+/**
+ * Assinatura do plano Diamante.
+ *
+ * É da CONTA do organizador, e não de um campeonato: enquanto ela vale, todos
+ * os campeonatos Diamante daquele cliente ficam abertos. É o que faz
+ * "campeonatos ilimitados" ser verdade.
+ */
+export type SubscriptionStatus = 'pending' | 'active' | 'overdue' | 'canceled' | 'ended'
+
+export interface Subscription {
+  id: string
+  ownerId: string
+  /** Mensalidade em centavos. */
+  cents: number
+  months: number
+  status: SubscriptionStatus
+  startedAt?: string
+  nextDueAt?: string
+  endsAt?: string
+  /** Até quando o atraso é tolerado antes de fechar os campeonatos. */
+  graceUntil?: string
+  contractVersion?: string
+  contractName?: string
+  contractDocument?: string
+  contractAt?: string
 }

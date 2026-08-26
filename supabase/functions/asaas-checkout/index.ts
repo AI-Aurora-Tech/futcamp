@@ -9,8 +9,16 @@
 // número de categorias. Assim ninguém consegue pagar menos mexendo no cliente.
 //
 // Usa o Checkout (e não a cobrança direta) porque nele o próprio pagador
-// informa nome e CPF na página do Asaas — o Tabelaço não precisa pedir, nem
-// guardar, dado fiscal de ninguém.
+// informa nome, CPF e cartão na página do Asaas — o Tabelaço não precisa
+// pedir, nem guardar, dado fiscal nem número de cartão de ninguém.
+//
+// Dois tipos de cobrança:
+//
+//   • DETACHED  — pagamento único, de um campeonato. É o caso de todo mundo.
+//   • RECURRENT — assinatura mensal do plano Diamante, debitada no cartão de
+//     crédito todo mês. NÃO é parcelamento: cada mês é uma cobrança de R$ X,
+//     e não uma autorização do total, então o limite do cliente fica livre.
+//     Exige contrato aceito (`subscriptions`, migration 0037).
 //
 // Corpo: { "championshipId": "<uuid>" }
 // Resposta: { "url": "https://www.asaas.com/checkoutSession/show/..." }
@@ -51,7 +59,7 @@ const json = (body: unknown, status = 200) =>
  * é assim que se sabe, sem adivinhar, qual código está publicado no Supabase.
  * Suba este número a cada mudança.
  */
-export const VERSAO = '5'
+export const VERSAO = '6'
 
 /** Produção ou sandbox. A chave de homologação traz "hmlg" no meio. */
 export function asaasBase(env: string | undefined, key: string): string {
@@ -67,6 +75,26 @@ export function nomeItem(plan: string | null): string {
   const p = (plan ?? 'pago').trim()
   const tier = p.charAt(0).toUpperCase() + p.slice(1)
   return `Tabelaço — Plano ${tier}`.slice(0, 30)
+}
+
+/**
+ * Data no formato que o Asaas espera (YYYY-MM-DD), somando meses ou dias.
+ * O ciclo é mensal, então somar mês a mês é o certo — 30 dias erraria o
+ * aniversário da cobrança ao longo do ano.
+ */
+export function emDias(dias: number, base = new Date()): string {
+  const d = new Date(base)
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
+export function emMeses(meses: number, base = new Date()): string {
+  const d = new Date(base)
+  const dia = d.getDate()
+  d.setMonth(d.getMonth() + meses)
+  // Fim de mês: 31/01 + 1 mês vira 03/03 se não corrigir.
+  if (d.getDate() < dia) d.setDate(0)
+  return d.toISOString().slice(0, 10)
 }
 
 /** Formas de pagamento aceitas (secret `ASAAS_BILLING_TYPES` sobrescreve). */
@@ -190,6 +218,16 @@ interface ChampRow {
   payment_status: string | null
   categories: { id: string; name: string }[] | null
   owner_id: string
+  negotiated_kind: string | null
+  negotiated_months: number | null
+}
+
+interface SubRow {
+  id: string
+  cents: number
+  months: number
+  status: string
+  contract_at: string | null
 }
 
 serve(async (req) => {
@@ -237,7 +275,7 @@ serve(async (req) => {
 
   const { data, error } = await db
     .from('championships')
-    .select('id, name, plan, amount_cents, payment_status, categories, owner_id')
+    .select('id, name, plan, amount_cents, payment_status, categories, owner_id, negotiated_kind, negotiated_months')
     .eq('id', championshipId)
     .maybeSingle()
   if (error) return json({ error: error.message, versao: VERSAO }, 500)
@@ -268,7 +306,28 @@ serve(async (req) => {
     return json({ error: 'Este campeonato já está liberado', versao: VERSAO }, 409)
   }
 
-  const cents = champ.amount_cents ?? 0
+  // Diamante vendido como assinatura: a cobrança é mensal e exige contrato
+  // aceito. Sem o aceite não há o que cobrar — e é ele que registra o
+  // compromisso dos 12 meses, que o Asaas não sabe representar.
+  const mensal = (champ.negotiated_kind ?? '').toLowerCase() === 'mensal'
+  let assinatura: SubRow | null = null
+  if (mensal) {
+    const { data: sub } = await db
+      .from('subscriptions')
+      .select('id, cents, months, status, contract_at')
+      .eq('owner_id', champ.owner_id)
+      .in('status', ['pending', 'active', 'overdue'])
+      .maybeSingle()
+    assinatura = (sub as SubRow | null) ?? null
+    if (!assinatura || !assinatura.contract_at) {
+      return json({ error: 'O contrato da assinatura ainda não foi aceito.', versao: VERSAO }, 409)
+    }
+    if (assinatura.status !== 'pending') {
+      return json({ error: 'Esta conta já tem uma assinatura ativa.', versao: VERSAO }, 409)
+    }
+  }
+
+  const cents = mensal ? (assinatura?.cents ?? 0) : (champ.amount_cents ?? 0)
   if (cents <= 0) return json({ error: 'Campeonato sem valor a cobrar', versao: VERSAO }, 409)
 
   const nCats = Array.isArray(champ.categories) ? champ.categories.length : 1
@@ -278,9 +337,12 @@ serve(async (req) => {
     (extra > 0 ? ` (1 inclusa + ${extra})` : '')
   ).slice(0, 200)
 
+  const meses = Math.max(1, assinatura?.months ?? champ.negotiated_months ?? 12)
   const item = {
     name: nomeItem(champ.plan),
-    description: descricao,
+    description: mensal
+      ? `Plano Diamante — assinatura mensal (${meses} meses)`.slice(0, 200)
+      : descricao,
     quantity: 1,
     value: Number((cents / 100).toFixed(2)),
   }
@@ -295,18 +357,39 @@ serve(async (req) => {
 
   // `externalReference` é o que amarra o pagamento ao campeonato quando o
   // webhook chegar.
+  // Na assinatura o `externalReference` aponta para a CONTA, e não para um
+  // campeonato: é a conta que assina, e é ela que precisa ser reencontrada a
+  // cada cobrança mensal.
+  const corpo: Record<string, unknown> = mensal
+    ? {
+        chargeTypes: ['RECURRENT'],
+        minutesToExpire: 1440,
+        externalReference: `owner:${champ.owner_id}`,
+        items: [item],
+        callback,
+        subscription: {
+          cycle: 'MONTHLY',
+          nextDueDate: emDias(0),
+          // O contrato tem prazo: a recorrência termina junto com ele.
+          endDate: emMeses(meses),
+        },
+      }
+    : {
+        chargeTypes: ['DETACHED'],
+        minutesToExpire: 1440,
+        externalReference: champ.id,
+        items: [item],
+        callback,
+      }
+
+  // Recorrência é no cartão: não existe assinatura de boleto que o cliente
+  // não precise pagar todo mês na mão. A escada de formas fica de fora.
   const tentativa = await criarCheckout(
     fetch,
     base,
     key,
-    {
-      chargeTypes: ['DETACHED'],
-      minutesToExpire: 1440,
-      externalReference: champ.id,
-      items: [item],
-      callback,
-    },
-    escadaDeTipos(tiposDeCobranca(Deno.env.get('ASAAS_BILLING_TYPES'))),
+    corpo,
+    mensal ? [['CREDIT_CARD']] : escadaDeTipos(tiposDeCobranca(Deno.env.get('ASAAS_BILLING_TYPES'))),
   )
 
   const out = tentativa.out
@@ -333,6 +416,16 @@ serve(async (req) => {
   if (!link) {
     console.error('asaas-checkout: resposta sem link', JSON.stringify(out).slice(0, 300))
     return json({ error: 'O Asaas não devolveu o link de pagamento.', versao: VERSAO }, 502)
+  }
+
+  // Assinatura: guarda o checkout NELA. É o terceiro caminho para o webhook
+  // reencontrar a conta quando a cobrança mensal chegar.
+  if (mensal && assinatura) {
+    const { error: erroSub } = await db
+      .from('subscriptions')
+      .update({ checkout_id: String(out.id ?? ''), updated_at: new Date().toISOString() })
+      .eq('id', assinatura.id)
+    if (erroSub) console.error('asaas-checkout: falha ao vincular o checkout à assinatura', erroSub.message)
   }
 
   // Guarda a tentativa. É por aqui que o webhook reencontra o campeonato caso
@@ -373,6 +466,7 @@ serve(async (req) => {
   return json({
     url: link,
     checkoutId: out.id,
+    recorrente: mensal,
     formas: tentativa.tipos,
     aviso: erroRegistro ? `checkout não registrado: ${erroRegistro.message}` : undefined,
     versao: VERSAO,

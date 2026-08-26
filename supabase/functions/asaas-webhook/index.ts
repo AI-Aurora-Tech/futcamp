@@ -1,8 +1,14 @@
 // ===========================================================================
 // Edge Function: asaas-webhook
 //
-// Recebe a notificação do Asaas e LIBERA o campeonato quando o pagamento é
-// confirmado.
+// Recebe a notificação do Asaas e decide o que liberar (ou fechar).
+//
+// Dois assuntos chegam por aqui:
+//
+//   • PAGAMENTO ÚNICO de um campeonato — confirma e libera aquele campeonato;
+//   • ASSINATURA MENSAL do Diamante — a cobrança do mês confirma e mantém
+//     TODOS os campeonatos Diamante daquela conta abertos; se vencer sem
+//     pagar, a assinatura entra em carência de 7 dias antes de fechar.
 //
 // O corpo da notificação não é confiável: ele só diz "olhe o pagamento X".
 // Por isso a função reconsulta o pagamento (ou o checkout) na API do Asaas com
@@ -33,7 +39,7 @@ export function asaasBase(env: string | undefined, key: string): string {
 /** Situações em que o dinheiro é do organizador do Tabelaço. */
 export const PAGOS = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']
 
-export const VERSAO = '2'
+export const VERSAO = '3'
 
 /**
  * O campeonato guarda o último checkout em `payment_ref`, como `checkout:<id>`.
@@ -48,6 +54,26 @@ export function checkoutDoCampeonato(paymentRef: string | null | undefined): str
 /** É um uuid? Só assim vale como id de campeonato. */
 export function ehUuid(v: unknown): boolean {
   return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+}
+
+/**
+ * A assinatura marca a referência como `owner:<uuid>`, e não com o id de um
+ * campeonato: quem assina é a CONTA, e é ela que precisa ser reencontrada a
+ * cada cobrança mensal.
+ */
+export function contaDaReferencia(ref: unknown): string | null {
+  const m = /^owner:([0-9a-f-]{36})$/i.exec(String(ref ?? '').trim())
+  return m && ehUuid(m[1]) ? m[1] : null
+}
+
+/** Situações em que a cobrança venceu sem pagamento. */
+export const ATRASADOS = ['OVERDUE']
+
+/** O que o Asaas diz da cobrança, traduzido para o que o banco entende. */
+export function situacaoDaAssinatura(status: string): 'paga' | 'atrasada' | null {
+  if (PAGOS.includes(status)) return 'paga'
+  if (ATRASADOS.includes(status)) return 'atrasada'
+  return null
 }
 
 serve(async (req) => {
@@ -143,6 +169,47 @@ serve(async (req) => {
     situacao = String(pay?.status ?? '')
     cents = Math.round(Number(pay?.value ?? 0) * 100)
     referencia = String(pay?.id ?? '')
+
+    // ---- Assinatura mensal do Diamante ----------------------------------
+    //
+    // Toda cobrança gerada por uma assinatura traz o id dela. A conta é
+    // procurada por três caminhos, porque nenhum é garantido: a referência
+    // externa (que o Asaas pode ou não propagar da assinatura para a
+    // cobrança), o id da assinatura e o checkout que a originou.
+    const assinaturaId = pay?.subscription ? String(pay.subscription) : null
+    if (assinaturaId) {
+      const traduzida = situacaoDaAssinatura(situacao)
+      if (!traduzida) return json({ ok: true, status: situacao, assinatura: assinaturaId })
+
+      let owner = contaDaReferencia(pay?.externalReference)
+      if (!owner) {
+        const { data } = await db
+          .from('subscriptions')
+          .select('owner_id')
+          .or(`asaas_id.eq.${assinaturaId},checkout_id.eq.${String(pay?.checkoutSession ?? '')}`)
+          .maybeSingle()
+        owner = data?.owner_id ?? null
+      }
+      if (!owner) {
+        console.error('asaas-webhook: assinatura sem conta identificada', assinaturaId)
+        return json({ ok: true, skipped: 'assinatura não identificada' })
+      }
+
+      const { data: resultado, error: erroSub } = await db.rpc('assinatura_atualizar', {
+        p_owner: owner,
+        p_situacao: traduzida,
+        p_asaas_id: assinaturaId,
+        p_checkout: pay?.checkoutSession ? String(pay.checkoutSession) : null,
+        p_proxima: pay?.dueDate ? new Date(`${pay.dueDate}T12:00:00Z`).toISOString() : null,
+        p_carencia_dias: 7,
+      })
+      if (erroSub) {
+        console.error('asaas-webhook: falha ao atualizar a assinatura', erroSub.message)
+        return json({ ok: false }, 500)
+      }
+      return json({ ok: true, assinatura: assinaturaId, resultado })
+    }
+
     champId = await acharCampeonato(pay?.externalReference, pay?.checkoutSession, pay?.id)
 
     if (champId) {
@@ -217,6 +284,11 @@ serve(async (req) => {
     console.error('asaas-webhook: falha ao liberar', error.message)
     return json({ ok: false }, 500)
   }
+
+  // Rede de segurança: aproveita a passagem para encerrar assinaturas cuja
+  // carência estourou. O agendamento diário continua sendo o responsável —
+  // isto só antecipa quando há movimento na conta.
+  await db.rpc('assinaturas_varrer').catch(() => {})
 
   return json({ ok: true, status: 'liberado' })
 })
