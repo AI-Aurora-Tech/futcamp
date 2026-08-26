@@ -315,6 +315,10 @@ O caminho é este:
    já com o valor de tabela e a modalidade mensal de 12 meses.
 2. Na tela de cobrança ele lê o contrato, **aceita** (nome, documento — e o
    texto integral fica gravado) e clica em *Assinar com cartão de crédito*.
+   O contrato inclui o **uso exclusivo da conta**: o login é pessoal e
+   intransferível, e vender, emprestar ou compartilhar o acesso — ou usar a
+   conta para revender o Tabelaço a terceiros — permite suspender ou encerrar
+   a conta sem devolução, com as mensalidades do período ainda devidas.
 3. O Asaas confirma a primeira cobrança, o webhook ativa a assinatura e abre
    **todos** os campeonatos Diamante daquela conta.
 4. *(Opcional)* Se o cliente negociou condição diferente, o **master** entra

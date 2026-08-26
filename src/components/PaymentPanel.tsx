@@ -558,8 +558,9 @@ function AssinaturaDiamante({
       <label className="assina__check">
         <input type="checkbox" checked={marcado} onChange={(e) => setMarcado(e.target.checked)} />
         <span>
-          Li e aceito o contrato acima, inclusive o compromisso de {meses} meses e a carência de 7
-          dias em caso de atraso.
+          Li e aceito o contrato acima, inclusive o compromisso de {meses} meses, a carência de 7
+          dias em caso de atraso e o <b>uso exclusivo da conta</b> — o login não pode ser vendido,
+          emprestado nem compartilhado com terceiros.
         </span>
       </label>
 
