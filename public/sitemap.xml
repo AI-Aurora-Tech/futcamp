@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  O Tabelaço usa rotas por hash (#/planos, #/como-usar). Para o Google, tudo
+  isso é a MESMA página — o que vem depois do "#" nunca chega ao servidor e
+  não é indexado separadamente. Por isso o sitemap tem uma URL só: listar as
+  outras seria prometer páginas que não existem do ponto de vista do robô.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://tabelaco.app/</loc>
-    <changefreq>daily</changefreq>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 </urlset>

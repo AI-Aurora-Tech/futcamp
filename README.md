@@ -444,6 +444,29 @@ inteiro — para produzir um documento de texto. Aqui é Helvetica, normal e
 negrito, com acentuação por WinAnsiEncoding. Sem imagens e sem tabelas: se um
 dia o regulamento precisar disso, aí vale reconsiderar.
 
+## 🔎 Busca do Google (SEO)
+
+O `index.html` traz título, descrição, canonical, Open Graph, Twitter Card e
+dados estruturados (`Organization`, `WebSite`, `SoftwareApplication` com os
+preços reais e `FAQPage` com sete perguntas). Um `<noscript>` garante ~170
+palavras legíveis no HTML cru — o app é renderizado pelo navegador, então sem
+esse bloco o robô que não executa JavaScript encontraria uma página vazia.
+
+A imagem de compartilhamento é **PNG** (`og-image.png`, 1200×630), e não SVG:
+Facebook, WhatsApp, LinkedIn e X não renderizam SVG em `og:image`, e com o SVG
+todo link compartilhado saía sem imagem.
+
+> ⚠️ **O teto não são as meta tags — é a rota por hash.**
+> `#/planos`, `#/como-usar` e `#/c/<id>` são, para o Google, **a mesma página**:
+> o que vem depois do `#` nunca chega ao servidor. Hoje o site tem **uma** URL
+> indexável, por melhor que sejam as tags.
+>
+> O maior ativo desperdiçado são as páginas públicas dos campeonatos: conteúdo
+> real, atualizado toda semana, com nomes de times e cidades — exatamente o que
+> alguém procura ao buscar "campeonato tal 2026 tabela". Para elas ranquearem,
+> o app precisaria de rotas de caminho (`/c/<id>` em vez de `#/c/<id>`) e de
+> HTML servido com o conteúdo já dentro.
+
 ## 📈 Analytics (Vercel)
 
 Contagem de acessos pelo **Vercel Web Analytics** — sem cookie e sem dado

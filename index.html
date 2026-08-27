@@ -33,8 +33,15 @@
       content="Organize campeonatos de futebol amador de ponta a ponta: tabela de jogos, classificação automática, artilharia, súmula digital e acompanhamento ao vivo. Grátis."
     />
     <meta property="og:url" content="https://tabelaco.app/" />
-    <meta property="og:image" content="https://tabelaco.app/og-image.svg" />
-    <meta property="og:image:alt" content="Tabelaço — Gestão de Campeonatos Esportivos" />
+    <!-- PNG, e não SVG: Facebook, WhatsApp, LinkedIn e X não renderizam SVG
+         em og:image — com o SVG, todo link compartilhado saía sem imagem.
+         As dimensões declaradas evitam que o card apareça cortado enquanto a
+         imagem ainda não foi baixada pelo robô. -->
+    <meta property="og:image" content="https://tabelaco.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Tabelaço — gestão de campeonatos de futebol amador: tabela, classificação, artilharia e súmula" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -43,25 +50,160 @@
       name="twitter:description"
       content="Tabela de jogos, classificação, artilharia e súmula digital para o seu campeonato de futebol amador. Crie grátis."
     />
-    <meta name="twitter:image" content="https://tabelaco.app/og-image.svg" />
+    <meta name="twitter:image" content="https://tabelaco.app/og-image.png" />
+    <meta name="twitter:image:alt" content="Tabelaço — gestão de campeonatos de futebol amador" />
 
-    <!-- Dados estruturados (Schema.org) para busca do Google -->
+    <!-- Dados estruturados (Schema.org)
+         Só o que é verdade e verificável na própria página. Não há nota de
+         avaliação aqui de propósito: estrelas inventadas em dados
+         estruturados são motivo de penalização, não de destaque. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Tabelaço",
-        "applicationCategory": "SportsApplication",
-        "operatingSystem": "Web",
-        "url": "https://tabelaco.app/",
-        "description": "Plataforma para organizar campeonatos de futebol amador: tabela de jogos, classificação automática, artilharia, súmula digital, inscrição de times e acompanhamento ao vivo.",
-        "inLanguage": "pt-BR",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "BRL" }
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://tabelaco.app/#organizacao",
+            "name": "Tabelaço",
+            "url": "https://tabelaco.app/",
+            "logo": "https://tabelaco.app/icon-512.png",
+            "description": "Plataforma brasileira para organização de campeonatos de futebol amador.",
+            "areaServed": { "@type": "Country", "name": "Brasil" }
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://tabelaco.app/#site",
+            "url": "https://tabelaco.app/",
+            "name": "Tabelaço",
+            "inLanguage": "pt-BR",
+            "publisher": { "@id": "https://tabelaco.app/#organizacao" }
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://tabelaco.app/#app",
+            "name": "Tabelaço",
+            "applicationCategory": "SportsApplication",
+            "applicationSubCategory": "Gestão de campeonatos",
+            "operatingSystem": "Web, Android, iOS",
+            "url": "https://tabelaco.app/",
+            "inLanguage": "pt-BR",
+            "publisher": { "@id": "https://tabelaco.app/#organizacao" },
+            "screenshot": "https://tabelaco.app/og-image.png",
+            "description": "Organize campeonatos de futebol amador de ponta a ponta: tabela de jogos gerada automaticamente, classificação e artilharia em tempo real, súmula digital, inscrição de times por link, mata-mata automático e página pública para divulgar.",
+            "featureList": [
+              "Tabela de jogos gerada automaticamente",
+              "Classificação e artilharia atualizadas a cada resultado",
+              "Súmula digital com gols, cartões e substituições",
+              "Inscrição de times e atletas por link",
+              "Fase de grupos com mata-mata automático",
+              "Suspensão automática por cartões",
+              "Avisos no celular para os times",
+              "Página pública do campeonato"
+            ],
+            "offers": {
+              "@type": "AggregateOffer",
+              "priceCurrency": "BRL",
+              "lowPrice": "0",
+              "highPrice": "200.00",
+              "offerCount": "5",
+              "offers": [
+                { "@type": "Offer", "name": "Grátis",   "price": "0",      "priceCurrency": "BRL", "description": "1 campeonato, 1 categoria, até 8 equipes." },
+                { "@type": "Offer", "name": "Bronze",   "price": "59.90",  "priceCurrency": "BRL", "description": "Por campeonato, até 16 equipes por categoria." },
+                { "@type": "Offer", "name": "Prata",    "price": "79.90",  "priceCurrency": "BRL", "description": "Por campeonato, até 32 equipes por categoria." },
+                { "@type": "Offer", "name": "Ouro",     "price": "109.90", "priceCurrency": "BRL", "description": "Por campeonato, equipes ilimitadas por categoria." },
+                { "@type": "Offer", "name": "Diamante", "price": "200.00", "priceCurrency": "BRL", "description": "Assinatura mensal: campeonatos, categorias e equipes ilimitados." }
+              ]
+            }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://tabelaco.app/#faq",
+            "inLanguage": "pt-BR",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Preciso pagar para organizar um campeonato?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Não. O plano Grátis dá um campeonato completo, com uma categoria e até 8 equipes, com todas as funcionalidades — sem cartão e sem prazo." }
+              },
+              {
+                "@type": "Question",
+                "name": "O Tabelaço gera a tabela de jogos automaticamente?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Sim. Você escolhe a forma de disputa — pontos corridos, grupos com mata-mata ou mata-mata direto — e o sistema monta todos os confrontos, com turno e returno se você quiser." }
+              },
+              {
+                "@type": "Question",
+                "name": "Como funciona a classificação?",
+                "acceptedAnswer": { "@type": "Answer", "text": "A classificação e a artilharia se atualizam sozinhas a cada partida encerrada, seguindo os critérios de desempate que você definir no campeonato." }
+              },
+              {
+                "@type": "Question",
+                "name": "Dá para organizar campeonato com várias categorias?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Sim. Cada categoria — Sub-11, Sub-15, Adulto — é um campeonato à parte, com tabela, classificação, mata-mata e campeão próprios, e começa e termina na data dela." }
+              },
+              {
+                "@type": "Question",
+                "name": "Os times se inscrevem sozinhos?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Sim. O organizador envia um link e o responsável pelo time cria o acesso, monta o escudo e inscreve os atletas — sem o organizador digitar elenco nenhum." }
+              },
+              {
+                "@type": "Question",
+                "name": "O atleta que leva o terceiro cartão amarelo fica suspenso automaticamente?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Fica. Na partida seguinte ele aparece bloqueado na escalação, com o motivo escrito, e o time recebe o aviso no celular. Quantos amarelos suspendem é definido em cada categoria." }
+              },
+              {
+                "@type": "Question",
+                "name": "Preciso instalar alguma coisa?",
+                "acceptedAnswer": { "@type": "Answer", "text": "Não. O Tabelaço roda no navegador do computador e do celular, e pode ser adicionado à tela de início como aplicativo, sem loja de aplicativos." }
+              }
+            ]
+          }
+        ]
       }
     </script>
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- O app é renderizado pelo navegador, então o HTML entregue não tem
+         texto nenhum. O Google executa JavaScript, mas nem todo robô executa —
+         e o primeiro passe de indexação lê o HTML cru. Este bloco garante que
+         sempre haja conteúdo legível, e é o que a pessoa vê se o JavaScript
+         estiver desligado. -->
+    <noscript>
+      <div style="max-width:44rem;margin:0 auto;padding:2.5rem 1.5rem;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#0f172a">
+        <h1 style="font-size:2rem;margin:0 0 .5rem">Tabelaço — gestão de campeonatos de futebol amador</h1>
+        <p style="font-size:1.1rem;color:#334155;margin:0 0 1.5rem">
+          Organize seu campeonato de ponta a ponta: tabela de jogos gerada automaticamente,
+          classificação e artilharia em tempo real, súmula digital, inscrição de times por link e
+          página pública para divulgar. Comece de graça.
+        </p>
+
+        <h2 style="font-size:1.2rem;margin:0 0 .4rem">O que o Tabelaço faz</h2>
+        <ul style="margin:0 0 1.5rem;padding-left:1.2rem;color:#334155">
+          <li>Gera a tabela de jogos em pontos corridos, grupos com mata-mata ou mata-mata direto.</li>
+          <li>Atualiza a classificação e a artilharia a cada partida encerrada.</li>
+          <li>Súmula digital com gols, cartões, substituições e presença.</li>
+          <li>Suspende sozinho o atleta que atinge o limite de cartões.</li>
+          <li>Os times se inscrevem por link e cadastram os próprios atletas.</li>
+          <li>Cada categoria — Sub-11, Sub-15, Adulto — é um campeonato à parte.</li>
+          <li>Avisa os times no celular: jogo marcado, gol, resultado e classificação.</li>
+          <li>Página pública do campeonato, aberta para todo mundo acompanhar.</li>
+        </ul>
+
+        <h2 style="font-size:1.2rem;margin:0 0 .4rem">Planos</h2>
+        <p style="margin:0 0 1.5rem;color:#334155">
+          Grátis (1 campeonato, até 8 equipes) · Bronze R$&nbsp;59,90 · Prata R$&nbsp;79,90 ·
+          Ouro R$&nbsp;109,90 por campeonato · Diamante R$&nbsp;200,00/mês com campeonatos
+          ilimitados.
+        </p>
+
+        <p style="padding:1rem;background:#f1f5f9;border-radius:8px;margin:0;color:#334155">
+          <strong>Este site precisa de JavaScript para funcionar.</strong>
+          Ative o JavaScript no seu navegador para criar e administrar campeonatos.
+        </p>
+      </div>
+    </noscript>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

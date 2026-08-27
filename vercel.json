@@ -23,7 +23,7 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {
-      "source": "/(favicon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|og-image.svg|site.webmanifest)",
+      "source": "/(favicon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|og-image.svg|og-image.png|robots.txt|sitemap.xml|site.webmanifest)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     }
   ]
