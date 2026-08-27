@@ -253,6 +253,7 @@ export function Landing() {
           ))}
         </ul>
         <div className="landing__links">
+          <a className="landing__plans" href="#/como-usar">📖 Como usar →</a>
           <a className="landing__plans" href="#/planos">Ver planos e preços →</a>
           <a className="landing__plans" href="#/instalar">📲 Instalar o app</a>
           <SuporteLink className="landing__plans">Suporte</SuporteLink>
@@ -350,6 +351,7 @@ export function Landing() {
               ? 'Modo demo ativo: os dados ficam salvos apenas neste navegador.'
               : 'Conectado ao Supabase: seus campeonatos ficam salvos na nuvem.'}
           </p>
+          <a className="auth-plans-link" href="#/como-usar">📖 Como usar o Tabelaço</a>
           <a className="auth-plans-link" href="#/planos">💳 Ver planos e preços</a>
           <a className="auth-plans-link" href="#/instalar">📲 Como instalar o app</a>
           <SuporteLink className="auth-plans-link">Falar com o suporte</SuporteLink>

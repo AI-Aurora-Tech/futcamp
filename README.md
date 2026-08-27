@@ -167,7 +167,20 @@ quando o jogo está empatado, e o organizador **ou o mesário** pode preenchê-l
 
 ## 💳 Pagamentos (Asaas)
 
-A página **Planos e preços** (`#/planos`) é o começo do caminho: o organizador
+### 📖 Como usar (`#/como-usar`)
+
+O guia de uso do app, em três caminhos — **organizador**, **time** e
+**mesário** —, porque nenhum dos três precisa saber o que os outros fazem. É
+uma página **pública**: o organizador manda o link para os times e para os
+mesários, e ninguém precisa de conta para ler a sua parte.
+
+Chega-se a ela pela página inicial (logado ou não) e pelo link *"Como usar"* na
+barra do topo, de qualquer tela do app. O conteúdo vive em
+[`src/components/ComoUsar.tsx`](src/components/ComoUsar.tsx) — passos e
+perguntas frequentes são listas de dados, então acrescentar um passo é
+acrescentar um item.
+
+A página de planos (`#/planos`) é o começo do caminho: o organizador
 escolhe o plano, cai no formulário de criação já com ele marcado, e o sistema
 **soma o plano com as categorias adicionais** antes de gerar o link de
 pagamento.

@@ -10,6 +10,7 @@ export function Header({ onHome }: { onHome: () => void }) {
         <span className="logo-word">Tabela<b>ço</b></span>
       </button>
       <div className="topbar__right">
+        <a className="topbar__ajuda" href="#/como-usar">Como usar</a>
         <SuporteLink className="topbar__suporte">Suporte</SuporteLink>
         {mode === 'demo' && <span className="mode-tag" title="Dados salvos apenas neste navegador">modo demo</span>}
         {isMaster && <span className="master-tag" title="Administrador master: administra e exclui qualquer campeonato">👑 master</span>}

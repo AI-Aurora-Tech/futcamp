@@ -11,6 +11,7 @@ import { MesaPortal } from './components/MesaPortal'
 import { Plans } from './components/Plans'
 import { PaymentReturn } from './components/PaymentReturn'
 import { InstallGuide } from './components/InstallGuide'
+import { ComoUsar } from './components/ComoUsar'
 import { Spinner } from './components/ui'
 
 /** Verdadeiro na rota pública de planos `#/planos`. */
@@ -21,6 +22,11 @@ function readPlanos(): boolean {
 /** Verdadeiro na rota pública de instalação `#/instalar`. */
 function readInstalar(): boolean {
   return /^#\/instalar\/?$/.test(window.location.hash)
+}
+
+/** Verdadeiro na rota pública do guia `#/como-usar`. */
+function readGuia(): boolean {
+  return /^#\/como-usar\/?$/.test(window.location.hash)
 }
 
 /** Extrai o ID de campeonato público de um hash `#/c/<id>`, se houver. */
@@ -68,6 +74,7 @@ export default function App() {
   const [payRoute, setPayRoute] = useState(readPaymentRoute())
   const [planos, setPlanos] = useState(readPlanos())
   const [instalar, setInstalar] = useState(readInstalar())
+  const [guia, setGuia] = useState(readGuia())
   const [selected, setSelected] = useState<string | null>(null)
 
   useEffect(() => {
@@ -79,6 +86,7 @@ export default function App() {
       setPayRoute(readPaymentRoute())
       setPlanos(readPlanos())
       setInstalar(readInstalar())
+      setGuia(readGuia())
     }
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
@@ -95,6 +103,7 @@ export default function App() {
     setPayRoute(null)
     setPlanos(false)
     setInstalar(false)
+    setGuia(false)
     setSelected(null)
   }
 
@@ -106,6 +115,12 @@ export default function App() {
   // Página pública de instalação (não exige login).
   if (instalar) {
     return <InstallGuide onHome={goHome} />
+  }
+
+  // Guia de uso (não exige login: o organizador manda o link para os times
+  // e para os mesários, e cada um lê a parte dele sem precisar de conta).
+  if (guia) {
+    return <ComoUsar onHome={goHome} />
   }
 
   // Portal do mesário (login próprio).

@@ -1494,3 +1494,101 @@ html, body { max-width: 100%; overflow-x: hidden; }
   font-size: 0.78rem;
   word-break: break-word;
 }
+
+/* ---------- Guia "Como usar" ----------
+   Três pessoas usam o app e nenhuma precisa saber o que a outra faz. Os
+   botões de papel no topo escolhem o caminho; o resto da página é uma lista
+   numerada, porque aqui a ordem É a informação — não dá para gerar a tabela
+   antes de cadastrar os times. */
+.guia__lede {
+  margin: 0.9rem 0 0; max-width: 48ch;
+  font-size: 1.05rem; line-height: 1.55; color: rgba(255,255,255,0.9);
+}
+
+.guia__papeis {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.guia__papel {
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  padding: 0.9rem 0.6rem;
+  background: var(--surface); border: 2px solid var(--line);
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: border-color .15s, background .15s, transform .1s;
+}
+.guia__papel:hover { border-color: var(--brand); }
+.guia__papel:active { transform: translateY(1px); }
+.guia__papel.is-active {
+  border-color: var(--brand); background: rgba(22,163,74,0.10);
+}
+.guia__papel-ic { font-size: 1.5rem; line-height: 1; }
+.guia__papel-nome { font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+.guia__papel.is-active .guia__papel-nome { color: var(--brand-dark); }
+
+.guia__quem {
+  margin: 0 0 1.4rem; font-size: 1rem; color: var(--muted);
+  padding-bottom: 1rem; border-bottom: 1px solid var(--line);
+}
+
+.guia__passos { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.5rem; }
+.guia__passo { display: grid; grid-template-columns: 2.4rem 1fr; gap: 0.9rem; }
+.guia__num {
+  display: flex; align-items: center; justify-content: center;
+  width: 2.4rem; height: 2.4rem; flex: none;
+  background: var(--brand); color: #fff;
+  border-radius: 999px; font-weight: 800; font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.guia__corpo { min-width: 0; }
+.guia__corpo h3 { margin: 0.25rem 0 0.3rem; font-size: 1.08rem; }
+.guia__corpo > p { margin: 0; color: var(--ink-soft); line-height: 1.6; }
+.guia__itens { margin: 0.6rem 0 0; padding-left: 1.15rem; display: grid; gap: 0.35rem; }
+.guia__itens li { color: var(--ink-soft); font-size: 0.95rem; line-height: 1.55; }
+.guia__atencao {
+  margin: 0.65rem 0 0; padding: 0.55rem 0.75rem;
+  background: var(--surface-2); border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem; line-height: 1.5; color: var(--ink-soft);
+}
+
+.guia__duvidas { margin-top: 2.6rem; display: grid; gap: 0.5rem; }
+.guia__duvidas h2 { margin: 0 0 0.4rem; }
+.guia__duvida {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 0.7rem 0.9rem;
+}
+.guia__duvida summary {
+  cursor: pointer; font-weight: 700; font-size: 0.98rem;
+  list-style: none; display: flex; align-items: center; gap: 0.5rem;
+}
+.guia__duvida summary::-webkit-details-marker { display: none; }
+.guia__duvida summary::before {
+  content: '＋'; color: var(--brand); font-weight: 800; flex: none;
+}
+.guia__duvida[open] summary::before { content: '−'; }
+.guia__duvida p { margin: 0.55rem 0 0 1.35rem; color: var(--ink-soft); line-height: 1.6; font-size: 0.95rem; }
+
+.guia__fim {
+  margin-top: 2.6rem; padding: 1.4rem;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.guia__fim h2 { margin: 0 0 0.3rem; }
+.guia__fim > p { margin: 0 auto 1rem; max-width: 44ch; color: var(--ink-soft); }
+.guia__fim-acoes { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+
+/* O guia na barra do topo: ao lado do suporte, discreto. */
+.topbar__ajuda {
+  color: var(--ink-soft); text-decoration: none;
+  font-size: 0.88rem; font-weight: 600; white-space: nowrap;
+}
+.topbar__ajuda:hover { color: var(--brand-dark); text-decoration: underline; }
+
+@media (max-width: 30rem) {
+  .guia__papeis { grid-template-columns: 1fr; }
+  .guia__papel { flex-direction: row; justify-content: flex-start; gap: 0.6rem; }
+  .guia__passo { grid-template-columns: 2rem 1fr; gap: 0.7rem; }
+  .guia__num { width: 2rem; height: 2rem; font-size: 0.9rem; }
+  .topbar__ajuda { display: none; }
+}
