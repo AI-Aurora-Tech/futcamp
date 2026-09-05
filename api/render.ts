@@ -20,6 +20,7 @@
 
 import {
   esc,
+  jsonLdSeguro,
   trocarCanonical,
   trocarJsonLd,
   trocarMetaNome,
@@ -261,12 +262,24 @@ function envolver(interno: string): string {
 let moldeEmCache: { html: string; em: number } | null = null
 const VALIDADE_MOLDE_MS = 5 * 60 * 1000
 
-async function buscarMolde(host: string, protocolo: string): Promise<string | null> {
+async function buscarMolde(
+  host: string,
+  protocolo: string,
+  cookie: string | undefined,
+): Promise<string | null> {
   if (moldeEmCache && Date.now() - moldeEmCache.em < VALIDADE_MOLDE_MS) return moldeEmCache.html
   try {
     const abort = new AbortController()
     const timer = setTimeout(() => abort.abort(), 3000)
-    const resposta = await fetch(`${protocolo}://${host}/index.html`, { signal: abort.signal })
+    const resposta = await fetch(`${protocolo}://${host}/index.html`, {
+      signal: abort.signal,
+      // Repassa o cookie de quem pediu a página. Em produção não há cookie e
+      // nem é preciso — mas um deploy de preview com proteção da Vercel
+      // responderia 401 a esta busca, e a pessoa que está revisando o PR já
+      // tem o cookie de acesso no navegador. Sem isso, toda rota servida por
+      // esta função pareceria quebrada na preview.
+      headers: cookie ? { cookie } : undefined,
+    })
     clearTimeout(timer)
     if (!resposta.ok) return null
     const html = await resposta.text()
@@ -275,6 +288,44 @@ async function buscarMolde(host: string, protocolo: string): Promise<string | nu
   } catch {
     return null
   }
+}
+
+/**
+ * Página inteira montada do zero, sem o `index.html` construído.
+ *
+ * Só entra em cena se a busca pelo molde falhar — sem ele não há como
+ * referenciar os scripts do app, cujos nomes de arquivo mudam a cada build.
+ * Entregar o conteúdo em HTML puro é melhor do que mandar a pessoa para a
+ * home: ela vê o que veio buscar, e o robô indexa a página certa.
+ */
+function montarSemMolde(pagina: Pagina): string {
+  const canonical = `${SITE_URL}${pagina.caminho}`
+  const indexavel = pagina.indexavel !== false
+  return `<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${esc(pagina.titulo)}</title>
+    <meta name="description" content="${esc(pagina.descricao)}" />
+    <meta name="robots" content="${indexavel ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'}" />
+    <link rel="canonical" href="${esc(canonical)}" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Tabelaço" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content="${esc(pagina.titulo)}" />
+    <meta property="og:description" content="${esc(pagina.descricao)}" />
+    <meta property="og:url" content="${esc(canonical)}" />
+    <meta property="og:image" content="${OG_IMAGE}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${esc(pagina.titulo)}" />
+    <meta name="twitter:description" content="${esc(pagina.descricao)}" />
+    <meta name="twitter:image" content="${OG_IMAGE}" />
+${pagina.jsonLd ? `    <script type="application/ld+json" id="ld-site">${jsonLdSeguro(pagina.jsonLd)}</script>\n` : ''}  </head>
+  <body style="margin:0">${pagina.corpo}</body>
+</html>
+`
 }
 
 function montar(molde: string, pagina: Pagina): string {
@@ -311,13 +362,10 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const host = um(req.headers['x-forwarded-host']) ?? um(req.headers.host) ?? ''
   const protocolo = um(req.headers['x-forwarded-proto']) ?? 'https'
 
-  const molde = await buscarMolde(host, protocolo)
-  if (!molde) {
-    // Sem o molde não há como montar a página com os scripts corretos do app.
-    // Devolver a home é melhor do que devolver erro: a pessoa chega no site.
-    res.redirect(302, '/')
-    return
-  }
+  // Começa a busca do molde JÁ, sem esperar: ela não depende de nada do banco,
+  // e as duas coisas juntas são o tempo de resposta desta função. Sem `await`
+  // aqui, o molde chega enquanto as consultas ao campeonato acontecem.
+  const moldePendente = buscarMolde(host, protocolo, um(req.headers.cookie))
 
   let pagina: Pagina
   let codigo = 200
@@ -345,6 +393,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     return
   }
 
+  const molde = await moldePendente
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   // Cache na borda da Vercel: o robô e as pessoas pegam a página pronta sem
   // acordar a função. `stale-while-revalidate` serve a versão guardada
@@ -355,5 +405,5 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       ? 'public, max-age=0, s-maxage=300, stale-while-revalidate=3600'
       : 'public, max-age=0, s-maxage=60',
   )
-  res.status(codigo).send(montar(molde, pagina))
+  res.status(codigo).send(molde ? montar(molde, pagina) : montarSemMolde(pagina))
 }

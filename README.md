@@ -499,6 +499,16 @@ O resultado fica no cache de borda da Vercel por 5 minutos
 (`s-maxage=300, stale-while-revalidate=3600`), então o robô e as pessoas pegam
 a página pronta sem acordar a função.
 
+O `index.html` é buscado no próprio domínio — é um arquivo estático de verdade,
+e a Vercel serve arquivo existente antes de aplicar `rewrites`, então a busca
+não volta para esta mesma função. A busca começa em paralelo com as consultas
+ao banco, e o resultado fica guardado entre invocações. O cookie de quem pediu
+a página é repassado nela: em produção não há cookie nem é preciso, mas um
+deploy de **preview com proteção** responderia 401 e toda rota servida por esta
+função pareceria quebrada para quem está revisando o PR. Se ainda assim o molde
+não vier, a função monta a página inteira do zero — sem os scripts do app, mas
+com o conteúdo e os metadados certos. Nunca manda a pessoa para a home.
+
 **A home continua estática.** `/` é servida direto do `index.html`, sem passar
 por função nenhuma: os metadados dela já estão certos no arquivo e é a rota de
 maior tráfego — não faz sentido pagar latência de lambda por ela.
