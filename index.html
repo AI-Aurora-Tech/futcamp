@@ -8,6 +8,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#16a34a" />
 
+    <!-- O app busca os dados no Supabase assim que renderiza. O preconnect
+         resolve DNS e TLS antes disso, tirando ~100-300 ms do caminho crítico
+         no celular. A tag é injetada pelo vite.config.ts, que é quem conhece
+         a URL do backend; sem backend configurado (modo demo) ela não entra. -->
+    <!--preconnect-supabase-->
+
     <!-- SEO primário -->
     <title>Tabelaço — Gestão de Campeonatos de Futebol Amador | Tabela, Classificação e Súmula</title>
     <meta
@@ -57,7 +63,7 @@
          Só o que é verdade e verificável na própria página. Não há nota de
          avaliação aqui de propósito: estrelas inventadas em dados
          estruturados são motivo de penalização, não de destaque. -->
-    <script type="application/ld+json">
+    <script type="application/ld+json" id="ld-site">
       {
         "@context": "https://schema.org",
         "@graph": [

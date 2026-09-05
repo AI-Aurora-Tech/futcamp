@@ -1,4 +1,14 @@
 User-agent: *
 Allow: /
 
+# Rotas privadas. Não têm o que ranquear e carregam token de acesso na própria
+# URL — indexá-las seria publicar o token. O `noindex` também é enviado no HTML,
+# mas o Disallow evita que o robô chegue a pedir a página.
+Disallow: /t/
+Disallow: /novo-time/
+Disallow: /mesa/
+Disallow: /pagamento/
+
+# Gerado por api/sitemap.ts: as páginas fixas mais a página pública de cada
+# campeonato ativo ou encerrado.
 Sitemap: https://tabelaco.app/sitemap.xml

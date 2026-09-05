@@ -13,6 +13,7 @@ import { vitrine } from '../lib/vitrine'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
 import { Button, ChampLogo, Field, SuporteLink, TeamBadge } from './ui'
+import { navigate } from '../lib/router'
 
 /** Campeão de cada campeonato encerrado, para a vitrine pública. */
 interface ChampionInfo {
@@ -21,7 +22,7 @@ interface ChampionInfo {
 }
 
 function openPublic(id: string) {
-  window.location.hash = `#/c/${id}`
+  navigate(`/c/${id}`)
 }
 
 /**
@@ -131,7 +132,7 @@ function Vitrine({
 /** Abre o portal do time já autenticado — o e-mail e a senha acabaram de ser conferidos. */
 function entrarNoTime(t: TeamAccess) {
   abrirSessaoTime(t.teamId)
-  window.location.hash = `#/t/${t.teamId}?k=${encodeURIComponent(t.token)}`
+  navigate(`/t/${t.teamId}?k=${encodeURIComponent(t.token)}`)
 }
 
 export function Landing() {
@@ -253,9 +254,9 @@ export function Landing() {
           ))}
         </ul>
         <div className="landing__links">
-          <a className="landing__plans" href="#/como-usar">📖 Como usar →</a>
-          <a className="landing__plans" href="#/planos">Ver planos e preços →</a>
-          <a className="landing__plans" href="#/instalar">📲 Instalar o app</a>
+          <a className="landing__plans" href="/como-usar">📖 Como usar →</a>
+          <a className="landing__plans" href="/planos">Ver planos e preços →</a>
+          <a className="landing__plans" href="/instalar">📲 Instalar o app</a>
           <SuporteLink className="landing__plans">Suporte</SuporteLink>
         </div>
       </div>
@@ -351,9 +352,9 @@ export function Landing() {
               ? 'Modo demo ativo: os dados ficam salvos apenas neste navegador.'
               : 'Conectado ao Supabase: seus campeonatos ficam salvos na nuvem.'}
           </p>
-          <a className="auth-plans-link" href="#/como-usar">📖 Como usar o Tabelaço</a>
-          <a className="auth-plans-link" href="#/planos">💳 Ver planos e preços</a>
-          <a className="auth-plans-link" href="#/instalar">📲 Como instalar o app</a>
+          <a className="auth-plans-link" href="/como-usar">📖 Como usar o Tabelaço</a>
+          <a className="auth-plans-link" href="/planos">💳 Ver planos e preços</a>
+          <a className="auth-plans-link" href="/instalar">📲 Como instalar o app</a>
           <SuporteLink className="auth-plans-link">Falar com o suporte</SuporteLink>
         </div>
         )}

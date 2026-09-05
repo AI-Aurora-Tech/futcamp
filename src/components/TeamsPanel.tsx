@@ -117,7 +117,7 @@ export function TeamsPanel({
   async function copyInviteLink(team: Team) {
     try {
       const token = await ensureTeamToken(team.id)
-      const url = `${location.origin}${location.pathname}#/t/${team.id}?k=${token}`
+      const url = `${location.origin}/t/${team.id}?k=${token}`
       await navigator.clipboard?.writeText(url).catch(() => {})
       window.prompt(
         `Link de inscrição de ${team.name}\n\nEnvie ao representante do time — ele poderá incluir o escudo e os atletas:`,
@@ -141,7 +141,7 @@ export function TeamsPanel({
       const token = categoryId
         ? await ensureChampCategoryToken(championship.id, [categoryId])
         : await ensureChampTeamToken(championship.id)
-      const url = `${location.origin}${location.pathname}#/novo-time/${championship.id}?k=${token}`
+      const url = `${location.origin}/novo-time/${championship.id}?k=${token}`
       const cat = championship.categories.find((c) => c.id === categoryId)
       await navigator.clipboard?.writeText(url).catch(() => {})
       window.prompt(
@@ -203,7 +203,7 @@ export function TeamsPanel({
       {semVagas && (
         <p className="plano-cheio">
           🚫 {motivoLimiteDeTimes(championship.plan)}{' '}
-          <a href="#/planos" target="_blank" rel="noopener noreferrer">Ver planos</a>
+          <a href="/planos" target="_blank" rel="noopener noreferrer">Ver planos</a>
         </p>
       )}
 

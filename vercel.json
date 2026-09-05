@@ -4,7 +4,19 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+
+    { "source": "/c/:id", "destination": "/api/render?rota=campeonato&id=:id" },
+    { "source": "/planos", "destination": "/api/render?rota=planos" },
+    { "source": "/como-usar", "destination": "/api/render?rota=como-usar" },
+    { "source": "/instalar", "destination": "/api/render?rota=instalar" },
+
+    { "source": "/t/:id", "destination": "/index.html" },
+    { "source": "/novo-time/:id", "destination": "/index.html" },
+    { "source": "/mesa/:id", "destination": "/index.html" },
+    { "source": "/pagamento/:id", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",
@@ -23,7 +35,7 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {
-      "source": "/(favicon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|og-image.svg|og-image.png|robots.txt|sitemap.xml|site.webmanifest)",
+      "source": "/(favicon.svg|apple-touch-icon.png|icon-192.png|icon-512.png|og-image.svg|og-image.png|robots.txt|site.webmanifest)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     }
   ]
