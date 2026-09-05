@@ -5,7 +5,17 @@ import { createRoot } from 'react-dom/client'
 import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from './context/AuthContext'
 import App from './App'
+import { installLinkInterceptor, migrateLegacyHash } from './lib/router'
 import './index.css'
+
+// Antes de qualquer render: quem chegou por um link antigo `#/c/<id>` — grupo
+// de WhatsApp, notificação push gravada no banco — passa a ver `/c/<id>` na
+// barra de endereço, que é a rota que o servidor conhece.
+migrateLegacyHash()
+
+// Faz os `<a href="/planos">` navegarem sem recarregar a página. Eles seguem
+// sendo links de verdade no HTML, que é o que o Google percorre.
+installLinkInterceptor()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

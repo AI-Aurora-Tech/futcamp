@@ -5,11 +5,12 @@ import { cabeMaisUmTime } from '../lib/pricing'
 import { fileToDataUrl } from '../lib/image'
 import type { Championship } from '../types'
 import { Button, ChampLogo, Field, Spinner, TeamBadge } from './ui'
+import { navigate } from '../lib/router'
 
 /**
- * Página pública de CRIAÇÃO de time via link (`#/novo-time/<champId>?k=<token>`).
+ * Página pública de CRIAÇÃO de time via link (`/novo-time/<champId>?k=<token>`).
  * O responsável cria o próprio time e é levado ao fluxo de inscrição
- * (`#/t/<teamId>?k=<token>`) para definir gestores e inscrever os atletas.
+ * (`/t/<teamId>?k=<token>`) para definir gestores e inscrever os atletas.
  */
 export function CreateTeamViaLink({
   championshipId,
@@ -124,7 +125,7 @@ export function CreateTeamViaLink({
         categoryIds: escolhidas,
       })
       // Segue para o fluxo de inscrição do time recém-criado.
-      window.location.hash = `#/t/${teamId}?k=${teamToken}`
+      navigate(`/t/${teamId}?k=${teamToken}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar o time.')
       setBusy(false)

@@ -177,7 +177,7 @@ export function ManageChampionship({
   }
 
   function copyPublicLink() {
-    const url = `${location.origin}${location.pathname}#/c/${championshipId}`
+    const url = `${location.origin}/c/${championshipId}`
     navigator.clipboard?.writeText(url).then(
       () => alert('Link público copiado!\n\n' + url),
       () => prompt('Copie o link público:', url),

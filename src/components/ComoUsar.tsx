@@ -11,7 +11,7 @@ import { formatBRL, planOf } from '../lib/pricing'
 // o mesário anota a súmula no campo. Um manual único misturaria as três e
 // obrigaria cada uma a garimpar a sua parte — daí as abas.
 //
-// A página é pública (`#/como-usar`): o organizador manda o link para os times
+// A página é pública (`/como-usar`): o organizador manda o link para os times
 // e para os mesários, e ninguém precisa estar logado para ler.
 // ---------------------------------------------------------------------------
 
@@ -175,7 +175,7 @@ const MESARIO: Passo[] = [
   {
     titulo: 'Receba o link da mesa e a sua senha',
     texto:
-      'O organizador cadastra você como mesário e envia um link do tipo tabelaco…/#/mesa/… junto com uma senha.',
+      'O organizador cadastra você como mesário e envia um link do tipo tabelaco…/mesa/… junto com uma senha.',
   },
   {
     titulo: 'Entre e veja só os seus jogos',
@@ -338,8 +338,8 @@ export function ComoUsar({ onHome }: { onHome: () => void }) {
           </p>
           <div className="guia__fim-acoes">
             <SuporteLink href={LINK_SUPORTE} className="btn btn--primary">Falar com o suporte</SuporteLink>
-            <a className="btn btn--ghost" href="#/planos">Ver planos e preços</a>
-            <a className="btn btn--ghost" href="#/instalar">📲 Instalar no celular</a>
+            <a className="btn btn--ghost" href="/planos">Ver planos e preços</a>
+            <a className="btn btn--ghost" href="/instalar">📲 Instalar no celular</a>
           </div>
         </section>
       </div>

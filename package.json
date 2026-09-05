@@ -3,12 +3,12 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Tabelaço — plataforma de gestão de campeonatos esportivos (inspirada no iFut).",
+  "description": "Tabela\u00e7o \u2014 plataforma de gest\u00e3o de campeonatos esportivos (inspirada no iFut).",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && tsc -p tsconfig.api.json && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit && tsc -p tsconfig.api.json"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
@@ -17,6 +17,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/node": "^26.4.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

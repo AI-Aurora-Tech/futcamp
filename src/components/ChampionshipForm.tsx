@@ -437,7 +437,7 @@ export function ChampionshipForm({
           <div className="plan-pick">
             <div className="cats__head">
               <span className="field__label">Plano</span>
-              <a className="link-btn" href="#/planos" target="_blank" rel="noopener noreferrer">ver detalhes dos planos</a>
+              <a className="link-btn" href="/planos" target="_blank" rel="noopener noreferrer">ver detalhes dos planos</a>
             </div>
             <div className="plan-pick__opts">
               {PLANS.map((p) => (

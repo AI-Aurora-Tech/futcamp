@@ -20,6 +20,8 @@ import { MatchesReadOnly } from './MatchesReadOnly'
 import { MatchCalendar } from './MatchCalendar'
 import { SponsorsStrip } from './SponsorsStrip'
 import { StatsPanel } from './StatsPanel'
+import { applySeo } from '../lib/seo'
+import { metaDoCampeonato } from '../lib/seoRotas'
 
 type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
 
@@ -57,6 +59,28 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       active = false
     }
   }, [championshipId])
+
+  // Título, descrição e dados estruturados com o nome real do campeonato.
+  // O servidor já entrega isso no HTML cru; aqui é para quem chega navegando
+  // pelo app, sem recarregar a página — sem isto o card do WhatsApp e a aba do
+  // navegador continuariam mostrando o texto genérico do Tabelaço.
+  useEffect(() => {
+    if (champ) {
+      applySeo(metaDoCampeonato(champ, teams, matches))
+    } else if (notFound) {
+      // Campeonato apagado ou link errado. O servidor responde 404 para o robô,
+      // mas quem chega até aqui navegando pelo app veria uma página de erro
+      // marcada como indexável — que é exatamente o que o Google chama de soft
+      // 404 e conta contra o site inteiro.
+      applySeo({
+        path: '/',
+        title: 'Campeonato não encontrado — Tabelaço',
+        description: 'O link pode estar incorreto ou o campeonato foi removido.',
+        indexavel: false,
+        jsonLd: null,
+      })
+    }
+  }, [champ, teams, matches, notFound])
 
   if (loading) return <div className="container pad-lg"><Spinner /></div>
   if (notFound || !champ) {

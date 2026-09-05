@@ -39,7 +39,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🤝 **Patrocinadores e parceiros**: cadastre logotipos e links exibidos na página pública do campeonato.
 - 💳 **Planos com pagamento**: o organizador escolhe o plano, o sistema soma as categorias adicionais e gera a cobrança no **Asaas** (Pix, boleto ou cartão). Confirmado o pagamento, o campeonato é liberado sozinho — nenhuma credencial fica no navegador.
 - 🔎 **Página inicial pública** com busca e lista dos campeonatos em andamento **e dos campeões recentes** — o campeonato encerrado fica na vitrine por **10 dias**, com o campeão em destaque.
-- 🌐 **SEO otimizado**: metadados, Open Graph, dados estruturados (Schema.org), `robots.txt` e `sitemap.xml`.
+- 🌐 **SEO otimizado**: rotas por caminho (`/c/<id>`, `/planos`), HTML entregue com o conteúdo dentro, metadados por página, Open Graph, dados estruturados (Schema.org), `robots.txt` e sitemap gerado do banco.
 - 🏆 **Equipe campeã sinalizada**: ao fim do campeonato, o campeão aparece em destaque — com vice e 3º lugar — na visão geral do organizador **e** na página pública, além do troféu na linha da tabela. A página pública mantém o **placar da final** (mata-mata) ou os **pontos do campeão** (pontos corridos).
 - 🥅 **Disputa por pênaltis**: nos jogos de mata-mata, a partida ao vivo tem o placar das cobranças — quem vence nos pênaltis avança automaticamente no chaveamento e o placar aparece na lista de jogos, na súmula e na faixa de campeão.
 - 🔔 **Notificações push**: o responsável do time recebe aviso de **gol no grupo em que seu time joga**; o organizador recebe aviso quando **um time altera o elenco** ou os próprios dados.
@@ -446,26 +446,128 @@ dia o regulamento precisar disso, aí vale reconsiderar.
 
 ## 🔎 Busca do Google (SEO)
 
-O `index.html` traz título, descrição, canonical, Open Graph, Twitter Card e
-dados estruturados (`Organization`, `WebSite`, `SoftwareApplication` com os
-preços reais e `FAQPage` com sete perguntas). Um `<noscript>` garante ~170
-palavras legíveis no HTML cru — o app é renderizado pelo navegador, então sem
-esse bloco o robô que não executa JavaScript encontraria uma página vazia.
+### Rotas por caminho
 
-A imagem de compartilhamento é **PNG** (`og-image.png`, 1200×630), e não SVG:
-Facebook, WhatsApp, LinkedIn e X não renderizam SVG em `og:image`, e com o SVG
-todo link compartilhado saía sem imagem.
+Cada tela pública tem uma URL de verdade, servida pelo `vercel.json`:
 
-> ⚠️ **O teto não são as meta tags — é a rota por hash.**
-> `#/planos`, `#/como-usar` e `#/c/<id>` são, para o Google, **a mesma página**:
-> o que vem depois do `#` nunca chega ao servidor. Hoje o site tem **uma** URL
-> indexável, por melhor que sejam as tags.
->
-> O maior ativo desperdiçado são as páginas públicas dos campeonatos: conteúdo
-> real, atualizado toda semana, com nomes de times e cidades — exatamente o que
-> alguém procura ao buscar "campeonato tal 2026 tabela". Para elas ranquearem,
-> o app precisaria de rotas de caminho (`/c/<id>` em vez de `#/c/<id>`) e de
-> HTML servido com o conteúdo já dentro.
+| Caminho | Tela |
+| --- | --- |
+| `/` | Landing |
+| `/planos` | Planos e preços |
+| `/como-usar` | Guia do organizador, do time e do mesário |
+| `/instalar` | Como instalar no celular |
+| `/c/<id>` | Página pública do campeonato |
+
+> **Antes era tudo `#/`.** `#/planos`, `#/como-usar` e `#/c/<id>` eram, para o
+> Google, **a mesma página**: o que vem depois do `#` nunca chega ao servidor.
+> O site inteiro tinha **uma** URL indexável, por melhor que fossem as meta
+> tags — e as páginas públicas dos campeonatos, que são o conteúdo mais
+> valioso que existe aqui (nomes de times, cidade, resultados novos toda
+> semana), simplesmente não existiam para busca nenhuma.
+
+O roteador é [`src/lib/router.ts`](src/lib/router.ts). Os links continuam sendo
+`<a href="/planos">` de verdade no HTML — que é o que o robô percorre — e um
+único ouvinte de clique no documento os faz navegar pela History API, sem
+recarregar a página.
+
+**Os links antigos continuam funcionando.** `migrateLegacyHash()` roda antes do
+primeiro render e converte `#/c/<id>` em `/c/<id>`. Isso importa porque já
+existem links `#/` circulando em grupos de WhatsApp e gravados nas notificações
+push do banco (`format('#/c/%s', …)` nas migrations 0018 e 0035) — nada disso
+precisa ser reescrito.
+
+### HTML com conteúdo dentro
+
+[`api/render.ts`](api/render.ts) responde por `/c/<id>`, `/planos`, `/como-usar`
+e `/instalar`. Ela pega o `index.html` construído pelo Vite — que já traz os
+scripts do app com os nomes versionados — e troca o que é próprio da rota:
+título, descrição, canonical, Open Graph, Twitter Card, dados estruturados e o
+bloco `<noscript>`, que passa a ter o conteúdo real da página.
+
+Na página de um campeonato, esse conteúdo é o nome, o resumo, a lista de
+equipes, os últimos resultados e os próximos jogos — lidos no Supabase pela API
+REST com a chave anônima, o mesmo acesso que qualquer visitante tem
+(`championships_read ... using (true)`).
+
+Não é conteúdo diferente para robô: é a mesma página, legível **antes** de o
+JavaScript rodar. Quando o app carrega, ele assume normalmente. O Google
+executa JavaScript, mas o primeiro passe de indexação lê o HTML como veio — e o
+robô do WhatsApp, do Facebook, do LinkedIn e do X não executa nada. Era por
+isso que todo link de campeonato compartilhado virava o mesmo card genérico.
+
+O resultado fica no cache de borda da Vercel por 5 minutos
+(`s-maxage=300, stale-while-revalidate=3600`), então o robô e as pessoas pegam
+a página pronta sem acordar a função.
+
+**A home continua estática.** `/` é servida direto do `index.html`, sem passar
+por função nenhuma: os metadados dela já estão certos no arquivo e é a rota de
+maior tráfego — não faz sentido pagar latência de lambda por ela.
+
+### Metadados no navegador
+
+[`src/lib/seo.ts`](src/lib/seo.ts) e [`src/lib/seoRotas.ts`](src/lib/seoRotas.ts)
+mantêm `<head>` correto enquanto a pessoa navega sem recarregar. O bloco de
+dados estruturados da home (`SoftwareApplication` com os preços reais e
+`FAQPage`) é **removido** nas outras rotas e substituído pelo da página —
+`BreadcrumbList` nas páginas fixas, `SportsEvent` com as equipes na página do
+campeonato. Descrever dois assuntos concorrentes na mesma página só confunde.
+
+> Os textos das páginas fixas aparecem em dois lugares — `src/lib/seoRotas.ts`
+> (navegador) e `api/render.ts` (servidor). Mudou num, mude no outro.
+
+### Sitemap gerado do banco
+
+[`api/sitemap.ts`](api/sitemap.ts) lista as quatro páginas fixas mais a página
+de **cada campeonato ativo ou encerrado**. Rascunhos ficam de fora de propósito:
+são esboços sem times nem jogos, e mandar página vazia para o Google derruba a
+avaliação do site inteiro, não só a daquela página.
+
+Sem `lastmod` nos campeonatos — a tabela `championships` só guarda a data de
+criação, e o que muda (resultados, classificação) está em outras tabelas.
+Declarar a data de criação como "última modificação" seria dizer ao Google que
+a página nunca muda, que é o contrário do que acontece.
+
+### 404 de verdade
+
+Antes, o `vercel.json` mandava **qualquer** caminho para o app: uma URL
+inventada respondia `200` com a home. Para o Google isso é *soft 404*, e conta
+contra o site inteiro. Agora as rotas são declaradas uma a uma e o que não
+casa cai em [`public/404.html`](public/404.html), com status 404. Campeonato
+inexistente também responde 404, tanto no servidor quanto — depois da
+navegação interna — no `<head>` da página.
+
+### Rotas privadas
+
+`/t/<id>`, `/novo-time/<id>`, `/mesa/<id>` e `/pagamento/<id>` levam token na
+própria URL. Vão com `noindex, nofollow` no `<head>` e com `Disallow` no
+[`robots.txt`](public/robots.txt) — indexar uma delas seria publicar o token.
+
+### O que continua como estava
+
+Título, descrição, canonical, Open Graph, Twitter Card e os dados estruturados
+da home seguem no [`index.html`](index.html). A imagem de compartilhamento é
+**PNG** (`og-image.png`, 1200×630), e não SVG: Facebook, WhatsApp, LinkedIn e X
+não renderizam SVG em `og:image`, e com o SVG todo link compartilhado saía sem
+imagem.
+
+### Desempenho
+
+O `vite.config.ts` injeta `preconnect` e `dns-prefetch` para o Supabase quando
+`VITE_SUPABASE_URL` está definida. O app abre a primeira consulta assim que
+renderiza; sem isso, DNS e handshake TLS entram inteiros no caminho crítico —
+no celular, em rede móvel, algumas centenas de milissegundos direto no LCP.
+
+### Variáveis de ambiente do servidor
+
+As funções em `api/` leem `SUPABASE_URL`/`SUPABASE_ANON_KEY` e caem para
+`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` — as mesmas que o app já usa, que
+na Vercel também chegam às funções. Sem nenhuma delas, as páginas fixas
+continuam funcionando e a de campeonato responde 404.
+
+O domínio canônico é opcional e tem dois nomes, porque só o que começa com
+`VITE_` chega ao navegador: `VITE_SITE_URL` para o app e `SITE_URL` para as
+funções em `api/`. O padrão dos dois é `https://tabelaco.app`.
+
 
 ## 📈 Analytics (Vercel)
 

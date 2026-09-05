@@ -13,134 +13,63 @@ import { PaymentReturn } from './components/PaymentReturn'
 import { InstallGuide } from './components/InstallGuide'
 import { ComoUsar } from './components/ComoUsar'
 import { Spinner } from './components/ui'
-
-/** Verdadeiro na rota pública de planos `#/planos`. */
-function readPlanos(): boolean {
-  return /^#\/planos\/?$/.test(window.location.hash)
-}
-
-/** Verdadeiro na rota pública de instalação `#/instalar`. */
-function readInstalar(): boolean {
-  return /^#\/instalar\/?$/.test(window.location.hash)
-}
-
-/** Verdadeiro na rota pública do guia `#/como-usar`. */
-function readGuia(): boolean {
-  return /^#\/como-usar\/?$/.test(window.location.hash)
-}
-
-/** Extrai o ID de campeonato público de um hash `#/c/<id>`, se houver. */
-function readPublicId(): string | null {
-  const m = window.location.hash.match(/^#\/c\/([^?]+)$/)
-  return m ? decodeURIComponent(m[1]) : null
-}
-
-/** Extrai `#/t/<teamId>?k=<token>` (link de inscrição de time), se houver. */
-function readTeamRoute(): { teamId: string; token: string } | null {
-  const m = window.location.hash.match(/^#\/t\/([^?]+)(?:\?(.*))?$/)
-  if (!m) return null
-  const params = new URLSearchParams(m[2] ?? '')
-  return { teamId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
-}
-
-/** Extrai `#/novo-time/<championshipId>?k=<token>` (link de criação de time). */
-function readCreateTeamRoute(): { championshipId: string; token: string } | null {
-  const m = window.location.hash.match(/^#\/novo-time\/([^?]+)(?:\?(.*))?$/)
-  if (!m) return null
-  const params = new URLSearchParams(m[2] ?? '')
-  return { championshipId: decodeURIComponent(m[1]), token: params.get('k') ?? '' }
-}
-
-/** Extrai `#/pagamento/<championshipId>?status=…` (volta do Asaas). */
-function readPaymentRoute(): { championshipId: string; status: string | null } | null {
-  const m = window.location.hash.match(/^#\/pagamento\/([^?]+)(?:\?(.*))?$/)
-  if (!m) return null
-  const params = new URLSearchParams(m[2] ?? '')
-  return { championshipId: decodeURIComponent(m[1]), status: params.get('status') }
-}
-
-/** Extrai `#/mesa/<championshipId>` (portal do mesário), se houver. */
-function readMesaId(): string | null {
-  const m = window.location.hash.match(/^#\/mesa\/([^?]+)$/)
-  return m ? decodeURIComponent(m[1]) : null
-}
+import { currentRoute, navigate, onRouteChange } from './lib/router'
+import { applySeo } from './lib/seo'
+import { metaDaRota } from './lib/seoRotas'
 
 export default function App() {
   const { organizer, loading } = useAuth()
-  const [publicId, setPublicId] = useState<string | null>(readPublicId())
-  const [teamRoute, setTeamRoute] = useState(readTeamRoute())
-  const [createTeamRoute, setCreateTeamRoute] = useState(readCreateTeamRoute())
-  const [mesaId, setMesaId] = useState<string | null>(readMesaId())
-  const [payRoute, setPayRoute] = useState(readPaymentRoute())
-  const [planos, setPlanos] = useState(readPlanos())
-  const [instalar, setInstalar] = useState(readInstalar())
-  const [guia, setGuia] = useState(readGuia())
+  const [route, setRoute] = useState(currentRoute)
   const [selected, setSelected] = useState<string | null>(null)
 
+  useEffect(() => onRouteChange(() => setRoute(currentRoute())), [])
+
+  // Título, descrição, canonical e dados estruturados da rota atual. A página
+  // pública do campeonato refina isso com o nome real assim que os dados
+  // chegam (ver `PublicChampionship`).
   useEffect(() => {
-    const onHash = () => {
-      setPublicId(readPublicId())
-      setTeamRoute(readTeamRoute())
-      setCreateTeamRoute(readCreateTeamRoute())
-      setMesaId(readMesaId())
-      setPayRoute(readPaymentRoute())
-      setPlanos(readPlanos())
-      setInstalar(readInstalar())
-      setGuia(readGuia())
-    }
-    window.addEventListener('hashchange', onHash)
-    return () => window.removeEventListener('hashchange', onHash)
-  }, [])
+    applySeo(metaDaRota(route))
+  }, [route])
 
   function goHome() {
-    if (window.location.hash) {
-      window.location.hash = ''
-    }
-    setPublicId(null)
-    setTeamRoute(null)
-    setCreateTeamRoute(null)
-    setMesaId(null)
-    setPayRoute(null)
-    setPlanos(false)
-    setInstalar(false)
-    setGuia(false)
+    navigate('/')
     setSelected(null)
   }
 
   // Página pública de planos (não exige login).
-  if (planos) {
+  if (route.kind === 'planos') {
     return <Plans onHome={goHome} />
   }
 
   // Página pública de instalação (não exige login).
-  if (instalar) {
+  if (route.kind === 'instalar') {
     return <InstallGuide onHome={goHome} />
   }
 
   // Guia de uso (não exige login: o organizador manda o link para os times
   // e para os mesários, e cada um lê a parte dele sem precisar de conta).
-  if (guia) {
+  if (route.kind === 'como-usar') {
     return <ComoUsar onHome={goHome} />
   }
 
   // Portal do mesário (login próprio).
-  if (mesaId) {
-    return <MesaPortal championshipId={mesaId} onHome={goHome} />
+  if (route.kind === 'mesa') {
+    return <MesaPortal championshipId={route.championshipId} onHome={goHome} />
   }
 
   // Link de criação de time pelo responsável (não exige login).
-  if (createTeamRoute) {
-    return <CreateTeamViaLink championshipId={createTeamRoute.championshipId} token={createTeamRoute.token} onHome={goHome} />
+  if (route.kind === 'novo-time') {
+    return <CreateTeamViaLink championshipId={route.championshipId} token={route.token} onHome={goHome} />
   }
 
   // Link de inscrição do time (não exige login).
-  if (teamRoute) {
-    return <TeamRegistration teamId={teamRoute.teamId} token={teamRoute.token} onHome={goHome} />
+  if (route.kind === 'time') {
+    return <TeamRegistration teamId={route.teamId} token={route.token} onHome={goHome} />
   }
 
   // Página pública tem prioridade e não exige login.
-  if (publicId) {
-    return <PublicChampionship championshipId={publicId} onHome={goHome} />
+  if (route.kind === 'campeonato') {
+    return <PublicChampionship championshipId={route.id} onHome={goHome} />
   }
 
   if (loading) {
@@ -155,10 +84,10 @@ export default function App() {
     <div className="app">
       <Header onHome={goHome} />
       <main>
-        {payRoute ? (
+        {route.kind === 'pagamento' ? (
           <PaymentReturn
-            championshipId={payRoute.championshipId}
-            status={payRoute.status}
+            championshipId={route.championshipId}
+            status={route.status}
             onOpen={(id) => {
               goHome()
               setSelected(id)

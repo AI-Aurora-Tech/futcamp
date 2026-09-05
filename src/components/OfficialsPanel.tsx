@@ -18,7 +18,7 @@ export function OfficialsPanel({
   const assignedCount = (id: string) => matches.filter((m) => m.officialId === id).length
 
   function copyPortalLink() {
-    const url = `${location.origin}${location.pathname}#/mesa/${championship.id}`
+    const url = `${location.origin}/mesa/${championship.id}`
     navigator.clipboard?.writeText(url).then(
       () => alert('Link do portal do mesário copiado!\n\n' + url),
       () => prompt('Copie o link do portal do mesário:', url),
@@ -88,7 +88,7 @@ export function OfficialsPanel({
       )}
 
       <p className="hint">
-        Portal do mesário: <code>#/mesa/{championship.id}</code> — cada um entra com o próprio e-mail e senha.
+        Portal do mesário: <code>/mesa/{championship.id}</code> — cada um entra com o próprio e-mail e senha.
         Use 🔑 para <b>zerar a senha</b>: o mesário criará uma nova ao entrar com o e-mail.
       </p>
 
