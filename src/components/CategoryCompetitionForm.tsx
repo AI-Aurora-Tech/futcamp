@@ -144,7 +144,7 @@ export function CategoryCompetitionForm({
   }
 
   return (
-    <Modal title={`Disputa · ${nome}`} onClose={onClose} dismissable={false}>
+    <Modal title={`Disputa · ${nome}`} onClose={onClose} dismissable={false} size="wide">
       <form onSubmit={submit} className="form-grid">
         <p className="field__hint">
           Cada categoria é um campeonato dentro do campeonato. Defina aqui a forma de disputa e as

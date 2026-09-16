@@ -298,6 +298,16 @@ a.btn { text-decoration: none; cursor: pointer; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); display: grid; place-items: center; z-index: 50; padding: 1rem; backdrop-filter: blur(2px); }
 .modal { background: var(--surface); border-radius: 18px; width: 100%; max-width: 480px; box-shadow: var(--shadow-lg); max-height: 92vh; display: flex; flex-direction: column; animation: pop 0.15s ease-out; }
 .modal--wide { max-width: 640px; }
+/* Formulários longos (criar/editar campeonato): largura de desktop. No celular
+   o modal já ocupa a largura da tela; aqui é só dar espaço no desktop para os
+   grids internos (categorias, linhas de campos, grupos) abrirem em colunas. */
+.modal--form { max-width: 960px; }
+@media (min-width: 860px) {
+  .modal--form .modal__body { padding: 1.6rem 1.9rem; }
+  /* Cartões de categoria aproveitam a largura extra (os grids internos já são
+     auto-fit, então ganham mais colunas sozinhos). */
+  .modal--form .cat-card__grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+}
 @keyframes pop { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .modal__head { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 1.35rem; border-bottom: 1px solid var(--line); }
 .modal__head h3 { font-size: 1.15rem; }
