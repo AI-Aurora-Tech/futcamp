@@ -60,13 +60,26 @@ export function Modal({
   onClose,
   children,
   wide = false,
+  dismissable = true,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   wide?: boolean
+  /**
+   * O clique no fundo (e o Esc) fecha o modal? Padrão: sim. Em formulários
+   * longos — como a criação/edição do campeonato — vale `false` para um clique
+   * fora não descartar tudo o que foi preenchido; aí só o ✕ ou "Cancelar" fecham.
+   */
+  dismissable?: boolean
 }) {
   useEffect(() => {
+    if (!dismissable) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -74,10 +87,10 @@ export function Modal({
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = ''
     }
-  }, [onClose])
+  }, [onClose, dismissable])
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={dismissable ? onClose : undefined}>
       <div
         className={`modal ${wide ? 'modal--wide' : ''}`}
         onClick={(e) => e.stopPropagation()}

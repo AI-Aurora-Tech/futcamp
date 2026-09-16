@@ -586,7 +586,7 @@ export function ChampionshipForm({
   }
 
   return (
-    <Modal title={initial ? 'Editar campeonato' : 'Novo campeonato'} onClose={onClose}>
+    <Modal title={initial ? 'Editar campeonato' : 'Novo campeonato'} onClose={onClose} dismissable={false}>
       <form onSubmit={submit} className="form-grid">
         {!initial && (
           <div className="plan-pick">
