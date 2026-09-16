@@ -835,6 +835,16 @@ table { border-collapse: collapse; width: 100%; }
 .cat-tabs--form .cat-tab.is-active { background: var(--brand); color: #fff; border-color: var(--brand); }
 .cat-tab--add { border-style: dashed; font-weight: 800; }
 
+/* Bloco da DISPUTA da categoria aberta: destacado para deixar claro que tudo
+   ali é só daquela categoria (nada compartilhado). */
+.disputa-cat {
+  display: flex; flex-direction: column; gap: 1rem;
+  border: 1px solid var(--line); border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm); background: var(--surface-2);
+  padding: 1rem; margin-top: 0.25rem;
+}
+.disputa-cat__title { font-size: 1rem; margin: 0; }
+
 /* ---------- Gate de acesso do time ---------- */
 .reg__gate { max-width: 460px; margin: 0 auto; }
 .reg__gate-form .btn { width: 100%; justify-content: center; margin-top: 0.3rem; }
