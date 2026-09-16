@@ -242,7 +242,7 @@ export function ManageChampionship({
                 <StatusPill status={statusDaCategoria(champ, catAtual)} />
               </div>
               <p className="manage__meta">
-                {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[champ.format]}
+                {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[comp.format]}
                 {champ.season ? ` · ${champ.season}` : ''}
               </p>
               <ChampionTag podium={computePodium(comp, timesCat, partidasCat, eventosCat)} teams={timesCat} />

@@ -150,21 +150,39 @@ export function competicaoDaCategoria(
   const ou = <T,>(daCategoria: T | undefined, doCampeonato: T): T =>
     daCategoria === undefined ? doCampeonato : daCategoria
 
+  // Forma de disputa da categoria (ou a do campeonato). Quando a categoria tem
+  // um formato PRÓPRIO e diferente do campeonato, os ajustes específicos de
+  // formato (grupos, chaveamento, classificados…) NÃO herdam os do campeonato —
+  // eles pertencem a outro formato e misturá-los quebraria a montagem. Ficam
+  // valendo só os que a própria categoria definiu.
+  const format = cat.format ?? champ.format
+  const herdaEstrutura = !cat.format || cat.format === champ.format
+  const est = <T,>(daCategoria: T | undefined, doCampeonato: T): T =>
+    herdaEstrutura ? ou(daCategoria, doCampeonato) : (daCategoria as T)
+
   return {
     ...champ,
+    format,
     status: cat.status ?? champ.status,
     finishedAt: cat.finishedAt ?? champ.finishedAt,
-    numGroups: ou(cat.numGroups, champ.numGroups),
-    teamsPerGroup: ou(cat.teamsPerGroup, champ.teamsPerGroup),
-    advancePerGroup: ou(cat.advancePerGroup, champ.advancePerGroup),
-    advanceByGroup: ou(cat.advanceByGroup, champ.advanceByGroup),
-    groupStages: ou(cat.groupStages, champ.groupStages),
-    leagueQualifiers: ou(cat.leagueQualifiers ?? cat.qualifiers, champ.leagueQualifiers),
-    bracket: ou(cat.bracket, champ.bracket),
+    // Regras de classificação próprias (herdam quando ausentes).
+    pointsWin: ou(cat.pointsWin, champ.pointsWin),
+    pointsDraw: ou(cat.pointsDraw, champ.pointsDraw),
+    tiebreakers: ou(cat.tiebreakers, champ.tiebreakers),
+    // Estrutura específica do formato.
+    numGroups: est(cat.numGroups, champ.numGroups),
+    teamsPerGroup: est(cat.teamsPerGroup, champ.teamsPerGroup),
+    advancePerGroup: est(cat.advancePerGroup, champ.advancePerGroup),
+    advanceByGroup: est(cat.advanceByGroup, champ.advanceByGroup),
+    groupStages: est(cat.groupStages, champ.groupStages),
+    leagueQualifiers: est(cat.leagueQualifiers ?? cat.qualifiers, champ.leagueQualifiers),
+    bracket: est(cat.bracket, champ.bracket),
+    generalStanding: est(cat.generalStanding, champ.generalStanding),
+    leagueEntries: est(cat.leagueEntries, champ.leagueEntries),
+    leagueMatchesPerTeam: est(cat.leagueMatchesPerTeam, champ.leagueMatchesPerTeam),
     thirdPlace: ou(cat.thirdPlace, champ.thirdPlace),
     doubleRound: ou(cat.doubleRound, champ.doubleRound),
     autoKnockout: ou(cat.autoKnockout, champ.autoKnockout),
-    generalStanding: ou(cat.generalStanding, champ.generalStanding),
   }
 }
 
@@ -181,7 +199,13 @@ export function estruturaPropria(cat: Category | null | undefined): boolean {
     cat.bracket !== undefined ||
     cat.thirdPlace !== undefined ||
     cat.doubleRound !== undefined ||
-    cat.generalStanding !== undefined
+    cat.generalStanding !== undefined ||
+    cat.leagueEntries !== undefined ||
+    cat.leagueMatchesPerTeam !== undefined ||
+    cat.format !== undefined ||
+    cat.pointsWin !== undefined ||
+    cat.pointsDraw !== undefined ||
+    cat.tiebreakers !== undefined
   )
 }
 

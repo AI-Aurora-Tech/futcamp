@@ -67,9 +67,17 @@ interface CatDraft {
   sendOffPolicy: '' | SendOffPolicy
   /** Quantas equipes se classificam nesta categoria. */
   qualifiers: string
+  /* Forma de disputa e classificação próprias. '' = herda o campeonato. */
+  format: '' | ChampionshipFormat
+  pointsWin: string
+  pointsDraw: string
+  ownTiebreakers: boolean
+  tiebreakers: TiebreakerId[]
   /* Estrutura própria (grupos + mata-mata). Vazio = herda o campeonato. */
   numGroups: string
   teamsPerGroup: string
+  /** Classificação geral (grupos + mata-mata): tabela única. */
+  generalStanding: boolean
   yellowAccumulates: boolean
   yellowsForSuspension: string
   refereeFee: string
@@ -93,8 +101,14 @@ function toDraft(c: Category): CatDraft {
     maxSubstitutions: c.maxSubstitutions != null ? String(c.maxSubstitutions) : '',
     sendOffPolicy: c.sendOffPolicy ?? '',
     qualifiers: c.qualifiers != null ? String(c.qualifiers) : '',
+    format: c.format ?? '',
+    pointsWin: c.pointsWin != null ? String(c.pointsWin) : '',
+    pointsDraw: c.pointsDraw != null ? String(c.pointsDraw) : '',
+    ownTiebreakers: Boolean(c.tiebreakers?.length),
+    tiebreakers: c.tiebreakers?.length ? c.tiebreakers : DEFAULT_TIEBREAKERS,
     numGroups: c.numGroups != null ? String(c.numGroups) : '',
     teamsPerGroup: c.teamsPerGroup != null ? String(c.teamsPerGroup) : '',
+    generalStanding: Boolean(c.generalStanding),
     yellowAccumulates: c.yellowAccumulates !== false,
     yellowsForSuspension: c.yellowsForSuspension != null ? String(c.yellowsForSuspension) : '',
     refereeFee: textoDeCentavos(c.refereeFeeCents),
@@ -107,7 +121,9 @@ function emptyDraft(): CatDraft {
     id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
     maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
     periodMinutes: '', periods: '2', substitutionMode: '', maxSubstitutions: '',
-    sendOffPolicy: '', qualifiers: '', numGroups: '', teamsPerGroup: '',
+    sendOffPolicy: '', qualifiers: '',
+    format: '', pointsWin: '', pointsDraw: '', ownTiebreakers: false, tiebreakers: DEFAULT_TIEBREAKERS,
+    numGroups: '', teamsPerGroup: '', generalStanding: false,
     yellowAccumulates: true, yellowsForSuspension: '3', refereeFee: '', refereePix: '',
   }
 }
@@ -268,6 +284,33 @@ export function ChampionshipForm({
   function updateCat(id: string, patch: Partial<CatDraft>) {
     setCats((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }
+  function moveCatTiebreaker(id: string, tb: TiebreakerId, dir: -1 | 1) {
+    setCats((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c
+        const i = c.tiebreakers.indexOf(tb)
+        const j = i + dir
+        if (i < 0 || j < 0 || j >= c.tiebreakers.length) return c
+        const next = [...c.tiebreakers]
+        ;[next[i], next[j]] = [next[j], next[i]]
+        return { ...c, tiebreakers: next }
+      }),
+    )
+  }
+  function toggleCatTiebreaker(id: string, tb: TiebreakerId) {
+    setCats((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              tiebreakers: c.tiebreakers.includes(tb)
+                ? c.tiebreakers.filter((x) => x !== tb)
+                : [...c.tiebreakers, tb],
+            }
+          : c,
+      ),
+    )
+  }
   function addCat() {
     setCats((prev) => [...prev, emptyDraft()])
   }
@@ -280,6 +323,9 @@ export function ChampionshipForm({
       .filter((c) => c.name.trim())
       .map((c) => {
         const year = c.year ? Number(c.year) : undefined
+        // Formato EFETIVO da categoria: o próprio (se escolhido) ou o do campeonato.
+        const catFmt: ChampionshipFormat = c.format || format
+        const catGeneral = catFmt === 'groups_knockout' && c.generalStanding
         return {
           id: c.id,
           name: c.name.trim(),
@@ -307,24 +353,30 @@ export function ChampionshipForm({
               : undefined,
           sendOffPolicy: c.sendOffPolicy || undefined,
           qualifiers: c.qualifiers ? Math.max(1, Number(c.qualifiers)) : undefined,
-          // Estrutura da categoria. Vazio fica `undefined` de propósito: a
-          // categoria herda o número do campeonato em vez de fixar um valor
-          // que o organizador não escolheu.
+          // Forma de disputa e classificação próprias da categoria. Vazio =
+          // herda o campeonato (fica `undefined`).
+          format: c.format || undefined,
+          pointsWin: c.pointsWin ? Math.max(0, Number(c.pointsWin)) : undefined,
+          pointsDraw: c.pointsDraw ? Math.max(0, Number(c.pointsDraw)) : undefined,
+          tiebreakers: c.ownTiebreakers && c.tiebreakers.length ? c.tiebreakers : undefined,
+          // Estrutura da categoria, pelo formato EFETIVO (o próprio, ou o do
+          // campeonato). Vazio fica `undefined`: a categoria herda o número do
+          // campeonato em vez de fixar um valor que o organizador não escolheu.
           numGroups:
-            format === 'groups_knockout' && c.numGroups ? Math.max(1, Number(c.numGroups)) : undefined,
+            catFmt === 'groups_knockout' && c.numGroups ? Math.max(1, Number(c.numGroups)) : undefined,
           teamsPerGroup:
-            format === 'groups_knockout' && c.teamsPerGroup
+            catFmt === 'groups_knockout' && c.teamsPerGroup
               ? Math.max(2, Number(c.teamsPerGroup))
               : undefined,
           advancePerGroup:
-            format === 'groups_knockout' && c.qualifiers
+            catFmt === 'groups_knockout' && !catGeneral && c.qualifiers
               ? Math.max(1, Number(c.qualifiers))
               : undefined,
           leagueQualifiers:
-            (format === 'league' || (format === 'groups_knockout' && generalStanding)) && c.qualifiers
+            (catFmt === 'league' || catGeneral) && c.qualifiers
               ? Math.max(1, Number(c.qualifiers))
               : undefined,
-          generalStanding: format === 'groups_knockout' && generalStanding ? true : undefined,
+          generalStanding: catGeneral ? true : undefined,
           yellowAccumulates: c.yellowAccumulates,
           yellowsForSuspension: c.yellowAccumulates
             ? Math.max(1, Number(c.yellowsForSuspension) || 3)
@@ -616,7 +668,11 @@ export function ChampionshipForm({
             </p>
           )}
           <div className="cats__list">
-            {cats.map((c, i) => (
+            {cats.map((c, i) => {
+              // Formato efetivo desta categoria: o próprio ou o do campeonato.
+              const catFmt: ChampionshipFormat = c.format || format
+              const catGeneral = catFmt === 'groups_knockout' && c.generalStanding
+              return (
               <div key={c.id} className="cat-card">
                 <div className="cat-card__head">
                   <span className="cat-card__idx">Categoria {i + 1}</span>
@@ -739,6 +795,100 @@ export function ChampionshipForm({
                     <small className="mini-field__hint">técnicos/auxiliares por time</small>
                   </label>
 
+                  {/* Forma de disputa e regras de classificação PRÓPRIAS da
+                      categoria: o Sub-11 pode ser mata-mata enquanto o Sub-17 é
+                      de grupos, cada um com a sua pontuação e desempate. */}
+                  <div className="cat-regras">
+                    <span className="cat-regras__titulo">🏆 Disputa e classificação</span>
+
+                    <div className="cat-regras__linha">
+                      <label className="mini-field mini-field--wide">
+                        <span className="mini-field__label">Forma de disputa</span>
+                        <select
+                          value={c.format}
+                          onChange={(e) => updateCat(c.id, { format: e.target.value as '' | ChampionshipFormat })}
+                        >
+                          <option value="">Como o campeonato ({FORMAT_LABELS[format]})</option>
+                          {(Object.keys(FORMAT_LABELS) as ChampionshipFormat[]).map((f) => (
+                            <option key={f} value={f}>{FORMAT_LABELS[f]}</option>
+                          ))}
+                        </select>
+                        <small className="mini-field__hint">cada categoria pode ter a sua</small>
+                      </label>
+                    </div>
+
+                    {catFmt !== 'knockout' && (
+                      <div className="cat-regras__linha">
+                        <label className="mini-field">
+                          <span className="mini-field__label">Pontos por vitória</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={5}
+                            value={c.pointsWin}
+                            onChange={(e) => updateCat(c.id, { pointsWin: e.target.value })}
+                            placeholder={String(pointsWin)}
+                          />
+                          <small className="mini-field__hint">em branco = como o campeonato</small>
+                        </label>
+                        <label className="mini-field">
+                          <span className="mini-field__label">Pontos por empate</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={3}
+                            value={c.pointsDraw}
+                            onChange={(e) => updateCat(c.id, { pointsDraw: e.target.value })}
+                            placeholder={String(pointsDraw)}
+                          />
+                          <small className="mini-field__hint">em branco = como o campeonato</small>
+                        </label>
+                      </div>
+                    )}
+
+                    {catFmt !== 'knockout' && (
+                      <>
+                        <label className="check cat-regras__check">
+                          <input
+                            type="checkbox"
+                            checked={c.ownTiebreakers}
+                            onChange={(e) => updateCat(c.id, { ownTiebreakers: e.target.checked })}
+                          />
+                          <span>📊 <b>Critérios de desempate próprios</b> desta categoria</span>
+                        </label>
+                        {c.ownTiebreakers && (
+                          <>
+                            <ol className="tiebreak-list">
+                              {c.tiebreakers.map((t, ti) => (
+                                <li key={t} className="tiebreak-item">
+                                  <span className="tiebreak-item__idx">{ti + 2}º</span>
+                                  <span className="tiebreak-item__label">{TIEBREAKER_LABELS[t]}</span>
+                                  <span className="tiebreak-item__actions">
+                                    <button type="button" className="icon-btn" title="Subir" onClick={() => moveCatTiebreaker(c.id, t, -1)} disabled={ti === 0}>↑</button>
+                                    <button type="button" className="icon-btn" title="Descer" onClick={() => moveCatTiebreaker(c.id, t, 1)} disabled={ti === c.tiebreakers.length - 1}>↓</button>
+                                    <button type="button" className="icon-btn icon-btn--danger" title="Remover critério" onClick={() => toggleCatTiebreaker(c.id, t)}>✕</button>
+                                  </span>
+                                </li>
+                              ))}
+                            </ol>
+                            {(Object.keys(TIEBREAKER_LABELS) as TiebreakerId[]).some((t) => !c.tiebreakers.includes(t)) && (
+                              <div className="tiebreak-add">
+                                <span className="muted small">Adicionar:</span>
+                                {(Object.keys(TIEBREAKER_LABELS) as TiebreakerId[])
+                                  .filter((t) => !c.tiebreakers.includes(t))
+                                  .map((t) => (
+                                    <button type="button" key={t} className="chip-btn" onClick={() => toggleCatTiebreaker(c.id, t)}>
+                                      ＋ {TIEBREAKER_LABELS[t]}
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+
                   {/* Regras de jogo: tudo o que se discute na beira do campo e
                       entra no regulamento que os times baixam. */}
                   <div className="cat-regras">
@@ -848,40 +998,50 @@ export function ChampionshipForm({
                       </label>
                     </div>
 
-                    {format === 'groups_knockout' && (
-                      <div className="cat-regras__linha">
-                        <label className="mini-field">
-                          <span className="mini-field__label">Grupos nesta categoria</span>
+                    {catFmt === 'groups_knockout' && (
+                      <>
+                        <div className="cat-regras__linha">
+                          <label className="mini-field">
+                            <span className="mini-field__label">Grupos nesta categoria</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={16}
+                              value={c.numGroups}
+                              onChange={(e) => updateCat(c.id, { numGroups: e.target.value })}
+                              placeholder={String(stages[0]?.numGroups ?? 2)}
+                            />
+                            <small className="mini-field__hint">em branco = como o campeonato</small>
+                          </label>
+                          <label className="mini-field">
+                            <span className="mini-field__label">Equipes por grupo</span>
+                            <input
+                              type="number"
+                              min={2}
+                              max={32}
+                              value={c.teamsPerGroup}
+                              onChange={(e) => updateCat(c.id, { teamsPerGroup: e.target.value })}
+                              placeholder={teamsPerGroup || 'como o campeonato'}
+                            />
+                            <small className="mini-field__hint">cada categoria tem a sua</small>
+                          </label>
+                        </div>
+                        <label className="check cat-regras__check">
                           <input
-                            type="number"
-                            min={1}
-                            max={16}
-                            value={c.numGroups}
-                            onChange={(e) => updateCat(c.id, { numGroups: e.target.value })}
-                            placeholder={String(stages[0]?.numGroups ?? 2)}
+                            type="checkbox"
+                            checked={c.generalStanding}
+                            onChange={(e) => updateCat(c.id, { generalStanding: e.target.checked })}
                           />
-                          <small className="mini-field__hint">em branco = como o campeonato</small>
+                          <span>📊 <b>Classificação geral</b> (tabela única; classificam os melhores no geral)</span>
                         </label>
-                        <label className="mini-field">
-                          <span className="mini-field__label">Equipes por grupo</span>
-                          <input
-                            type="number"
-                            min={2}
-                            max={32}
-                            value={c.teamsPerGroup}
-                            onChange={(e) => updateCat(c.id, { teamsPerGroup: e.target.value })}
-                            placeholder={teamsPerGroup || 'como o campeonato'}
-                          />
-                          <small className="mini-field__hint">cada categoria tem a sua</small>
-                        </label>
-                      </div>
+                      </>
                     )}
 
-                    {format !== 'knockout' && (
+                    {catFmt !== 'knockout' && (
                       <div className="cat-regras__linha">
                         <label className="mini-field">
                           <span className="mini-field__label">
-                            {format === 'groups_knockout' && !generalStanding
+                            {catFmt === 'groups_knockout' && !catGeneral
                               ? 'Classificados por grupo'
                               : 'Classificados ao mata-mata'}
                           </span>
@@ -891,12 +1051,12 @@ export function ChampionshipForm({
                             max={64}
                             value={c.qualifiers}
                             onChange={(e) => updateCat(c.id, { qualifiers: e.target.value })}
-                            placeholder={format === 'groups_knockout' && !generalStanding ? 'Ex.: 2' : 'Ex.: 8'}
+                            placeholder={catFmt === 'groups_knockout' && !catGeneral ? 'Ex.: 2' : 'Ex.: 8'}
                           />
                           <small className="mini-field__hint">
-                            {format === 'groups_knockout' && !generalStanding
+                            {catFmt === 'groups_knockout' && !catGeneral
                               ? 'quantas equipes avançam de cada grupo'
-                              : generalStanding
+                              : catGeneral
                                 ? 'primeiras colocadas no geral que avançam'
                                 : 'primeiras colocadas que avançam'}
                           </small>
@@ -928,11 +1088,12 @@ export function ChampionshipForm({
                   </div>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
-        <Field label="Formato de disputa">
+        <Field label="Formato de disputa (padrão)" hint="Vale para as categorias que não escolherem um formato próprio no bloco “Disputa e classificação”.">
           <select value={format} onChange={(e) => setFormat(e.target.value as ChampionshipFormat)}>
             {Object.entries(FORMAT_LABELS).map(([id, label]) => (
               <option key={id} value={id}>{label}</option>

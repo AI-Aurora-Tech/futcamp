@@ -91,6 +91,26 @@ export interface Category {
   doubleRound?: boolean
   autoKnockout?: boolean
   generalStanding?: boolean
+  leagueMatchesPerTeam?: number
+  leagueEntries?: LeagueEntry[]
+
+  /* --- Regras de classificação e forma de disputa próprias -------------- */
+
+  /**
+   * Forma de disputa DESTA categoria (pontos corridos, grupos + mata-mata,
+   * mata-mata). Ausente = herda o formato do campeonato. É o que permite o
+   * Sub-11 ser mata-mata enquanto o Sub-17 é de grupos.
+   */
+  format?: ChampionshipFormat
+  /** Pontos por vitória nesta categoria (ausente = herda o do campeonato). */
+  pointsWin?: number
+  /** Pontos por empate nesta categoria (ausente = herda o do campeonato). */
+  pointsDraw?: number
+  /**
+   * Critérios de desempate próprios desta categoria, na ordem. Ausente = herda
+   * os do campeonato. A pontuação é sempre o 1º critério e não entra na lista.
+   */
+  tiebreakers?: TiebreakerId[]
 
   /* --- Regras de jogo (entram no regulamento) --------------------------- */
 

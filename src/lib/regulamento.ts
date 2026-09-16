@@ -24,6 +24,7 @@ import {
   type Championship,
 } from '../types'
 import { algumaPermite, textoRegra } from './federated'
+import { competicaoDaCategoria } from './categorias'
 import {
   descreverAmarelos,
   descreverArbitragem,
@@ -149,7 +150,12 @@ export function descreverCategorias(c: Championship): string[] {
       idade = `nascidos em ${cat.birthYear} ou antes${excecoes}`
     }
     const federados = c.audience === 'infantil' ? ` ${maiuscula(textoRegra(cat))}` : ''
-    return `${cat.name}: ${idade}.${federados}`
+    // Forma de disputa própria da categoria, quando difere do padrão.
+    const disputa =
+      cat.format && cat.format !== c.format
+        ? ` Disputa: ${descreverFormato(competicaoDaCategoria(c, cat.id))}`
+        : ''
+    return `${cat.name}: ${idade}.${federados}${disputa}`
   })
 }
 
@@ -267,7 +273,7 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
           `Modalidade: ${rotuloEsporte(c)}.`,
           `Público: ${rotuloPublico(c)}.`,
           c.season ? `Temporada: ${c.season}.` : '',
-          `Formato: ${descreverFormato(c)}`,
+          `Formato${(c.categories ?? []).some((cat) => cat.format && cat.format !== c.format) ? ' (padrão)' : ''}: ${descreverFormato(c)}`,
         ],
       },
       {
