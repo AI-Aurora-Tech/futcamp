@@ -33,6 +33,7 @@ import { StatsPanel } from './StatsPanel'
 import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
+import { CategoryCompetitionForm } from './CategoryCompetitionForm'
 import { PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
@@ -82,6 +83,7 @@ export function ManageChampionship({
   const [catId, setCatId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [editingCat, setEditingCat] = useState(false)
   const [liberando, setLiberando] = useState(false)
 
   const reload = useCallback(async () => {
@@ -320,6 +322,17 @@ export function ManageChampionship({
             </div>
 
             <div className="settings-block">
+              <h3>🏆 Disputa da categoria{varias ? ` · ${nomeCatAtual}` : ''}</h3>
+              <p className="muted small">
+                Cada categoria é um campeonato dentro do campeonato: defina aqui a <b>forma de
+                disputa</b> e as <b>regras de classificação</b> {varias ? `do ${nomeCatAtual}` : 'desta categoria'} —
+                formato, pontuação, critérios de desempate, grupos e classificados. As outras
+                categorias seguem como estão.
+              </p>
+              <Button variant="soft" onClick={() => setEditingCat(true)}>⚙️ Configurar a disputa</Button>
+            </div>
+
+            <div className="settings-block">
               <h3>{varias ? `Situação · ${nomeCatAtual}` : 'Status'}</h3>
               <p className="muted small">
                 {varias
@@ -437,6 +450,17 @@ export function ManageChampionship({
       </div>
 
       {editing && <ChampionshipForm initial={champ} onClose={() => setEditing(false)} onSave={saveEdit} />}
+      {editingCat && catAtual && (
+        <CategoryCompetitionForm
+          champ={champ}
+          categoryId={catAtual}
+          onClose={() => setEditingCat(false)}
+          onSaved={() => {
+            setEditingCat(false)
+            void reload()
+          }}
+        />
+      )}
     </div>
   )
 }
