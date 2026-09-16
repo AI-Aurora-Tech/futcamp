@@ -499,11 +499,6 @@ export function hasKnockoutStage(champ: Championship): boolean {
   return false
 }
 
-/** O mata-mata da liga usa a entrada escalonada por colocação? */
-export function usesStaggeredEntry(champ: Championship): boolean {
-  return champ.format === 'league' && (champ.leagueEntries?.length ?? 0) > 0
-}
-
 /**
  * Grupos + mata-mata com CLASSIFICAÇÃO GERAL: as equipes jogam nos seus grupos,
  * mas a tabela e a classificação ao mata-mata são gerais (todas as equipes
@@ -511,4 +506,15 @@ export function usesStaggeredEntry(champ: Championship): boolean {
  */
 export function usesGeneralStanding(champ: Championship): boolean {
   return champ.format === 'groups_knockout' && !!champ.generalStanding
+}
+
+/**
+ * O mata-mata usa a entrada ESCALONADA por colocação (as melhores colocações
+ * entram numa fase mais adiantada)? Vale nos pontos corridos e também em
+ * grupos + mata-mata com classificação geral — nos dois casos as colocações
+ * saem de uma tabela única.
+ */
+export function usesStaggeredEntry(champ: Championship): boolean {
+  if ((champ.leagueEntries?.length ?? 0) === 0) return false
+  return champ.format === 'league' || usesGeneralStanding(champ)
 }

@@ -353,10 +353,13 @@ export function ChampionshipForm({
   const catDaTabela = cats.find((c) => Number(c.qualifiers) > 0)
   const hasKnockout =
     format === 'groups_knockout' || (format === 'league' && qualifiersNum >= 2)
-  // Mata-mata escalonado (só na liga): ativo quando o organizador liga a opção
-  // e há classificados suficientes. Quando ativo, ele substitui o chaveamento
-  // clássico "quem pega quem".
-  const staggerActive = format === 'league' && stagger && qualifiersNum >= 2
+  // Mata-mata escalonado: nos pontos corridos e em grupos + mata-mata com
+  // classificação geral (nos dois as colocações saem de uma tabela única).
+  // Ativo quando o organizador liga a opção e há classificados suficientes —
+  // aí ele substitui o chaveamento clássico "quem pega quem".
+  const staggerEligible =
+    (format === 'league' || (format === 'groups_knockout' && generalStanding)) && qualifiersNum >= 2
+  const staggerActive = staggerEligible && stagger
   const leagueEntries = useMemo(() => buildLeagueEntries(bands), [bands])
   const bandsTotal = leagueEntries.reduce((s, e) => s + (e.to - e.from + 1), 0)
   const staggerValid = staggeredEntriesValid(leagueEntries)
@@ -1094,7 +1097,7 @@ export function ChampionshipForm({
           </Field>
         )}
 
-        {format === 'league' && qualifiersNum >= 2 && (
+        {staggerEligible && (
           <div className="phase-config">
             <label className="checkbox">
               <input
@@ -1103,8 +1106,8 @@ export function ChampionshipForm({
                 onChange={(e) => toggleStagger(e.target.checked)}
               />
               <span>
-                🪜 <b>Mata-mata escalonado</b> — as melhores colocações entram direto numa fase mais
-                adiantada (ex.: 1º ao 4º nas quartas; 5º ao 12º nas oitavas)
+                🪜 <b>Mata-mata escalonado</b> — as melhores colocações{format === 'groups_knockout' ? ' (no geral)' : ''} entram
+                direto numa fase mais adiantada (ex.: 1º ao 4º nas quartas; 5º ao 12º nas oitavas)
               </span>
             </label>
 
@@ -1196,7 +1199,7 @@ export function ChampionshipForm({
                 </label>
                 <label className="checkbox">
                   <input type="checkbox" checked={autoKnockout} onChange={(e) => setAutoKnockout(e.target.checked)} />
-                  <span>Criar o mata-mata automaticamente quando todos os jogos da fase de pontos corridos forem encerrados</span>
+                  <span>Criar o mata-mata automaticamente quando todos os jogos da {format === 'groups_knockout' ? 'fase de grupos' : 'fase de pontos corridos'} forem encerrados</span>
                 </label>
               </>
             )}
