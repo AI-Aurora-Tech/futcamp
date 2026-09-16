@@ -825,6 +825,16 @@ table { border-collapse: collapse; width: 100%; }
 .link-btn--add { color: var(--brand-dark); font-weight: 700; text-decoration: none; }
 .link-btn--add:hover { color: var(--brand); }
 
+/* Abas das categorias DENTRO do formulário (fundo claro): uma ao lado da outra,
+   na ordem de criação. Cada categoria é um campeonato à parte. */
+.cat-tabs--form { margin: 0.4rem 0 0.75rem; flex-wrap: wrap; overflow-x: visible; }
+.cat-tabs--form .cat-tab {
+  border-color: var(--line-strong); background: var(--surface-2); color: var(--ink-soft);
+}
+.cat-tabs--form .cat-tab:hover { background: var(--surface); color: var(--brand-dark); border-color: var(--brand); }
+.cat-tabs--form .cat-tab.is-active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.cat-tab--add { border-style: dashed; font-weight: 800; }
+
 /* ---------- Gate de acesso do time ---------- */
 .reg__gate { max-width: 460px; margin: 0 auto; }
 .reg__gate-form .btn { width: 100%; justify-content: center; margin-top: 0.3rem; }

@@ -220,6 +220,9 @@ export function ChampionshipForm({
   const [cats, setCats] = useState<CatDraft[]>(
     initial?.categories?.length ? initial.categories.map(toDraft) : [emptyDraft()],
   )
+  // Aba da categoria em edição (as categorias ficam lado a lado, na ordem de
+  // criação, e cada uma é um campeonato à parte).
+  const [catTab, setCatTab] = useState<string>(() => cats[0]?.id ?? '')
   const [format, setFormat] = useState<ChampionshipFormat>(initial?.format ?? 'league')
   const [season, setSeason] = useState(initial?.season ?? String(new Date().getFullYear()))
   const [description, setDescription] = useState(initial?.description ?? '')
@@ -312,10 +315,18 @@ export function ChampionshipForm({
     )
   }
   function addCat() {
-    setCats((prev) => [...prev, emptyDraft()])
+    const nova = emptyDraft()
+    setCats((prev) => [...prev, nova])
+    setCatTab(nova.id)
   }
   function removeCat(id: string) {
-    setCats((prev) => (prev.length > 1 ? prev.filter((c) => c.id !== id) : prev))
+    setCats((prev) => {
+      if (prev.length <= 1) return prev
+      const next = prev.filter((c) => c.id !== id)
+      // Se a categoria removida estava aberta, abre uma vizinha.
+      if (id === catTab) setCatTab(next[Math.max(0, prev.findIndex((c) => c.id === id) - 1)]?.id ?? next[0].id)
+      return next
+    })
   }
 
   function buildCategories(): Category[] {
@@ -402,7 +413,6 @@ export function ChampionshipForm({
     .filter((n) => n > 0)
   const qualifiersNum = classificadosCats[0] ?? 0
   const classificadosDiferem = new Set(classificadosCats).size > 1
-  const catDaTabela = cats.find((c) => Number(c.qualifiers) > 0)
   const hasKnockout =
     format === 'groups_knockout' || (format === 'league' && qualifiersNum >= 2)
   // Mata-mata escalonado: nos pontos corridos e em grupos + mata-mata com
@@ -653,7 +663,7 @@ export function ChampionshipForm({
         <div className="cats">
           <div className="cats__head">
             <span className="field__label">Categorias</span>
-            <button type="button" className="link-btn link-btn--add" onClick={addCat}>＋ adicionar categoria</button>
+            <span className="muted small">cada categoria é um campeonato à parte</span>
           </div>
           <p className="field__hint">
             {audience === 'infantil'
@@ -662,18 +672,35 @@ export function ChampionshipForm({
           </p>
           {classificadosDiferem && (
             <p className="field__hint cats__aviso">
-              ⚠️ As categorias classificam números diferentes de equipes. O regulamento traz o
-              número de cada uma; a <b>tabela do app</b> é uma só e vai destacar os{' '}
-              <b>{qualifiersNum} primeiros</b> — o de <b>{catDaTabela?.name || 'primeira categoria'}</b>.
+              ⚠️ As categorias classificam números diferentes de equipes. Cada uma é um campeonato à
+              parte (times, elencos, tabela e classificação próprios).
             </p>
           )}
+          <div className="cat-tabs cat-tabs--form" role="tablist">
+            {cats.map((c, i) => (
+              <button
+                type="button"
+                key={c.id}
+                role="tab"
+                aria-selected={catTab === c.id}
+                className={`cat-tab ${catTab === c.id ? 'is-active' : ''}`}
+                onClick={() => setCatTab(c.id)}
+                title={c.name.trim() || `Categoria ${i + 1}`}
+              >
+                {c.name.trim() || `Categoria ${i + 1}`}
+              </button>
+            ))}
+            <button type="button" className="cat-tab cat-tab--add" onClick={addCat} title="Adicionar categoria">
+              ＋ categoria
+            </button>
+          </div>
           <div className="cats__list">
             {cats.map((c, i) => {
               // Formato efetivo desta categoria: o próprio ou o do campeonato.
               const catFmt: ChampionshipFormat = c.format || format
               const catGeneral = catFmt === 'groups_knockout' && c.generalStanding
               return (
-              <div key={c.id} className="cat-card">
+              <div key={c.id} className="cat-card" hidden={catTab !== c.id}>
                 <div className="cat-card__head">
                   <span className="cat-card__idx">Categoria {i + 1}</span>
                   <button
