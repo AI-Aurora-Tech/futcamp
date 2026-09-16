@@ -138,7 +138,14 @@ export function MatchesPanel({
         }
         await generateGroups(championship.id, groups, championship.doubleRound, force, categoryId)
       } else {
-        await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound, force, categoryId)
+        await generateLeague(
+          championship.id,
+          teams.map((t) => t.id),
+          championship.doubleRound,
+          force,
+          categoryId,
+          championship.leagueMatchesPerTeam,
+        )
       }
       onChange()
       setScheduling(true) // abre o agendador para informar data/hora jogo a jogo

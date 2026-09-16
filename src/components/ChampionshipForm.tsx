@@ -12,6 +12,8 @@ import {
   type Championship,
   type ChampionshipFormat,
   type GroupStage,
+  type LeagueEntry,
+  type MatchPhase,
   type PlanKey,
   type QualifierSlot,
   type Sport,
@@ -21,7 +23,13 @@ import { Button, ChampLogo, Field, Modal } from './ui'
 import { uid } from '../lib/id'
 import { fileToDataUrl } from '../lib/image'
 import { PLANS, breakdown, formatBRL, planOf } from '../lib/pricing'
-import { phaseForPairs, slotLabel, suggestBracket } from '../lib/knockout'
+import {
+  KNOCKOUT_ORDER,
+  phaseForPairs,
+  slotLabel,
+  staggeredEntriesValid,
+  suggestBracket,
+} from '../lib/knockout'
 import {
   groupStagesOf,
   qualifiersOfGroup,
@@ -103,6 +111,35 @@ function emptyDraft(): CatDraft {
     yellowAccumulates: true, yellowsForSuspension: '3', refereeFee: '', refereePix: '',
   }
 }
+
+/** Uma faixa de colocações do mata-mata escalonado (edição no formulário). */
+interface StaggerBand {
+  id: string
+  /** Quantas colocações a faixa cobre (texto, para poder ficar vazia). */
+  count: string
+  phase: MatchPhase
+}
+
+/** Fase de entrada padrão para `q` classificados entrando todos juntos. */
+function initialLeaguePhase(q: number): MatchPhase {
+  return phaseForPairs(Math.max(1, Math.ceil(Math.max(2, q) / 2)))
+}
+
+/** Traduz as faixas do formulário em `LeagueEntry[]`, cobrindo 1º, 2º, 3º… */
+function buildLeagueEntries(list: StaggerBand[]): LeagueEntry[] {
+  const entries: LeagueEntry[] = []
+  let pos = 1
+  for (const b of list) {
+    const n = Math.max(0, Math.floor(Number(b.count) || 0))
+    if (n <= 0) continue
+    entries.push({ from: pos, to: pos + n - 1, phase: b.phase })
+    pos += n
+  }
+  return entries
+}
+
+/** Fases eliminatórias oferecidas nas faixas (da mais distante à final). */
+const KNOCKOUT_PHASE_OPTIONS = KNOCKOUT_ORDER
 
 /** Seleciona uma vaga do chaveamento: "Nº X do grupo Y" (ou vaga livre/bye). */
 function SlotPicker({
@@ -196,6 +233,20 @@ export function ChampionshipForm({
   const [bracketTouched, setBracketTouched] = useState(Boolean(initial?.bracket?.length))
   const [thirdPlace, setThirdPlace] = useState(initial?.thirdPlace ?? false)
   const [autoKnockout, setAutoKnockout] = useState(initial?.autoKnockout ?? true)
+  // Pontos corridos: quantas partidas cada equipe joga (vazio = todos contra
+  // todos completo).
+  const [leagueMatches, setLeagueMatches] = useState<string>(
+    initial?.leagueMatchesPerTeam != null ? String(initial.leagueMatchesPerTeam) : '',
+  )
+  // Pontos corridos: mata-mata escalonado — faixas de colocação por fase.
+  const [stagger, setStagger] = useState<boolean>(Boolean(initial?.leagueEntries?.length))
+  const [bands, setBands] = useState<StaggerBand[]>(() =>
+    initial?.leagueEntries?.length
+      ? [...initial.leagueEntries]
+          .sort((a, b) => a.from - b.from)
+          .map((e) => ({ id: uid('band'), count: String(Math.max(1, e.to - e.from + 1)), phase: e.phase }))
+      : [],
+  )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const logoRef = useRef<HTMLInputElement>(null)
@@ -297,6 +348,13 @@ export function ChampionshipForm({
   const catDaTabela = cats.find((c) => Number(c.qualifiers) > 0)
   const hasKnockout =
     format === 'groups_knockout' || (format === 'league' && qualifiersNum >= 2)
+  // Mata-mata escalonado (só na liga): ativo quando o organizador liga a opção
+  // e há classificados suficientes. Quando ativo, ele substitui o chaveamento
+  // clássico "quem pega quem".
+  const staggerActive = format === 'league' && stagger && qualifiersNum >= 2
+  const leagueEntries = useMemo(() => buildLeagueEntries(bands), [bands])
+  const bandsTotal = leagueEntries.reduce((s, e) => s + (e.to - e.from + 1), 0)
+  const staggerValid = staggeredEntriesValid(leagueEntries)
   /** O mata-mata é montado com os classificados da ÚLTIMA fase de grupos. */
   const lastStage = stages[stages.length - 1]
   const groups = useMemo(
@@ -361,6 +419,26 @@ export function ChampionshipForm({
     setTiebreakers((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
+  function toggleStagger(on: boolean) {
+    setStagger(on)
+    if (on && bands.length === 0) {
+      const q = Math.max(2, qualifiersNum)
+      setBands([{ id: uid('band'), count: String(q), phase: initialLeaguePhase(q) }])
+    }
+  }
+  function updateBand(id: string, patch: Partial<StaggerBand>) {
+    setBands((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  }
+  function addBand() {
+    setBands((prev) => [
+      ...prev,
+      { id: uid('band'), count: '', phase: prev[prev.length - 1]?.phase ?? initialLeaguePhase(qualifiersNum) },
+    ])
+  }
+  function removeBand(id: string) {
+    setBands((prev) => prev.filter((b) => b.id !== id))
+  }
+
   function updateSlot(pairingId: string, side: 'home' | 'away', patch: Partial<QualifierSlot> | null) {
     setBracketTouched(true)
     setBracket((prev) =>
@@ -393,6 +471,13 @@ export function ChampionshipForm({
       setError('No campeonato infantil, informe o ano de nascimento de cada categoria.')
       return
     }
+    if (staggerActive && !staggerValid) {
+      setError(
+        'A entrada por colocação não fecha um mata-mata válido. Ajuste as faixas para que ' +
+          'o total de vagas de cada fase (entrantes + vencedores da fase anterior) reduza até a final.',
+      )
+      return
+    }
     setBusy(true)
     await onSave({
       name: name.trim(),
@@ -422,8 +507,13 @@ export function ChampionshipForm({
           ? stages.map((s, i) => (i === 0 ? { ...s, doubleRound } : s))
           : undefined,
       leagueQualifiers: format === 'league' && qualifiersNum ? qualifiersNum : undefined,
+      leagueMatchesPerTeam:
+        format === 'league' && leagueMatches ? Math.max(1, Number(leagueMatches)) : undefined,
+      leagueEntries: staggerActive && staggerValid ? leagueEntries : undefined,
       tiebreakers,
-      bracket: hasKnockout ? bracket : undefined,
+      // A entrada escalonada define, ela mesma, o mata-mata da liga — então o
+      // chaveamento clássico não é enviado junto.
+      bracket: hasKnockout && !staggerActive ? bracket : undefined,
       thirdPlace: hasKnockout ? thirdPlace : undefined,
       autoKnockout: hasKnockout ? autoKnockout : undefined,
     })
@@ -950,6 +1040,131 @@ export function ChampionshipForm({
           </p>
         )}
 
+        {format === 'league' && (
+          <Field
+            label="Partidas por equipe (pontos corridos)"
+            hint="Em branco = todos contra todos (turno, ou turno e returno). Informe um número para um todos-contra-todos parcial: cada equipe joga essa quantidade de partidas."
+          >
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={leagueMatches}
+              onChange={(e) => setLeagueMatches(e.target.value)}
+              placeholder="todas contra todas"
+            />
+          </Field>
+        )}
+
+        {format === 'league' && qualifiersNum >= 2 && (
+          <div className="phase-config">
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={stagger}
+                onChange={(e) => toggleStagger(e.target.checked)}
+              />
+              <span>
+                🪜 <b>Mata-mata escalonado</b> — as melhores colocações entram direto numa fase mais
+                adiantada (ex.: 1º ao 4º nas quartas; 5º ao 12º nas oitavas)
+              </span>
+            </label>
+
+            {staggerActive && (
+              <>
+                <p className="field__hint">
+                  Cada faixa cobre, em ordem, as primeiras colocações da tabela e informa em que fase
+                  ela entra. Os classificados que entram numa fase mais adiantada aguardam ali os
+                  vencedores da fase anterior.
+                </p>
+
+                <div className="bracket-list">
+                  {(() => {
+                    let pos = 1
+                    return bands.map((b, i) => {
+                      const n = Math.max(0, Math.floor(Number(b.count) || 0))
+                      const from = pos
+                      const to = pos + Math.max(1, n) - 1
+                      pos += Math.max(0, n)
+                      return (
+                        <div key={b.id} className="bracket-row">
+                          <span className="bracket-row__idx">Faixa {i + 1}</span>
+                          <label className="mini-field">
+                            <span className="mini-field__label">Quantas colocações</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={64}
+                              value={b.count}
+                              onChange={(e) => updateBand(b.id, { count: e.target.value })}
+                              placeholder="Ex.: 4"
+                            />
+                            <small className="mini-field__hint">
+                              {n > 0 ? `${from}º ao ${to}º colocado` : 'informe a quantidade'}
+                            </small>
+                          </label>
+                          <label className="mini-field">
+                            <span className="mini-field__label">Entra em</span>
+                            <select
+                              value={b.phase}
+                              onChange={(e) => updateBand(b.id, { phase: e.target.value as MatchPhase })}
+                            >
+                              {KNOCKOUT_PHASE_OPTIONS.map((p) => (
+                                <option key={p} value={p}>{PHASE_LABELS[p]}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            className="icon-btn icon-btn--danger"
+                            title="Remover faixa"
+                            onClick={() => removeBand(b.id)}
+                            disabled={bands.length <= 1}
+                          >
+                            🗑
+                          </button>
+                        </div>
+                      )
+                    })
+                  })()}
+                  <button type="button" className="link-btn link-btn--add" onClick={addBand}>
+                    ＋ adicionar faixa
+                  </button>
+                </div>
+
+                {bandsTotal !== qualifiersNum && (
+                  <p className="field__hint cats__aviso">
+                    ⚠️ As faixas somam <b>{bandsTotal}</b> colocação(ões), mas a categoria classifica{' '}
+                    <b>{qualifiersNum}</b>. Serão consideradas as faixas — ajuste para bater com os
+                    classificados.
+                  </p>
+                )}
+                {!staggerValid ? (
+                  <p className="field__hint cats__aviso">
+                    ⚠️ Esta combinação não fecha um mata-mata válido. Em cada fase, os entrantes mais
+                    os vencedores da fase anterior precisam formar confrontos que reduzam até a final.
+                  </p>
+                ) : (
+                  <p className="bracket-preview">
+                    {leagueEntries
+                      .map((e) => `${e.from}º${e.to > e.from ? `–${e.to}º` : ''}: ${PHASE_LABELS[e.phase]}`)
+                      .join(' · ')}
+                  </p>
+                )}
+
+                <label className="checkbox">
+                  <input type="checkbox" checked={thirdPlace} onChange={(e) => setThirdPlace(e.target.checked)} />
+                  <span>Criar disputa de 3º lugar (perdedores das semifinais)</span>
+                </label>
+                <label className="checkbox">
+                  <input type="checkbox" checked={autoKnockout} onChange={(e) => setAutoKnockout(e.target.checked)} />
+                  <span>Criar o mata-mata automaticamente quando todos os jogos da fase de pontos corridos forem encerrados</span>
+                </label>
+              </>
+            )}
+          </div>
+        )}
+
         {format !== 'knockout' && (
           <div className="phase-config">
             <h4 className="phase-config__title">📊 Critérios de classificação</h4>
@@ -985,7 +1200,7 @@ export function ChampionshipForm({
           </div>
         )}
 
-        {hasKnockout && (
+        {hasKnockout && !staggerActive && (
           <div className="phase-config">
             <div className="phase-config__head">
               <h4 className="phase-config__title">🏆 Chaveamento do mata-mata</h4>

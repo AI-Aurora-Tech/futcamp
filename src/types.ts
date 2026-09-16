@@ -254,6 +254,22 @@ export interface BracketPairing {
   away: QualifierSlot | null
 }
 
+/**
+ * Faixa de colocações que entra numa DETERMINADA fase do mata-mata — só nos
+ * pontos corridos. Permite o "mata-mata escalonado": as melhores colocações
+ * entram direto nas quartas, as seguintes disputam as oitavas, e assim por
+ * diante. As faixas cobrem, em ordem, as primeiras colocações da tabela
+ * (`from`/`to`, 1 = líder).
+ */
+export interface LeagueEntry {
+  /** Primeira colocação da faixa (inclusive; 1 = líder da tabela). */
+  from: number
+  /** Última colocação da faixa (inclusive). */
+  to: number
+  /** Fase em que estas colocações entram no mata-mata. */
+  phase: MatchPhase
+}
+
 export interface Championship {
   id: string
   ownerId: string
@@ -300,6 +316,18 @@ export interface Championship {
   groupStages?: GroupStage[]
   /** Nº de classificados no formato de pontos corridos (liga). */
   leagueQualifiers?: number
+  /**
+   * Pontos corridos: quantas partidas cada equipe joga. Ausente = todos contra
+   * todos (turno, ou turno e returno com `doubleRound`). Informado, gera um
+   * "todos contra todos" parcial — cada equipe joga esse número de rodadas.
+   */
+  leagueMatchesPerTeam?: number
+  /**
+   * Pontos corridos: mata-mata escalonado. Cada faixa de colocações entra numa
+   * fase (as melhores nas quartas, as seguintes nas oitavas…). Ausente/vazio =
+   * todos os classificados entram na mesma fase, pelo `bracket`/semeadura.
+   */
+  leagueEntries?: LeagueEntry[]
   /**
    * Critérios de desempate da classificação, na ordem de aplicação (os pontos
    * ganhos são sempre o primeiro critério, por isso não entram na lista).

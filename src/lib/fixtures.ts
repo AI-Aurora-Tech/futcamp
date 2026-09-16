@@ -13,10 +13,16 @@ export interface FixturePairing {
  *
  * @param teamIds  IDs dos times participantes.
  * @param doubleRound  Se verdadeiro, gera turno e returno (mando invertido).
+ * @param matchesPerTeam  Se informado (> 0), gera um "todos contra todos"
+ *   PARCIAL: mantém apenas as primeiras rodadas até que cada equipe jogue esse
+ *   número de partidas. Cada rodada do método do círculo dá uma partida por
+ *   equipe (a que folga, quando o número é ímpar, joga uma a menos). Vazio =
+ *   round-robin completo (turno, ou turno e returno).
  */
 export function generateRoundRobin(
   teamIds: string[],
   doubleRound = false,
+  matchesPerTeam?: number,
 ): FixturePairing[] {
   const teams = [...teamIds]
   // Bye (folga) quando o número de times é ímpar.
@@ -47,16 +53,24 @@ export function generateRoundRobin(
     rotation.splice(1, 0, rotation.pop() as string)
   }
 
+  let all = fixtures
   if (doubleRound) {
     const returnLeg = fixtures.map((f) => ({
       round: f.round + roundsPerLeg,
       homeTeamId: f.awayTeamId,
       awayTeamId: f.homeTeamId,
     }))
-    return [...fixtures, ...returnLeg]
+    all = [...fixtures, ...returnLeg]
   }
 
-  return fixtures
+  // Pontos corridos parcial: cada rodada é uma partida por equipe, então manter
+  // as primeiras `matchesPerTeam` rodadas dá exatamente esse número de jogos
+  // por equipe (uma a menos para quem folgar numa rodada, com número ímpar).
+  if (matchesPerTeam && matchesPerTeam > 0) {
+    return all.filter((f) => f.round <= matchesPerTeam)
+  }
+
+  return all
 }
 
 /**

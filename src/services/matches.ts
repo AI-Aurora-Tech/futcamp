@@ -8,7 +8,10 @@ import {
   KNOCKOUT_ROUND_BASE,
   pendingAdvances,
   planKnockout,
+  planStaggeredKnockout,
   resolveBracketTeams,
+  resolveStaggeredEntries,
+  usesStaggeredEntry,
 } from '../lib/knockout'
 import {
   allGroupStagesComplete,
@@ -215,9 +218,10 @@ export async function generateLeague(
   doubleRound: boolean,
   force = false,
   categoryId?: string,
+  matchesPerTeam?: number,
 ): Promise<void> {
   await assertRegenerationAllowed(championshipId, force, categoryId)
-  const pairings = generateRoundRobin(teamIds, doubleRound)
+  const pairings = generateRoundRobin(teamIds, doubleRound, matchesPerTeam)
   await deleteMatchesOf(championshipId, categoryId)
   const toInsert: NewMatch[] = pairings.map((p) => ({
     championshipId,
@@ -378,13 +382,17 @@ export async function createKnockoutStage(
   matches: Match[],
   events: MatchEvent[] = [],
 ): Promise<boolean> {
-  const pairs = resolveBracketTeams(champ, teams, matches, events)
-  if (pairs.length === 0 || pairs.every((p) => !p.home && !p.away)) return false
+  // Pontos corridos com entrada escalonada: cada faixa de colocação entra numa
+  // fase (quartas, oitavas…). Fora esse caso, o chaveamento clássico.
+  const planned = usesStaggeredEntry(champ)
+    ? planStaggeredKnockout(resolveStaggeredEntries(champ, teams, matches, events), champ.thirdPlace)
+    : planKnockout(resolveBracketTeams(champ, teams, matches, events), champ.thirdPlace)
+  if (planned.length === 0 || planned.every((p) => !p.homeTeamId && !p.awayTeamId)) return false
   // Relê as partidas imediatamente antes de inserir: evita criar a fase duas
   // vezes quando duas telas (ou dois efeitos) disparam a criação juntas.
   const fresh = await listMatches(champ.id)
   if (fresh.some((m) => m.phase !== 'group')) return false
-  await bulkInsert(champ.id, plannedToMatches(champ.id, planKnockout(pairs, champ.thirdPlace)))
+  await bulkInsert(champ.id, plannedToMatches(champ.id, planned))
   return true
 }
 
@@ -511,8 +519,10 @@ export async function requestKnockoutSync(
       hasKnockoutStage(champ) &&
       allGroupStagesComplete(champ, matches)
     ) {
-      const pairs = resolveBracketTeams(champ, teams, matches, events)
-      const plan = planKnockout(pairs, champ.thirdPlace).map((p) => ({
+      const planned = usesStaggeredEntry(champ)
+        ? planStaggeredKnockout(resolveStaggeredEntries(champ, teams, matches, events), champ.thirdPlace)
+        : planKnockout(resolveBracketTeams(champ, teams, matches, events), champ.thirdPlace)
+      const plan = planned.map((p) => ({
         round: p.round,
         phase: p.phase,
         home_team_id: p.homeTeamId,

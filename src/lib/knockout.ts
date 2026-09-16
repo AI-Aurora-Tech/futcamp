@@ -13,6 +13,7 @@ import {
   OVERALL_GROUP,
   type BracketPairing,
   type Championship,
+  type LeagueEntry,
   type Match,
   type MatchEvent,
   type MatchPhase,
@@ -168,6 +169,127 @@ export interface PlannedMatch {
   homeTeamId: string | null
   awayTeamId: string | null
   status: MatchStatus
+}
+
+/** Ordena uma lista em "seed": 1º × último, 2º × penúltimo… (par a par). */
+function seedOrder<T>(list: T[]): T[] {
+  const out: T[] = []
+  const half = Math.floor(list.length / 2)
+  for (let i = 0; i < half; i++) {
+    out.push(list[i])
+    out.push(list[list.length - 1 - i])
+  }
+  if (list.length % 2 === 1) out.push(list[half])
+  return out
+}
+
+/**
+ * Monta a árvore de um mata-mata ESCALONADO dos pontos corridos: cada fase
+ * recebe os vencedores da fase anterior MAIS os classificados que entram
+ * diretamente nela (as melhores colocações entram nas quartas, as seguintes
+ * nas oitavas, e assim por diante).
+ *
+ * `entriesByPhase[fase]` traz, na ordem da classificação (melhor primeiro), os
+ * times que entram naquela fase (ou `null` para uma vaga vazia/bye).
+ *
+ * Em cada fase, as primeiras vagas são reservadas aos vencedores da fase
+ * anterior (ficam "a definir" e são preenchidas pelo avanço automático,
+ * `pendingAdvances`), e as demais recebem os entrantes diretos, semeados
+ * melhor × pior. É a mesma ligação `bracketPos → bracketPos/2` das outras
+ * fases, então o avanço automático (app e banco) leva os vencedores adiante
+ * sem qualquer regra nova.
+ */
+export function planStaggeredKnockout(
+  entriesByPhase: Partial<Record<MatchPhase, (string | null)[]>>,
+  thirdPlace = false,
+): PlannedMatch[] {
+  const used = KNOCKOUT_ORDER.filter((p) => (entriesByPhase[p]?.length ?? 0) > 0)
+  if (used.length === 0) return []
+  const startIdx = KNOCKOUT_ORDER.indexOf(used[0])
+
+  const out: PlannedMatch[] = []
+  // Vagas que a fase corrente recebe dos vencedores da fase anterior.
+  let carry = 0
+  for (let i = startIdx; i < KNOCKOUT_ORDER.length; i++) {
+    const phase = KNOCKOUT_ORDER[i]
+    const entrants = [...(entriesByPhase[phase] ?? [])]
+    let total = carry + entrants.length
+    if (total < 1) break
+    // Vaga ímpar não fecha confronto: completa com um bye.
+    if (total % 2 === 1) {
+      entrants.push(null)
+      total++
+    }
+    const matchCount = total / 2
+    const slots: (string | null)[] = new Array(total).fill(null)
+    const seeded = seedOrder(entrants)
+    // As `carry` primeiras vagas ficam para os vencedores; as demais, entrantes.
+    for (let k = 0; k < seeded.length; k++) slots[carry + k] = seeded[k]
+    for (let pos = 0; pos < matchCount; pos++) {
+      out.push({
+        phase,
+        bracketPos: pos,
+        round: KNOCKOUT_ROUND_BASE + i,
+        homeTeamId: slots[pos * 2],
+        awayTeamId: slots[pos * 2 + 1],
+        status: 'scheduled',
+      })
+    }
+    carry = matchCount
+    if (matchCount <= 1) break
+  }
+
+  if (thirdPlace && out.some((m) => m.phase === 'semi')) {
+    out.push({
+      phase: 'third_place',
+      bracketPos: 0,
+      round: KNOCKOUT_ROUND_BASE + KNOCKOUT_ORDER.length,
+      homeTeamId: null,
+      awayTeamId: null,
+      status: 'scheduled',
+    })
+  }
+
+  return out
+}
+
+/**
+ * Resolve as faixas de entrada (`Championship.leagueEntries`) em times, usando
+ * a classificação geral dos pontos corridos, agrupados pela fase de entrada.
+ */
+export function resolveStaggeredEntries(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  events: MatchEvent[] = [],
+): Partial<Record<MatchPhase, (string | null)[]>> {
+  const overall = computeStandings(teams, matches, champ, { events })
+  const byPhase: Partial<Record<MatchPhase, (string | null)[]>> = {}
+  const entries = [...(champ.leagueEntries ?? [])].sort((a, b) => a.from - b.from)
+  for (const e of entries) {
+    const arr = byPhase[e.phase] ?? (byPhase[e.phase] = [])
+    for (let pos = e.from; pos <= e.to; pos++) {
+      arr.push(overall[pos - 1]?.teamId ?? null)
+    }
+  }
+  return byPhase
+}
+
+/**
+ * A configuração de faixas forma uma árvore válida, terminando numa final?
+ * Usada pelo formulário para avisar antes de salvar (e como guarda no serviço).
+ */
+export function staggeredEntriesValid(
+  entries: LeagueEntry[] | undefined,
+): boolean {
+  if (!entries?.length) return false
+  const byPhase: Partial<Record<MatchPhase, (string | null)[]>> = {}
+  for (const e of [...entries].sort((a, b) => a.from - b.from)) {
+    const arr = byPhase[e.phase] ?? (byPhase[e.phase] = [])
+    for (let pos = e.from; pos <= e.to; pos++) arr.push('x')
+  }
+  const plan = planStaggeredKnockout(byPhase)
+  return plan.filter((m) => m.phase === 'final').length === 1
 }
 
 /**
@@ -367,6 +489,13 @@ export function groupPhaseRemaining(matches: Match[]): number {
  */
 export function hasKnockoutStage(champ: Championship): boolean {
   if (champ.format === 'groups_knockout') return true
-  if (champ.format === 'league') return (champ.bracket?.length ?? 0) > 0
+  if (champ.format === 'league') {
+    return (champ.bracket?.length ?? 0) > 0 || (champ.leagueEntries?.length ?? 0) > 0
+  }
   return false
+}
+
+/** O mata-mata da liga usa a entrada escalonada por colocação? */
+export function usesStaggeredEntry(champ: Championship): boolean {
+  return champ.format === 'league' && (champ.leagueEntries?.length ?? 0) > 0
 }

@@ -103,6 +103,9 @@ export function descreverFormato(c: Championship): string {
   // para outra é quantas equipes se classificam, e isso tem seção própria.
   const nome = FORMAT_LABELS[c.format] ?? c.format
   if (c.format === 'league') {
+    if (c.leagueMatchesPerTeam && c.leagueMatchesPerTeam > 0) {
+      return `${nome}: cada equipe disputa ${c.leagueMatchesPerTeam} partida(s).`
+    }
     const turno = c.doubleRound ? 'turno e returno (todos se enfrentam duas vezes)' : 'turno único (todos se enfrentam uma vez)'
     return `${nome}, em ${turno}.`
   }
