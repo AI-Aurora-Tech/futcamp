@@ -29,7 +29,10 @@ export function Overview({
   players?: Player[]
   events?: MatchEvent[]
 }) {
-  const isGroups = championship.format === 'groups_knockout'
+  // Grupos com classificação GERAL: as equipes jogam nos seus grupos, mas a
+  // tabela é única (todas as equipes juntas) e vale a colocação geral.
+  const general = championship.format === 'groups_knockout' && !!championship.generalStanding
+  const isGroups = championship.format === 'groups_knockout' && !general
   const isKnockout = championship.format === 'knockout'
   const leagueQualifiers = championship.leagueQualifiers ?? 0
   const stages = useMemo(() => (isGroups ? groupStagesOf(championship) : []), [isGroups, championship])
@@ -108,8 +111,16 @@ export function Overview({
             </>
           ) : (
             <>
+              {general && (
+                <p className="qualify-note">
+                  📊 Classificação <b>geral</b>: as equipes jogam nos seus grupos, mas a tabela é única.
+                </p>
+              )}
               {leagueQualifiers > 0 && (
-                <p className="qualify-note">🟢 Os {leagueQualifiers} primeiros colocados se classificam.</p>
+                <p className="qualify-note">
+                  🟢 Os {leagueQualifiers} primeiros colocados{general ? ' no geral' : ''} se classificam
+                  {general ? ' ao mata-mata' : ''}.
+                </p>
               )}
               <StandingsTable
                 rows={standings ?? []}

@@ -164,6 +164,7 @@ export function competicaoDaCategoria(
     thirdPlace: ou(cat.thirdPlace, champ.thirdPlace),
     doubleRound: ou(cat.doubleRound, champ.doubleRound),
     autoKnockout: ou(cat.autoKnockout, champ.autoKnockout),
+    generalStanding: ou(cat.generalStanding, champ.generalStanding),
   }
 }
 
@@ -179,7 +180,8 @@ export function estruturaPropria(cat: Category | null | undefined): boolean {
     cat.leagueQualifiers !== undefined ||
     cat.bracket !== undefined ||
     cat.thirdPlace !== undefined ||
-    cat.doubleRound !== undefined
+    cat.doubleRound !== undefined ||
+    cat.generalStanding !== undefined
   )
 }
 

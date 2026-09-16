@@ -114,7 +114,10 @@ export function descreverFormato(c: Championship): string {
   }
   const grupos = c.numGroups ? `${c.numGroups} grupo(s)` : 'grupos'
   const porGrupo = c.teamsPerGroup ? ` de ${c.teamsPerGroup} equipes` : ''
-  return `${nome}: fase de ${grupos}${porGrupo}, seguida de mata-mata.${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
+  const geral = c.generalStanding
+    ? ' A classificação é geral (todas as equipes numa tabela única) e se classificam os melhores no geral.'
+    : ''
+  return `${nome}: fase de ${grupos}${porGrupo}, seguida de mata-mata.${geral}${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
 }
 
 /** Prazo de inscrição em texto. */

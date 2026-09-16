@@ -122,9 +122,12 @@ export function suggestBracket(
     | 'advanceByGroup'
     | 'groupStages'
     | 'leagueQualifiers'
+    | 'generalStanding'
   >,
 ): BracketPairing[] {
-  if (champ.format === 'groups_knockout') {
+  // Classificação geral: mesmo com grupos, a semeadura é pela colocação geral
+  // (1º × último classificado…), como nos pontos corridos.
+  if (champ.format === 'groups_knockout' && !champ.generalStanding) {
     const stages = groupStagesOf(champ as Championship)
     const last = stages[stages.length - 1]
     if (!last) return []
@@ -350,9 +353,10 @@ export function resolveBracketTeams(
   events: MatchEvent[] = [],
 ): { home: string | null; away: string | null }[] {
   const bracket = champ.bracket?.length ? champ.bracket : suggestBracket(champ)
-  // As vagas do mata-mata vêm sempre da ÚLTIMA fase de grupos.
+  // As vagas do mata-mata vêm da ÚLTIMA fase de grupos — a não ser que o
+  // campeonato use classificação GERAL: aí a tabela é única (todas as equipes).
   const byGroup =
-    champ.format === 'groups_knockout'
+    champ.format === 'groups_knockout' && !usesGeneralStanding(champ)
       ? standingsOfStage(champ, teams, matches, groupStagesOf(champ).length, events)
       : null
   const overall = byGroup ? null : computeStandings(teams, matches, champ, { events })
@@ -498,4 +502,13 @@ export function hasKnockoutStage(champ: Championship): boolean {
 /** O mata-mata da liga usa a entrada escalonada por colocação? */
 export function usesStaggeredEntry(champ: Championship): boolean {
   return champ.format === 'league' && (champ.leagueEntries?.length ?? 0) > 0
+}
+
+/**
+ * Grupos + mata-mata com CLASSIFICAÇÃO GERAL: as equipes jogam nos seus grupos,
+ * mas a tabela e a classificação ao mata-mata são gerais (todas as equipes
+ * juntas), como nos pontos corridos.
+ */
+export function usesGeneralStanding(champ: Championship): boolean {
+  return champ.format === 'groups_knockout' && !!champ.generalStanding
 }

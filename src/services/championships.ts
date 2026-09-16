@@ -38,6 +38,7 @@ function fromRow(r: any): Championship {
     bracket: Array.isArray(r.bracket) ? r.bracket : undefined,
     thirdPlace: r.third_place ?? undefined,
     autoKnockout: r.auto_knockout ?? undefined,
+    generalStanding: r.general_standing ?? undefined,
     referees: Array.isArray(r.referees) ? r.referees : [],
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
@@ -96,6 +97,7 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.bracket !== undefined) row.bracket = c.bracket
   if (c.thirdPlace !== undefined) row.third_place = c.thirdPlace
   if (c.autoKnockout !== undefined) row.auto_knockout = c.autoKnockout
+  if (c.generalStanding !== undefined) row.general_standing = c.generalStanding
   if (c.referees !== undefined) row.referees = c.referees
   if (c.venues !== undefined) row.venues = c.venues
   if (c.sponsors !== undefined) row.sponsors = c.sponsors

@@ -90,6 +90,7 @@ export interface Category {
   thirdPlace?: boolean
   doubleRound?: boolean
   autoKnockout?: boolean
+  generalStanding?: boolean
 
   /* --- Regras de jogo (entram no regulamento) --------------------------- */
 
@@ -346,6 +347,13 @@ export interface Championship {
    * forem encerrados. Padrão: ligado.
    */
   autoKnockout?: boolean
+  /**
+   * Grupos + mata-mata com CLASSIFICAÇÃO GERAL: as equipes jogam dentro dos
+   * seus grupos, mas a tabela é uma só (todas as equipes juntas) e a
+   * classificação ao mata-mata é pela colocação geral (os `leagueQualifiers`
+   * primeiros), e não por grupo. Ausente/falso = cada grupo tem a sua tabela.
+   */
+  generalStanding?: boolean
   /** Árbitros cadastrados no campeonato. */
   referees?: Referee[]
   /** Campos / locais das partidas. */

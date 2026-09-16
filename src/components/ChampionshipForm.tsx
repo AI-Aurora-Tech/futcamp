@@ -233,6 +233,8 @@ export function ChampionshipForm({
   const [bracketTouched, setBracketTouched] = useState(Boolean(initial?.bracket?.length))
   const [thirdPlace, setThirdPlace] = useState(initial?.thirdPlace ?? false)
   const [autoKnockout, setAutoKnockout] = useState(initial?.autoKnockout ?? true)
+  // Grupos + mata-mata com classificação geral (tabela única, colocação geral).
+  const [generalStanding, setGeneralStanding] = useState(Boolean(initial?.generalStanding))
   // Pontos corridos: quantas partidas cada equipe joga (vazio = todos contra
   // todos completo).
   const [leagueMatches, setLeagueMatches] = useState<string>(
@@ -319,7 +321,10 @@ export function ChampionshipForm({
               ? Math.max(1, Number(c.qualifiers))
               : undefined,
           leagueQualifiers:
-            format === 'league' && c.qualifiers ? Math.max(1, Number(c.qualifiers)) : undefined,
+            (format === 'league' || (format === 'groups_knockout' && generalStanding)) && c.qualifiers
+              ? Math.max(1, Number(c.qualifiers))
+              : undefined,
+          generalStanding: format === 'groups_knockout' && generalStanding ? true : undefined,
           yellowAccumulates: c.yellowAccumulates,
           yellowsForSuspension: c.yellowAccumulates
             ? Math.max(1, Number(c.yellowsForSuspension) || 3)
@@ -357,15 +362,15 @@ export function ChampionshipForm({
   const staggerValid = staggeredEntriesValid(leagueEntries)
   /** O mata-mata é montado com os classificados da ÚLTIMA fase de grupos. */
   const lastStage = stages[stages.length - 1]
+  // Classificação geral: mesmo em grupos, o chaveamento é pela colocação geral.
+  const groupsBracket = format === 'groups_knockout' && !generalStanding
   const groups = useMemo(
-    () =>
-      format === 'groups_knockout' ? stageGroupLetters(lastStage?.numGroups ?? 2) : [OVERALL_GROUP],
-    [format, lastStage?.numGroups],
+    () => (groupsBracket ? stageGroupLetters(lastStage?.numGroups ?? 2) : [OVERALL_GROUP]),
+    [groupsBracket, lastStage?.numGroups],
   )
-  const maxPosition =
-    format === 'groups_knockout'
-      ? Math.max(1, ...groups.map((g) => (lastStage ? qualifiersOfGroup(lastStage, g) : 2)))
-      : Math.max(2, qualifiersNum)
+  const maxPosition = groupsBracket
+    ? Math.max(1, ...groups.map((g) => (lastStage ? qualifiersOfGroup(lastStage, g) : 2)))
+    : Math.max(2, qualifiersNum)
 
   const suggest = useMemo(
     () =>
@@ -373,8 +378,9 @@ export function ChampionshipForm({
         format,
         groupStages: stages,
         leagueQualifiers: qualifiersNum,
+        generalStanding,
       }),
-    [format, stages, qualifiersNum],
+    [format, stages, qualifiersNum, generalStanding],
   )
 
   function updateStage(id: string, patch: Partial<GroupStage>) {
@@ -506,7 +512,11 @@ export function ChampionshipForm({
         format === 'groups_knockout'
           ? stages.map((s, i) => (i === 0 ? { ...s, doubleRound } : s))
           : undefined,
-      leagueQualifiers: format === 'league' && qualifiersNum ? qualifiersNum : undefined,
+      leagueQualifiers:
+        (format === 'league' || (format === 'groups_knockout' && generalStanding)) && qualifiersNum
+          ? qualifiersNum
+          : undefined,
+      generalStanding: format === 'groups_knockout' && generalStanding ? true : undefined,
       leagueMatchesPerTeam:
         format === 'league' && leagueMatches ? Math.max(1, Number(leagueMatches)) : undefined,
       leagueEntries: staggerActive && staggerValid ? leagueEntries : undefined,
@@ -868,7 +878,9 @@ export function ChampionshipForm({
                       <div className="cat-regras__linha">
                         <label className="mini-field">
                           <span className="mini-field__label">
-                            {format === 'groups_knockout' ? 'Classificados por grupo' : 'Classificados ao mata-mata'}
+                            {format === 'groups_knockout' && !generalStanding
+                              ? 'Classificados por grupo'
+                              : 'Classificados ao mata-mata'}
                           </span>
                           <input
                             type="number"
@@ -876,12 +888,14 @@ export function ChampionshipForm({
                             max={64}
                             value={c.qualifiers}
                             onChange={(e) => updateCat(c.id, { qualifiers: e.target.value })}
-                            placeholder={format === 'groups_knockout' ? 'Ex.: 2' : 'Ex.: 8'}
+                            placeholder={format === 'groups_knockout' && !generalStanding ? 'Ex.: 2' : 'Ex.: 8'}
                           />
                           <small className="mini-field__hint">
-                            {format === 'groups_knockout'
+                            {format === 'groups_knockout' && !generalStanding
                               ? 'quantas equipes avançam de cada grupo'
-                              : 'primeiras colocadas que avançam'}
+                              : generalStanding
+                                ? 'primeiras colocadas no geral que avançam'
+                                : 'primeiras colocadas que avançam'}
                           </small>
                         </label>
                       </div>
@@ -936,6 +950,25 @@ export function ChampionshipForm({
               as vagas do mata-mata. Cada grupo tem o <b>seu</b> número de classificados — útil
               quando os grupos têm quantidades diferentes de times.
             </p>
+
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={generalStanding}
+                onChange={(e) => setGeneralStanding(e.target.checked)}
+              />
+              <span>
+                📊 <b>Classificação geral</b> — as equipes jogam nos seus grupos, mas a tabela é única
+                (todas juntas) e classificam os melhores no <b>geral</b>, não por grupo
+              </span>
+            </label>
+            {generalStanding && (
+              <p className="field__hint">
+                Quantos se classificam ao mata-mata é definido em cada categoria, no bloco “Regras de
+                jogo” (campo <b>Classificados ao mata-mata</b>). O chaveamento abaixo usa a colocação
+                geral.
+              </p>
+            )}
 
             {stages.map((s, i) => {
               const letters = stageGroupLetters(s.numGroups)
@@ -1006,27 +1039,32 @@ export function ChampionshipForm({
                     )}
                   </div>
 
-                  <div className="stage-card__quotas">
-                    <span className="mini-field__label">Classificados por grupo</span>
-                    <div className="quota-grid">
-                      {letters.map((g) => (
-                        <label key={g} className="quota-item">
-                          <span className="quota-item__label">Grupo {g}</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={32}
-                            value={String(qualifiersOfGroup(s, g))}
-                            onChange={(e) => setStageQualifiers(s, g, e.target.value)}
-                          />
-                        </label>
-                      ))}
+                  {/* Com classificação geral a última fase não classifica por
+                      grupo — os classificados saem da tabela geral. As fases
+                      intermediárias (se houver) seguem classificando por grupo. */}
+                  {!(generalStanding && i === stages.length - 1) && (
+                    <div className="stage-card__quotas">
+                      <span className="mini-field__label">Classificados por grupo</span>
+                      <div className="quota-grid">
+                        {letters.map((g) => (
+                          <label key={g} className="quota-item">
+                            <span className="quota-item__label">Grupo {g}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={32}
+                              value={String(qualifiersOfGroup(s, g))}
+                              onChange={(e) => setStageQualifiers(s, g, e.target.value)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <small className="mini-field__hint">
+                        Total: <b>{totalQualifiers(s)}</b> classificado(s)
+                        {i === stages.length - 1 ? ' para o mata-mata' : ' para a fase seguinte'}.
+                      </small>
                     </div>
-                    <small className="mini-field__hint">
-                      Total: <b>{totalQualifiers(s)}</b> classificado(s)
-                      {i === stages.length - 1 ? ' para o mata-mata' : ' para a fase seguinte'}.
-                    </small>
-                  </div>
+                  )}
                 </div>
               )
             })}
@@ -1224,7 +1262,7 @@ export function ChampionshipForm({
             <div className="bracket-list">
               {bracket.length === 0 && (
                 <p className="muted small">
-                  Informe os classificados {format === 'groups_knockout' ? 'por grupo' : 'da tabela'} para montar o chaveamento.
+                  Informe os classificados {groupsBracket ? 'por grupo' : 'da tabela'} para montar o chaveamento.
                 </p>
               )}
               {bracket.map((p, i) => (
