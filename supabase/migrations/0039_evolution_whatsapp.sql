@@ -77,7 +77,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $wa_enfileirar$
 declare
   v_com_fone uuid[];
 begin
@@ -109,7 +109,7 @@ begin
     category_id  = excluded.category_id,
     created_at   = now();
 end;
-$$;
+$wa_enfileirar$;
 
 -- ---------------------------------------------------------------------------
 -- 3. AVISO 1 — jogo marcado ou remarcado
@@ -123,7 +123,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $wa_sched$
 declare
   v_home  text;
   v_away  text;
@@ -167,7 +167,7 @@ begin
   );
   return new;
 end;
-$$;
+$wa_sched$;
 
 drop trigger if exists wa_on_match_scheduled on public.matches;
 create trigger wa_on_match_scheduled
@@ -186,7 +186,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $wa_fin$
 declare
   v_home text;
   v_away text;
@@ -216,7 +216,7 @@ begin
   );
   return new;
 end;
-$$;
+$wa_fin$;
 
 drop trigger if exists wa_on_match_finished on public.matches;
 create trigger wa_on_match_finished
@@ -244,7 +244,7 @@ returns int
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $wa_lembr$
 declare
   r        record;
   v_qtd    int := 0;
@@ -299,7 +299,7 @@ begin
   end loop;
   return v_qtd;
 end;
-$$;
+$wa_lembr$;
 
 -- ---------------------------------------------------------------------------
 -- 6. Permissões
