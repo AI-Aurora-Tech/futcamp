@@ -3,6 +3,7 @@ import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
+import { flushWhatsapp } from '../services/evolution'
 import {
   EVENT_LABELS,
   type Championship,
@@ -44,6 +45,7 @@ export function MatchResultModal({
   officials,
   writer,
   readOnlySchedule = false,
+  onDelete,
   onClose,
   onSaved,
 }: {
@@ -63,6 +65,11 @@ export function MatchResultModal({
   writer?: MatchWriter
   /** Mesário não edita agendamento. */
   readOnlySchedule?: boolean
+  /**
+   * Excluir a partida. Presente só no modo administrador (o mesário não recebe).
+   * Quando ausente, o botão de excluir não aparece.
+   */
+  onDelete?: (match: Match) => Promise<void> | void
   onClose: () => void
   onSaved: () => void
 }) {
@@ -74,6 +81,7 @@ export function MatchResultModal({
   const [status, setStatus] = useState<MatchStatus>(match.status)
   const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
   const [venue, setVenue] = useState<string>(match.venue ?? '')
+  const [round, setRound] = useState<string>(String(match.round))
   const [refereeId, setRefereeId] = useState<string>(match.refereeId ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
   const [winnerTeamId, setWinnerTeamId] = useState<string>(match.winnerTeamId ?? '')
@@ -180,6 +188,8 @@ export function MatchResultModal({
       patch.scheduledAt = scheduledAt ? new Date(scheduledAt).toISOString() : undefined
       patch.venue = venue.trim() || undefined
       patch.refereeId = refereeId || undefined
+      // Rodada só faz sentido na fase de grupos/pontos corridos.
+      if (!isKnockoutMatch) patch.round = Math.max(1, Number(round) || match.round)
     }
     if (officials) patch.officialId = officialId || undefined
     if (isKnockoutMatch) {
@@ -192,9 +202,30 @@ export function MatchResultModal({
     await w.updateMatch(match.id, patch)
     // Encerrar a partida enfileira, de uma vez, o resultado, o resumo de cada
     // equipe, as suspensões e — se a rodada fechou — a classificação.
-    if (newStatus === 'finished') void flushPush(match.championshipId)
+    if (newStatus === 'finished') {
+      void flushPush(match.championshipId)
+      // Avisa os responsáveis dos times pelo WhatsApp com o placar final.
+      void flushWhatsapp(match.championshipId)
+    }
     setBusy(false)
     onSaved()
+  }
+
+  async function removeMatch() {
+    if (!onDelete) return
+    const nome = `${home?.name ?? 'Mandante'} × ${away?.name ?? 'Visitante'}`
+    if (!confirm(`Excluir a partida ${nome}? Isso apaga também os gols, cartões e a súmula dela. Esta ação não pode ser desfeita.`)) {
+      return
+    }
+    setBusy(true)
+    try {
+      await onDelete(match)
+      onSaved()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível excluir a partida.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   function generateSumula(action: 'print' | 'download') {
@@ -255,6 +286,17 @@ export function MatchResultModal({
 
       {!readOnlySchedule && (
         <div className="schedule-row">
+          {!isKnockoutMatch && (
+            <label className="field">
+              <span className="field__label">Rodada</span>
+              <input
+                type="number"
+                min={1}
+                value={round}
+                onChange={(e) => setRound(e.target.value)}
+              />
+            </label>
+          )}
           <label className="field">
             <span className="field__label">Data e hora do jogo</span>
             <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
@@ -478,6 +520,9 @@ export function MatchResultModal({
       </div>
 
       <div className="form-actions">
+        {onDelete && (
+          <Button variant="danger" type="button" onClick={() => void removeMatch()} disabled={busy}>🗑 Excluir partida</Button>
+        )}
         <Button variant="ghost" type="button" onClick={() => void save('scheduled')} disabled={busy}>Salvar agendada</Button>
         <Button variant="soft" type="button" onClick={() => void save('live')} disabled={busy}>● Salvar ao vivo</Button>
         <Button type="button" onClick={() => void save('finished')} disabled={busy}>

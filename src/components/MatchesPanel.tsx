@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   createKnockoutStage,
+  deleteMatch,
   generateGroups,
   generateKnockout,
   generateLeague,
@@ -30,6 +31,8 @@ import {
 import { Button, EmptyState, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
+import { ManualMatchModal } from './ManualMatchModal'
+import { flushWhatsapp, notifyMatchCanceled } from '../services/evolution'
 
 export function MatchesPanel({
   championship,
@@ -58,6 +61,7 @@ export function MatchesPanel({
   const [editing, setEditing] = useState<Match | null>(null)
   const [generating, setGenerating] = useState(false)
   const [scheduling, setScheduling] = useState(false)
+  const [creating, setCreating] = useState(false)
   const isKnockout = championship.format === 'knockout'
   const isGroups = championship.format === 'groups_knockout'
   // Regerar a tabela apaga TODAS as partidas. Com jogos já encerrados isso
@@ -175,6 +179,7 @@ export function MatchesPanel({
           </p>
         </div>
         <div className="panel__head-actions">
+          <Button variant="soft" onClick={() => setCreating(true)}>➕ Nova partida</Button>
           {matches.length > 0 && (
             <Button variant="soft" onClick={() => setScheduling((s) => !s)}>🗓️ Datas e horários</Button>
           )}
@@ -282,9 +287,30 @@ export function MatchesPanel({
           teams={teams}
           players={players}
           officials={officials}
+          onDelete={async (m) => {
+            // Avisa os times ANTES de apagar (depois não há mais dados do jogo).
+            await notifyMatchCanceled(m.id)
+            await deleteMatch(m.id)
+            void flushWhatsapp(m.championshipId)
+            onChange()
+          }}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null)
+            onChange()
+          }}
+        />
+      )}
+
+      {creating && (
+        <ManualMatchModal
+          championship={championship}
+          teams={teams}
+          matches={matches}
+          categoryId={categoryId}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false)
             onChange()
           }}
         />
