@@ -53,6 +53,18 @@ create table if not exists public.whatsapp_outbox (
   sent_at         timestamptz
 );
 
+-- Auto-cura: se a tabela já existia de uma tentativa anterior num formato
+-- diferente, o `create table if not exists` acima vira no-op e as colunas
+-- poderiam faltar — o que quebraria os índices logo abaixo. Garantimos cada
+-- coluna antes de indexar (mesmo padrão idempotente da migration 0035).
+alter table public.whatsapp_outbox add column if not exists to_phone   text;
+alter table public.whatsapp_outbox add column if not exists body       text;
+alter table public.whatsapp_outbox add column if not exists dedupe_key text;
+alter table public.whatsapp_outbox add column if not exists attempts   int not null default 0;
+alter table public.whatsapp_outbox add column if not exists last_error text;
+alter table public.whatsapp_outbox add column if not exists created_at timestamptz not null default now();
+alter table public.whatsapp_outbox add column if not exists sent_at    timestamptz;
+
 create index if not exists whatsapp_outbox_pending_idx
   on public.whatsapp_outbox (created_at) where sent_at is null;
 
