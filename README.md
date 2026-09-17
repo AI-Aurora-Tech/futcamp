@@ -552,12 +552,13 @@ enviar.
 
 ## 📲 WhatsApp (Evolution API)
 
-Uma segunda via dos avisos, agora no **WhatsApp do responsável do time** — e, em
-cópia, do organizador. É **aditiva**: o push (VAPID) continua como está, e nada
-muda no modelo de criação do campeonato nem nos campeonatos já ativos. Quem não
-configurar o servidor simplesmente não envia nada.
+Uma segunda via dos avisos, agora no **WhatsApp do responsável do time**. É
+**aditiva**: o push (VAPID) continua como está, e nada muda no modelo de criação
+do campeonato nem nos campeonatos já ativos. Quem não configurar o servidor
+simplesmente não envia nada.
 
-**Todas as mensagens começam pelo nome do campeonato.** O que dispara cada uma:
+**Todas as mensagens começam pelo nome do campeonato** (a Edge Function troca a
+🏆 pela **logo** do campeonato — emoji ou imagem). O que dispara cada uma:
 
 | Evento | Mensagem | Conteúdo |
 | --- | --- | --- |
@@ -567,50 +568,39 @@ configurar o servidor simplesmente não envia nada.
 | 🏁 **Jogo encerrado** | Fim de jogo | Placar (e pênaltis, no mata-mata) + a **classificação atual** da categoria. |
 | ⏰ **18 h antes do prazo** | Inscrições encerrando | O jogo e o **prazo final de inscrição** (`registrationCutoffHours` antes do jogo). |
 
-Os avisos nascem de **gatilhos no banco** (`whatsapp_outbox`), como o push. O de
-prazo é o único que não nasce de gatilho — ninguém escreve no banco quando o
-relógio chega lá —, então quem o gera é a Edge Function agendada
-(`wa_gerar_prazos`). O cancelamento é enfileirado pelo app **antes** de excluir a
-partida (os dados ainda precisam existir), pela RPC `wa_cancelar_partida`.
+Os avisos nascem de **gatilhos no banco** e vão para a fila `whatsapp_outbox`
+(uma linha por aviso, com os **times** — o telefone do responsável, `teams.phone`,
+é resolvido na hora do envio). O de prazo é o único que não nasce de gatilho —
+ninguém escreve no banco quando o relógio chega lá —, então quem o gera é a Edge
+Function agendada (`wa_gerar_lembretes_inscricao`). O cancelamento é enfileirado
+pelo app **antes** de excluir a partida, pela RPC `wa_cancelar_partida`.
 
-**Ritmo de envio:** respeitados **10 segundos entre um envio e o outro**. O
-relógio do último envio mora em `whatsapp_throttle`, então os 10 s valem mesmo
-entre execuções diferentes da função — que envia o que couber no tempo e deixa o
-resto para o próximo agendamento.
+**Ritmo de envio:** **10 segundos entre um envio e o outro**
+(`EVOLUTION_SEND_DELAY_MS`, padrão 10000). O que não couber no tempo de uma
+execução fica pendente e sai no próximo agendamento.
 
 ### Como habilitar
 
-1. **Banco** — rode a migration `0041_whatsapp_evolution.sql`.
-2. **Edge Function** — publique e configure os secrets (a apikey fica **só** no
-   servidor):
+1. **Banco** — rode as migrations `0041_whatsapp_evolution.sql` e, em seguida,
+   `0042_whatsapp_consolidacao.sql`.
+2. **Edge Function** — publique a `send-whatsapp` e configure os secrets (a
+   apikey fica **só** no servidor):
    ```bash
    supabase secrets set EVOLUTION_API_URL="https://evo.suaempresa.com" \
                         EVOLUTION_API_KEY="a-apikey-da-instancia" \
-                        EVOLUTION_INSTANCE="nome-da-instancia" \
-                        APP_URL="https://tabelaco.auroratech.app.br"
-   supabase functions deploy whatsapp-evolution --no-verify-jwt
+                        EVOLUTION_INSTANCE="nome-da-instancia"
+   supabase functions deploy send-whatsapp --no-verify-jwt
    ```
-3. **Agende a função a cada 1–2 minutos** (Supabase → Edge Functions →
+3. **Agende a função a cada 15 minutos** (Supabase → Edge Functions →
    Schedules, ou `pg_cron`). Este passo **não é opcional**: é ele que faz o aviso
-   de prazo existir e o que respeita o intervalo de 10 s. Os demais avisos o app
-   já dispara na hora, chamando a função logo depois de agendar, encerrar ou
-   cancelar.
-4. **Cópia para o organizador** *(opcional)* — em *Ajustes → WhatsApp
-   (Evolution)*, informe um número por campeonato. Nulo = sem cópia.
+   de prazo existir. Os demais avisos o app já dispara na hora, chamando a função
+   logo depois de agendar, encerrar ou cancelar.
 
-O `GET` da função diz a própria versão e como está configurada, sem revelar a
-chave:
-
-```bash
-curl -s https://SEU_REF.supabase.co/functions/v1/whatsapp-evolution | jq
-# { "versao": "1", "base": "https://evo…", "instancia": "…",
-#   "apikey": "configurada (36 caracteres)", "intervaloSegundos": 10 }
-```
-
-O número enviado é normalizado (só dígitos, com DDI): um telefone brasileiro sem
-o `55` recebe o código do país automaticamente. Time sem telefone do responsável
-não recebe — o organizador cadastra o número no próprio time. No **modo demo**
-(sem Supabase) não há envio: não existe servidor para falar com a Evolution.
+O número é normalizado (só dígitos, com DDI): um telefone brasileiro sem o `55`
+recebe o código do país automaticamente (ajustável por `EVOLUTION_COUNTRY_CODE`).
+Time sem telefone do responsável não recebe — o organizador cadastra o número no
+próprio time. No **modo demo** (sem Supabase) não há envio: não existe servidor
+para falar com a Evolution.
 
 ## 🏆 Da fase de grupos ao mata-mata (automático)
 

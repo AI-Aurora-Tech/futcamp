@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // WhatsApp (Evolution API) — camada de serviço.
 //
-//  • `flushWhatsapp`: pede à Edge Function `whatsapp-evolution` que entregue o
+//  • `flushWhatsapp`: pede à Edge Function `send-whatsapp` que entregue o
 //    que está na fila `whatsapp_outbox`. É chamada logo depois das ações que
 //    geram aviso (agendar, encerrar) para a entrega começar na hora — a própria
 //    função respeita os 10 s entre um envio e o outro, e o agendamento termina
@@ -19,7 +19,7 @@ import { supabase } from '../lib/supabase'
 export async function flushWhatsapp(championshipId: string): Promise<void> {
   if (authMode !== 'supabase' || !supabase) return
   try {
-    await supabase.functions.invoke('whatsapp-evolution', { body: { championshipId } })
+    await supabase.functions.invoke('send-whatsapp', { body: { championshipId } })
   } catch {
     /* a fila permanece pendente e sai no próximo agendamento */
   }
