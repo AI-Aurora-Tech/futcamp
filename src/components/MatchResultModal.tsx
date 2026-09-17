@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services/matches'
+import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
@@ -478,6 +478,28 @@ export function MatchResultModal({
       </div>
 
       <div className="form-actions">
+        {/* Excluir é só do organizador (o mesário injeta um `writer` restrito). */}
+        {!writer && (
+          <Button
+            variant="danger"
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              if (!confirm('Excluir este jogo? Placar, gols e cartões lançados nele serão removidos.')) return
+              setBusy(true)
+              try {
+                await deleteMatch(match.id)
+                onSaved()
+              } catch (e) {
+                alert(e instanceof Error ? e.message : 'Não foi possível excluir o jogo.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            🗑 Excluir jogo
+          </Button>
+        )}
         <Button variant="ghost" type="button" onClick={() => void save('scheduled')} disabled={busy}>Salvar agendada</Button>
         <Button variant="soft" type="button" onClick={() => void save('live')} disabled={busy}>● Salvar ao vivo</Button>
         <Button type="button" onClick={() => void save('finished')} disabled={busy}>

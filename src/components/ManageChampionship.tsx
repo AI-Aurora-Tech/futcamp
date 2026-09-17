@@ -33,6 +33,7 @@ import { StatsPanel } from './StatsPanel'
 import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
+import { CategoryCompetitionForm } from './CategoryCompetitionForm'
 import { PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
@@ -46,6 +47,7 @@ import {
   elencoDeTimes,
   partidasDaCategoria,
   statusDaCategoria,
+  statusEfetivo,
   temVariasCategorias,
 } from '../lib/categorias'
 import { setCategoryStatus } from '../services/championships'
@@ -82,6 +84,7 @@ export function ManageChampionship({
   const [catId, setCatId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [editingCat, setEditingCat] = useState(false)
   const [liberando, setLiberando] = useState(false)
 
   const reload = useCallback(async () => {
@@ -154,8 +157,20 @@ export function ManageChampionship({
    * pode encerrar o Sub-17, que ainda está na semifinal.
    */
   async function changeStatus(status: Championship['status']) {
-    if (varias && catAtual) await setCategoryStatus(championshipId, catAtual, status)
-    else await updateChampionship(championshipId, { status })
+    if (varias && catAtual) {
+      await setCategoryStatus(championshipId, catAtual, status)
+      // Mantém a situação do campeonato em sincronia com as categorias — senão
+      // ele fica "rascunho" mesmo com as categorias já em andamento.
+      const fresh = await getChampionship(championshipId).catch(() => null)
+      if (fresh) {
+        const efetivo = statusEfetivo(fresh)
+        if (efetivo !== fresh.status) {
+          await updateChampionship(championshipId, { status: efetivo }).catch(() => {})
+        }
+      }
+    } else {
+      await updateChampionship(championshipId, { status })
+    }
     await reload()
   }
 
@@ -242,7 +257,7 @@ export function ManageChampionship({
                 <StatusPill status={statusDaCategoria(champ, catAtual)} />
               </div>
               <p className="manage__meta">
-                {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[champ.format]}
+                {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[comp.format]}
                 {champ.season ? ` · ${champ.season}` : ''}
               </p>
               <ChampionTag podium={computePodium(comp, timesCat, partidasCat, eventosCat)} teams={timesCat} />
@@ -317,6 +332,17 @@ export function ManageChampionship({
                 <p className="muted">Edite as informações, mude o status ou exclua o campeonato.</p>
               </div>
               <Button onClick={() => setEditing(true)}>✎ Editar informações</Button>
+            </div>
+
+            <div className="settings-block">
+              <h3>🏆 Disputa da categoria{varias ? ` · ${nomeCatAtual}` : ''}</h3>
+              <p className="muted small">
+                Cada categoria é um campeonato dentro do campeonato: defina aqui a <b>forma de
+                disputa</b> e as <b>regras de classificação</b> {varias ? `do ${nomeCatAtual}` : 'desta categoria'} —
+                formato, pontuação, critérios de desempate, grupos e classificados. As outras
+                categorias seguem como estão.
+              </p>
+              <Button variant="soft" onClick={() => setEditingCat(true)}>⚙️ Configurar a disputa</Button>
             </div>
 
             <div className="settings-block">
@@ -437,6 +463,17 @@ export function ManageChampionship({
       </div>
 
       {editing && <ChampionshipForm initial={champ} onClose={() => setEditing(false)} onSave={saveEdit} />}
+      {editingCat && catAtual && (
+        <CategoryCompetitionForm
+          champ={champ}
+          categoryId={catAtual}
+          onClose={() => setEditingCat(false)}
+          onSaved={() => {
+            setEditingCat(false)
+            void reload()
+          }}
+        />
+      )}
     </div>
   )
 }

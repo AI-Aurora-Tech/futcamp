@@ -90,6 +90,27 @@ export interface Category {
   thirdPlace?: boolean
   doubleRound?: boolean
   autoKnockout?: boolean
+  generalStanding?: boolean
+  leagueMatchesPerTeam?: number
+  leagueEntries?: LeagueEntry[]
+
+  /* --- Regras de classificação e forma de disputa próprias -------------- */
+
+  /**
+   * Forma de disputa DESTA categoria (pontos corridos, grupos + mata-mata,
+   * mata-mata). Ausente = herda o formato do campeonato. É o que permite o
+   * Sub-11 ser mata-mata enquanto o Sub-17 é de grupos.
+   */
+  format?: ChampionshipFormat
+  /** Pontos por vitória nesta categoria (ausente = herda o do campeonato). */
+  pointsWin?: number
+  /** Pontos por empate nesta categoria (ausente = herda o do campeonato). */
+  pointsDraw?: number
+  /**
+   * Critérios de desempate próprios desta categoria, na ordem. Ausente = herda
+   * os do campeonato. A pontuação é sempre o 1º critério e não entra na lista.
+   */
+  tiebreakers?: TiebreakerId[]
 
   /* --- Regras de jogo (entram no regulamento) --------------------------- */
 
@@ -254,6 +275,22 @@ export interface BracketPairing {
   away: QualifierSlot | null
 }
 
+/**
+ * Faixa de colocações que entra numa DETERMINADA fase do mata-mata — só nos
+ * pontos corridos. Permite o "mata-mata escalonado": as melhores colocações
+ * entram direto nas quartas, as seguintes disputam as oitavas, e assim por
+ * diante. As faixas cobrem, em ordem, as primeiras colocações da tabela
+ * (`from`/`to`, 1 = líder).
+ */
+export interface LeagueEntry {
+  /** Primeira colocação da faixa (inclusive; 1 = líder da tabela). */
+  from: number
+  /** Última colocação da faixa (inclusive). */
+  to: number
+  /** Fase em que estas colocações entram no mata-mata. */
+  phase: MatchPhase
+}
+
 export interface Championship {
   id: string
   ownerId: string
@@ -301,6 +338,18 @@ export interface Championship {
   /** Nº de classificados no formato de pontos corridos (liga). */
   leagueQualifiers?: number
   /**
+   * Pontos corridos: quantas partidas cada equipe joga. Ausente = todos contra
+   * todos (turno, ou turno e returno com `doubleRound`). Informado, gera um
+   * "todos contra todos" parcial — cada equipe joga esse número de rodadas.
+   */
+  leagueMatchesPerTeam?: number
+  /**
+   * Pontos corridos: mata-mata escalonado. Cada faixa de colocações entra numa
+   * fase (as melhores nas quartas, as seguintes nas oitavas…). Ausente/vazio =
+   * todos os classificados entram na mesma fase, pelo `bracket`/semeadura.
+   */
+  leagueEntries?: LeagueEntry[]
+  /**
    * Critérios de desempate da classificação, na ordem de aplicação (os pontos
    * ganhos são sempre o primeiro critério, por isso não entram na lista).
    */
@@ -318,6 +367,13 @@ export interface Championship {
    * forem encerrados. Padrão: ligado.
    */
   autoKnockout?: boolean
+  /**
+   * Grupos + mata-mata com CLASSIFICAÇÃO GERAL: as equipes jogam dentro dos
+   * seus grupos, mas a tabela é uma só (todas as equipes juntas) e a
+   * classificação ao mata-mata é pela colocação geral (os `leagueQualifiers`
+   * primeiros), e não por grupo. Ausente/falso = cada grupo tem a sua tabela.
+   */
+  generalStanding?: boolean
   /** Árbitros cadastrados no campeonato. */
   referees?: Referee[]
   /** Campos / locais das partidas. */

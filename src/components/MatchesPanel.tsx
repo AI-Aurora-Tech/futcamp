@@ -1,13 +1,19 @@
 import { useMemo, useState } from 'react'
 import {
   createKnockoutStage,
+  createMatch,
   generateGroups,
   generateKnockout,
   generateLeague,
 } from '../services/matches'
 import { updateChampionship } from '../services/championships'
 import { useAuth } from '../context/AuthContext'
-import { hasKnockoutStage, isUnresolvedTie } from '../lib/knockout'
+import {
+  hasKnockoutStage,
+  isUnresolvedTie,
+  KNOCKOUT_ORDER,
+  KNOCKOUT_ROUND_BASE,
+} from '../lib/knockout'
 import {
   allGroupStagesComplete,
   groupStagesOf,
@@ -27,7 +33,7 @@ import {
   type Team,
   type Venue,
 } from '../types'
-import { Button, EmptyState, TeamBadge } from './ui'
+import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
 
@@ -58,6 +64,7 @@ export function MatchesPanel({
   const [editing, setEditing] = useState<Match | null>(null)
   const [generating, setGenerating] = useState(false)
   const [scheduling, setScheduling] = useState(false)
+  const [adding, setAdding] = useState(false)
   const isKnockout = championship.format === 'knockout'
   const isGroups = championship.format === 'groups_knockout'
   // Regerar a tabela apaga TODAS as partidas. Com jogos já encerrados isso
@@ -138,7 +145,14 @@ export function MatchesPanel({
         }
         await generateGroups(championship.id, groups, championship.doubleRound, force, categoryId)
       } else {
-        await generateLeague(championship.id, teams.map((t) => t.id), championship.doubleRound, force, categoryId)
+        await generateLeague(
+          championship.id,
+          teams.map((t) => t.id),
+          championship.doubleRound,
+          force,
+          categoryId,
+          championship.leagueMatchesPerTeam,
+        )
       }
       onChange()
       setScheduling(true) // abre o agendador para informar data/hora jogo a jogo
@@ -178,6 +192,9 @@ export function MatchesPanel({
           {matches.length > 0 && (
             <Button variant="soft" onClick={() => setScheduling((s) => !s)}>🗓️ Datas e horários</Button>
           )}
+          <Button variant="soft" onClick={() => setAdding(true)} disabled={teams.length < 2}>
+            ＋ Adicionar jogo
+          </Button>
           {canCreateKnockout && (
             <Button onClick={() => void createKnockout()} disabled={generating}>
               {generating ? 'Montando…' : '🏆 Criar mata-mata'}
@@ -289,7 +306,155 @@ export function MatchesPanel({
           }}
         />
       )}
+
+      {adding && (
+        <AddMatchModal
+          championship={championship}
+          teams={teams}
+          matches={matches}
+          categoryId={categoryId}
+          onClose={() => setAdding(false)}
+          onSaved={() => {
+            setAdding(false)
+            onChange()
+          }}
+        />
+      )}
     </section>
+  )
+}
+
+/**
+ * Criação MANUAL de uma partida — para montar a tabela à mão ou acrescentar um
+ * jogo avulso, além da geração automática. O placar e os eventos são lançados
+ * depois, na própria partida.
+ */
+function AddMatchModal({
+  championship,
+  teams,
+  matches,
+  categoryId,
+  onClose,
+  onSaved,
+}: {
+  championship: Championship
+  teams: Team[]
+  matches: Match[]
+  categoryId?: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const grupos = [...new Set(teams.map((t) => t.group).filter((g): g is string => !!g))].sort()
+  const proximaRodada =
+    Math.max(0, ...matches.filter((m) => m.phase === 'group').map((m) => m.round)) + 1
+  const [phase, setPhase] = useState<MatchPhase>('group')
+  const [home, setHome] = useState('')
+  const [away, setAway] = useState('')
+  const [round, setRound] = useState(String(proximaRodada))
+  const [group, setGroup] = useState(grupos[0] ?? '')
+  const [busy, setBusy] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const isGroupPhase = phase === 'group'
+  const nomeTime = (id: string) => teams.find((t) => t.id === id)?.name ?? ''
+
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault()
+    setErro(null)
+    if (!home || !away) return setErro('Escolha o time mandante e o visitante.')
+    if (home === away) return setErro('O mandante e o visitante devem ser times diferentes.')
+    // Fase eliminatória entra fora da numeração das rodadas da 1ª fase.
+    const koIdx = KNOCKOUT_ORDER.indexOf(phase)
+    const rodada = isGroupPhase
+      ? Math.max(1, Number(round) || 1)
+      : KNOCKOUT_ROUND_BASE + (phase === 'third_place' ? KNOCKOUT_ORDER.length : Math.max(0, koIdx))
+    setBusy(true)
+    try {
+      await createMatch({
+        championshipId: championship.id,
+        categoryId,
+        round: rodada,
+        phase,
+        stage: isGroupPhase ? 1 : undefined,
+        group: isGroupPhase && group ? group : undefined,
+        homeTeamId: home,
+        awayTeamId: away,
+        homeScore: null,
+        awayScore: null,
+        status: 'scheduled',
+      })
+      onSaved()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível criar o jogo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="Adicionar jogo" onClose={onClose}>
+      <form onSubmit={salvar} className="form-grid">
+        <p className="field__hint">
+          Crie uma partida na mão — dá para montar a tabela jogo a jogo em vez de gerar tudo
+          automaticamente. Placar, data e local são informados depois.
+        </p>
+
+        <Field label="Fase">
+          <select value={phase} onChange={(e) => setPhase(e.target.value as MatchPhase)}>
+            {(Object.keys(PHASE_LABELS) as MatchPhase[]).map((p) => (
+              <option key={p} value={p}>{PHASE_LABELS[p]}</option>
+            ))}
+          </select>
+        </Field>
+
+        {isGroupPhase && (
+          <div className="form-row">
+            <Field label="Rodada">
+              <input type="number" min={1} max={200} value={round} onChange={(e) => setRound(e.target.value)} />
+            </Field>
+            {grupos.length > 0 && (
+              <Field label="Grupo">
+                <select value={group} onChange={(e) => setGroup(e.target.value)}>
+                  {grupos.map((g) => (
+                    <option key={g} value={g}>Grupo {g}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </div>
+        )}
+
+        <div className="form-row">
+          <Field label="Time mandante">
+            <select value={home} onChange={(e) => setHome(e.target.value)}>
+              <option value="">Escolha…</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id === away}>{t.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Time visitante">
+            <select value={away} onChange={(e) => setAway(e.target.value)}>
+              <option value="">Escolha…</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id === home}>{t.name}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        {home && away && home !== away && (
+          <p className="field__hint">🆚 <b>{nomeTime(home)}</b> × <b>{nomeTime(away)}</b></p>
+        )}
+
+        {erro && <p className="auth-error">{erro}</p>}
+
+        <div className="form-actions">
+          <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" disabled={busy}>{busy ? 'Criando…' : 'Adicionar jogo'}</Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

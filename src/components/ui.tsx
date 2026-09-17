@@ -60,13 +60,33 @@ export function Modal({
   onClose,
   children,
   wide = false,
+  size,
+  dismissable = true,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   wide?: boolean
+  /**
+   * Largura no desktop: 'default' (480px), 'wide' (640px) ou 'form' (960px,
+   * para formulários longos como a criação do campeonato — no celular todos
+   * ocupam a largura da tela). `wide` continua valendo como atalho de 'wide'.
+   */
+  size?: 'default' | 'wide' | 'form'
+  /**
+   * O clique no fundo (e o Esc) fecha o modal? Padrão: sim. Em formulários
+   * longos — como a criação/edição do campeonato — vale `false` para um clique
+   * fora não descartar tudo o que foi preenchido; aí só o ✕ ou "Cancelar" fecham.
+   */
+  dismissable?: boolean
 }) {
   useEffect(() => {
+    if (!dismissable) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
@@ -74,12 +94,18 @@ export function Modal({
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = ''
     }
-  }, [onClose])
+  }, [onClose, dismissable])
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={dismissable ? onClose : undefined}>
       <div
-        className={`modal ${wide ? 'modal--wide' : ''}`}
+        className={`modal ${
+          (size ?? (wide ? 'wide' : 'default')) === 'form'
+            ? 'modal--form'
+            : (size ?? (wide ? 'wide' : 'default')) === 'wide'
+              ? 'modal--wide'
+              : ''
+        }`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

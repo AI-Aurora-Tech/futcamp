@@ -10,6 +10,7 @@
 // busca ativa, o limite cai.
 // ---------------------------------------------------------------------------
 import type { Championship } from '../types'
+import { statusEfetivo } from './categorias'
 
 /** Quantos campeonatos de cada tipo a home mostra. */
 export const VITRINE_LIMITE = 5
@@ -54,8 +55,10 @@ export function vitrine(
   limite = VITRINE_LIMITE,
 ): Vitrine {
   const filtrada = (lista ?? []).filter((c) => combina(c, busca))
-  const ativos = filtrada.filter((c) => c.status === 'active').sort(maisRecente)
-  const encerrados = filtrada.filter((c) => c.status === 'finished').sort(maisRecente)
+  // Situação efetiva: com várias categorias, o campeonato está "em andamento"
+  // assim que uma categoria começa, mesmo que o status do campeonato siga draft.
+  const ativos = filtrada.filter((c) => statusEfetivo(c) === 'active').sort(maisRecente)
+  const encerrados = filtrada.filter((c) => statusEfetivo(c) === 'finished').sort(maisRecente)
 
   // Buscando: mostra tudo que bate. Sem busca: só os mais recentes.
   const teto = busca.trim() ? Number.POSITIVE_INFINITY : Math.max(0, limite)

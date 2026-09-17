@@ -24,6 +24,7 @@ import {
   type Championship,
 } from '../types'
 import { algumaPermite, textoRegra } from './federated'
+import { competicaoDaCategoria } from './categorias'
 import {
   descreverAmarelos,
   descreverArbitragem,
@@ -103,6 +104,9 @@ export function descreverFormato(c: Championship): string {
   // para outra é quantas equipes se classificam, e isso tem seção própria.
   const nome = FORMAT_LABELS[c.format] ?? c.format
   if (c.format === 'league') {
+    if (c.leagueMatchesPerTeam && c.leagueMatchesPerTeam > 0) {
+      return `${nome}: cada equipe disputa ${c.leagueMatchesPerTeam} partida(s).`
+    }
     const turno = c.doubleRound ? 'turno e returno (todos se enfrentam duas vezes)' : 'turno único (todos se enfrentam uma vez)'
     return `${nome}, em ${turno}.`
   }
@@ -111,7 +115,10 @@ export function descreverFormato(c: Championship): string {
   }
   const grupos = c.numGroups ? `${c.numGroups} grupo(s)` : 'grupos'
   const porGrupo = c.teamsPerGroup ? ` de ${c.teamsPerGroup} equipes` : ''
-  return `${nome}: fase de ${grupos}${porGrupo}, seguida de mata-mata.${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
+  const geral = c.generalStanding
+    ? ' A classificação é geral (todas as equipes numa tabela única) e se classificam os melhores no geral.'
+    : ''
+  return `${nome}: fase de ${grupos}${porGrupo}, seguida de mata-mata.${geral}${c.thirdPlace ? ' Há disputa de 3º lugar.' : ''}`
 }
 
 /** Prazo de inscrição em texto. */
@@ -143,7 +150,12 @@ export function descreverCategorias(c: Championship): string[] {
       idade = `nascidos em ${cat.birthYear} ou antes${excecoes}`
     }
     const federados = c.audience === 'infantil' ? ` ${maiuscula(textoRegra(cat))}` : ''
-    return `${cat.name}: ${idade}.${federados}`
+    // Forma de disputa própria da categoria, quando difere do padrão.
+    const disputa =
+      cat.format && cat.format !== c.format
+        ? ` Disputa: ${descreverFormato(competicaoDaCategoria(c, cat.id))}`
+        : ''
+    return `${cat.name}: ${idade}.${federados}${disputa}`
   })
 }
 
@@ -261,7 +273,7 @@ export function montarRegulamento(c: Championship, emitidoEm?: string): Linha[] 
           `Modalidade: ${rotuloEsporte(c)}.`,
           `Público: ${rotuloPublico(c)}.`,
           c.season ? `Temporada: ${c.season}.` : '',
-          `Formato: ${descreverFormato(c)}`,
+          `Formato${(c.categories ?? []).some((cat) => cat.format && cat.format !== c.format) ? ' (padrão)' : ''}: ${descreverFormato(c)}`,
         ],
       },
       {
