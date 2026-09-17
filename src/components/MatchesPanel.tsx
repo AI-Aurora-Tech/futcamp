@@ -411,7 +411,7 @@ function AddMatchModal({
   }
 
   return (
-    <Modal title="Adicionar jogo" onClose={onClose}>
+    <Modal title="Adicionar jogo" onClose={onClose} dismissable={false}>
       <form onSubmit={salvar} className="form-grid">
         <p className="field__hint">
           Crie uma partida na mão — dá para montar a tabela jogo a jogo em vez de gerar tudo

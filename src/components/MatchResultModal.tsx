@@ -247,7 +247,7 @@ export function MatchResultModal({
         : 'disponível (antes do jogo)'
 
   return (
-    <Modal title="Registrar resultado" onClose={onClose} wide>
+    <Modal title="Registrar resultado" onClose={onClose} wide dismissable={false}>
       <div className="status-tabs">
         {(['scheduled', 'live', 'finished'] as MatchStatus[]).map((s) => (
           <button
