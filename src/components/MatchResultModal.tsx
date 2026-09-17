@@ -45,6 +45,7 @@ export function MatchResultModal({
   officials,
   writer,
   readOnlySchedule = false,
+  onDelete,
   onClose,
   onSaved,
 }: {
@@ -64,6 +65,11 @@ export function MatchResultModal({
   writer?: MatchWriter
   /** Mesário não edita agendamento. */
   readOnlySchedule?: boolean
+  /**
+   * Excluir a partida. Presente só no modo administrador (o mesário não recebe).
+   * Quando ausente, o botão de excluir não aparece.
+   */
+  onDelete?: (match: Match) => Promise<void> | void
   onClose: () => void
   onSaved: () => void
 }) {
@@ -200,6 +206,23 @@ export function MatchResultModal({
     }
     setBusy(false)
     onSaved()
+  }
+
+  async function removeMatch() {
+    if (!onDelete) return
+    const nome = `${home?.name ?? 'Mandante'} × ${away?.name ?? 'Visitante'}`
+    if (!confirm(`Excluir a partida ${nome}? Isso apaga também os gols, cartões e a súmula dela. Esta ação não pode ser desfeita.`)) {
+      return
+    }
+    setBusy(true)
+    try {
+      await onDelete(match)
+      onSaved()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível excluir a partida.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   function generateSumula(action: 'print' | 'download') {
@@ -483,6 +506,9 @@ export function MatchResultModal({
       </div>
 
       <div className="form-actions">
+        {onDelete && (
+          <Button variant="danger" type="button" onClick={() => void removeMatch()} disabled={busy}>🗑 Excluir partida</Button>
+        )}
         <Button variant="ghost" type="button" onClick={() => void save('scheduled')} disabled={busy}>Salvar agendada</Button>
         <Button variant="soft" type="button" onClick={() => void save('live')} disabled={busy}>● Salvar ao vivo</Button>
         <Button type="button" onClick={() => void save('finished')} disabled={busy}>
