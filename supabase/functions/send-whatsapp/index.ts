@@ -65,6 +65,8 @@ function normalizePhone(raw: string, ddi: string): string | null {
   return digits
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
@@ -72,6 +74,19 @@ serve(async (req) => {
   const apiKey = Deno.env.get('EVOLUTION_API_KEY') ?? ''
   const instance = Deno.env.get('EVOLUTION_INSTANCE') ?? ''
   const ddi = (Deno.env.get('EVOLUTION_COUNTRY_CODE') ?? '55').replace(/\D/g, '') || '55'
+
+  // Intervalo mínimo entre um envio e o próximo (regra anti-bloqueio do
+  // WhatsApp): 10 s por padrão, ajustável por secret. Vale entre CADA envio —
+  // entre os dois números de um mesmo aviso e entre avisos diferentes.
+  const sendDelayMs = Math.max(0, Number(Deno.env.get('EVOLUTION_SEND_DELAY_MS') ?? '10000') || 0)
+  // Orçamento de tempo desta execução: as Edge Functions têm limite de parede.
+  // Com o intervalo de 10 s, não dá para esvaziar uma fila grande numa passada
+  // só; o que não couber fica pendente e sai na próxima (a cada 15 min ou na
+  // próxima chamada do app). Parada só no limite de um aviso, nunca no meio
+  // dele, para não reenviar número já entregue.
+  const maxRuntimeMs = Math.max(30_000, Number(Deno.env.get('EVOLUTION_MAX_RUNTIME_MS') ?? '120000') || 120_000)
+  const startedAt = Date.now()
+
   if (!apiUrl || !apiKey || !instance) {
     return json(
       { ok: false, error: 'EVOLUTION_API_URL/EVOLUTION_API_KEY/EVOLUTION_INSTANCE não configurados.' },
@@ -123,8 +138,18 @@ serve(async (req) => {
 
   let sent = 0
   let failed = 0
+  let processed = 0
+  // O primeiro envio da execução não espera; a partir do segundo, respeita o
+  // intervalo de 10 s "de um envio para o outro".
+  let firstSend = true
 
   for (const row of pending as OutboxRow[]) {
+    // Só começa um novo aviso se ainda houver tempo para pelo menos um envio
+    // dentro do orçamento — parar entre avisos evita reentrega. O resto fica
+    // pendente para a próxima passada.
+    if (!firstSend && Date.now() - startedAt + sendDelayMs > maxRuntimeMs) break
+    processed++
+
     // 3. Telefones dos responsáveis deste aviso.
     const { data: teams } = await supabase
       .from('teams')
@@ -153,6 +178,9 @@ serve(async (req) => {
     let lastError: string | null = null
 
     for (const number of numbers) {
+      // 10 s entre um envio e o próximo (menos antes do primeiro da execução).
+      if (!firstSend && sendDelayMs > 0) await sleep(sendDelayMs)
+      firstSend = false
       try {
         const res = await fetch(sendText, {
           method: 'POST',
@@ -200,5 +228,8 @@ serve(async (req) => {
     }
   }
 
-  return json({ ok: true, sent, failed, reminders, processed: pending.length })
+  // Quantos avisos ficaram para trás por causa do orçamento de tempo (saem na
+  // próxima passada). Não conta as linhas sem telefone, que já saíram da fila.
+  const remaining = pending.length - processed
+  return json({ ok: true, sent, failed, reminders, processed, remaining })
 })

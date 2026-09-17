@@ -38,7 +38,7 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `functions/asaas-webhook/` | Recebe a notificação do Asaas, reconsulta o pagamento na API oficial e libera o campeonato quando confirmado. Secrets: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
 | `migrations/0039_evolution_whatsapp.sql` | **Avisos por WhatsApp (Evolution API)** ao responsável do time (`teams.phone`): fila `whatsapp_outbox` + gatilhos (jogo marcado/remarcado, jogo encerrado com o placar) e o gerador de relógio `wa_gerar_lembretes_inscricao()` (lembrete de 6h antes do fim do prazo de inscrição da rodada). Reaproveita os auxiliares de formatação do push. |
-| `functions/send-whatsapp/` | Gera o lembrete de inscrição e entrega a fila `whatsapp_outbox` pela Evolution API. Resolve o telefone do responsável na hora do envio. Secrets: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_COUNTRY_CODE` (opcional). Agende a cada 15 min. |
+| `functions/send-whatsapp/` | Gera o lembrete de inscrição e entrega a fila `whatsapp_outbox` pela Evolution API. Resolve o telefone do responsável na hora do envio. Espera 10 s entre um envio e o próximo (anti-bloqueio). Secrets: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, e os opcionais `EVOLUTION_COUNTRY_CODE`, `EVOLUTION_SEND_DELAY_MS`, `EVOLUTION_MAX_RUNTIME_MS`. Agende a cada 15 min. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
 | `config.toml` | Configuração do Supabase CLI (dev local). |
@@ -195,6 +195,14 @@ obrigatório.
    `EVOLUTION_INSTANCE` é a instância já conectada (QR Code lido) ao número que
    vai **enviar** os avisos. As chaves são secrets de servidor: nunca no `.env`
    do front nem com prefixo `VITE_`.
+
+   **Anti-bloqueio (10 s entre envios).** Para não disparar o antispam do
+   WhatsApp, a função espera um intervalo mínimo **entre um envio e o próximo**
+   — 10 s por padrão, entre os dois números de um mesmo aviso e entre avisos
+   diferentes. Como as Edge Functions têm limite de tempo de parede, o que não
+   couber numa passada fica na fila e sai na próxima (a cada 15 min ou na
+   próxima ação do app). Ajuste com `EVOLUTION_SEND_DELAY_MS` (padrão `10000`)
+   e `EVOLUTION_MAX_RUNTIME_MS` (padrão `120000`), ambos opcionais.
 2. **Publique a função**:
    ```bash
    supabase functions deploy send-whatsapp
