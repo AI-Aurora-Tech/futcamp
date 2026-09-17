@@ -10,6 +10,7 @@ import { listEvents, listMatches } from '../services/matches'
 import { computePodium } from '../lib/champion'
 import { FORMAT_LABELS, SPORT_LABELS, type Championship } from '../types'
 import { vitrine } from '../lib/vitrine'
+import { statusEfetivo } from '../lib/categorias'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
 import { Button, ChampLogo, Field, SuporteLink, TeamBadge } from './ui'
@@ -87,7 +88,7 @@ function Vitrine({
       </div>
       <div className="champ-grid">
         {itens.map((c) => {
-          const done = c.status === 'finished'
+          const done = statusEfetivo(c) === 'finished'
           const champion = champions[c.id]
           const days = done ? daysLeftPublic(c) : null
           return (
@@ -154,7 +155,7 @@ export function Landing() {
       .then((list) => {
         if (!active) return
         setOngoing(list)
-        void loadChampions(list.filter((c) => c.status === 'finished')).then(
+        void loadChampions(list.filter((c) => statusEfetivo(c) === 'finished')).then(
           (map) => active && setChampions(map),
         )
       })
