@@ -110,6 +110,47 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   return row
 }
 
+/**
+ * Descobre, na mensagem de erro do Postgres/PostgREST, o nome de uma coluna que
+ * o banco NÃO tem — para o app rodar mesmo sem uma migration opcional aplicada
+ * (ex.: `league_entries`, `league_matches_per_team`, `general_standing` das
+ * migrations 0039/0040). Os dados por categoria continuam no jsonb `categories`,
+ * então tirar a coluna espelho do nível do campeonato não perde nada essencial.
+ */
+function colunaAusente(message: string | undefined, row: Record<string, unknown>): string | null {
+  if (!message) return null
+  const m =
+    /Could not find the '([a-z_]+)' column/i.exec(message) ||
+    /column "?([a-z_]+)"? of relation/i.exec(message) ||
+    /column ([a-z_.]+) does not exist/i.exec(message)
+  const col = (m?.[1] ?? '').replace(/^championships\./, '')
+  return col && col in row ? col : null
+}
+
+/**
+ * `insert`/`update` que tolera colunas ausentes: se o banco reclamar de uma
+ * coluna que não existe (migration opcional não aplicada), remove-a e tenta de
+ * novo, até o esquema aceitar. Evita que criar/editar um campeonato "trave"
+ * quando o servidor está numa migration mais antiga.
+ */
+async function escreverResiliente(
+  row: Record<string, unknown>,
+  run: (r: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>,
+): Promise<unknown> {
+  const atual = { ...row }
+  for (let i = 0; i < 12; i++) {
+    const { data, error } = await run(atual)
+    if (!error) return data
+    const col = colunaAusente(error.message, atual)
+    if (!col) throw error
+    delete atual[col]
+  }
+  // Última tentativa (deixa o erro final propagar).
+  const { data, error } = await run(atual)
+  if (error) throw error
+  return data
+}
+
 /** Lista os campeonatos do organizador (ou todos, no modo demo). */
 export async function listChampionships(ownerId: string): Promise<Championship[]> {
   if (authMode === 'supabase' && supabase) {
@@ -376,12 +417,10 @@ export async function createChampionship(
   input: NewChampionship,
 ): Promise<Championship> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('championships')
-      .insert(toRow({ ...input, ownerId }))
-      .select('*')
-      .single()
-    if (error) throw error
+    const sb = supabase
+    const data = await escreverResiliente(toRow({ ...input, ownerId }), (r) =>
+      sb.from('championships').insert(r).select('*').single(),
+    )
     return fromRow(data)
   }
   // Modo demo: o preço é calculado aqui (no Supabase quem calcula é o gatilho
@@ -419,12 +458,10 @@ export async function updateChampionship(
     // `.select()` para saber quantas linhas mudaram: quando a RLS recusa, o
     // Postgres não devolve erro — ele simplesmente não altera nada, e a tela
     // ficaria dizendo que salvou.
-    const { data, error } = await supabase
-      .from('championships')
-      .update(toRow(patch))
-      .eq('id', id)
-      .select('id')
-    if (error) throw error
+    const sb = supabase
+    const data = (await escreverResiliente(toRow(patch), (r) =>
+      sb.from('championships').update(r).eq('id', id).select('id'),
+    )) as { id: string }[] | null
     if (!data?.length) throw new Error(RECUSADO('editar'))
     return
   }

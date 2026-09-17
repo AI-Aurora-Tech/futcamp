@@ -602,39 +602,45 @@ export function ChampionshipForm({
     // ainda não separa por categoria) — cada categoria carrega a sua disputa.
     const primeira = cats.find((c) => c.name.trim()) ?? cats[0]
     const comp0 = catCompeticao(primeira)
-    await onSave({
-      name: name.trim(),
-      sport,
-      audience,
-      categories,
-      format: comp0.format ?? 'league',
-      season: season.trim(),
-      status: initial?.status ?? 'draft',
-      // O plano vale para a cobrança; o valor definitivo é calculado no banco.
-      plan: initial?.plan ?? plan,
-      description: description.trim() || undefined,
-      logo,
-      primaryColor,
-      pointsWin: comp0.pointsWin ?? 3,
-      pointsDraw: comp0.pointsDraw ?? 1,
-      registrationCutoffHours: Number(cutoffHours),
-      benchSize: benchSize ? Math.max(0, Number(benchSize)) : undefined,
-      doubleRound: comp0.doubleRound ?? false,
-      numGroups: comp0.numGroups,
-      teamsPerGroup: comp0.teamsPerGroup,
-      advancePerGroup: comp0.advancePerGroup,
-      advanceByGroup: comp0.advanceByGroup,
-      groupStages: comp0.groupStages,
-      leagueQualifiers: comp0.leagueQualifiers,
-      generalStanding: comp0.generalStanding,
-      leagueMatchesPerTeam: comp0.leagueMatchesPerTeam,
-      leagueEntries: comp0.leagueEntries,
-      tiebreakers: comp0.tiebreakers ?? DEFAULT_TIEBREAKERS,
-      bracket: comp0.bracket,
-      thirdPlace: comp0.thirdPlace,
-      autoKnockout: comp0.autoKnockout,
-    })
-    setBusy(false)
+    try {
+      await onSave({
+        name: name.trim(),
+        sport,
+        audience,
+        categories,
+        format: comp0.format ?? 'league',
+        season: season.trim(),
+        status: initial?.status ?? 'draft',
+        // O plano vale para a cobrança; o valor definitivo é calculado no banco.
+        plan: initial?.plan ?? plan,
+        description: description.trim() || undefined,
+        logo,
+        primaryColor,
+        pointsWin: comp0.pointsWin ?? 3,
+        pointsDraw: comp0.pointsDraw ?? 1,
+        registrationCutoffHours: Number(cutoffHours),
+        benchSize: benchSize ? Math.max(0, Number(benchSize)) : undefined,
+        doubleRound: comp0.doubleRound ?? false,
+        numGroups: comp0.numGroups,
+        teamsPerGroup: comp0.teamsPerGroup,
+        advancePerGroup: comp0.advancePerGroup,
+        advanceByGroup: comp0.advanceByGroup,
+        groupStages: comp0.groupStages,
+        leagueQualifiers: comp0.leagueQualifiers,
+        generalStanding: comp0.generalStanding,
+        leagueMatchesPerTeam: comp0.leagueMatchesPerTeam,
+        leagueEntries: comp0.leagueEntries,
+        tiebreakers: comp0.tiebreakers ?? DEFAULT_TIEBREAKERS,
+        bracket: comp0.bracket,
+        thirdPlace: comp0.thirdPlace,
+        autoKnockout: comp0.autoKnockout,
+      })
+    } catch (err) {
+      // Sem isto, um erro no salvamento deixava o botão preso em "Salvando…".
+      setError(err instanceof Error ? err.message : 'Não foi possível salvar o campeonato.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
