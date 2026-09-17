@@ -118,18 +118,24 @@ serve(async (req) => {
   if (!pending?.length) return json({ ok: true, sent: 0, pending: 0, versao: VERSAO })
 
   // Logo (emoji) do campeonato: troca a 🏆 no início. Imagem é ignorada (mantém 🏆).
+  // notify_whatsapp: número do ORGANIZADOR que recebe cópia de cada aviso.
   const champIds = Array.from(new Set((pending as OutboxRow[]).map((r) => r.championship_id)))
-  const { data: champs } = await supabase.from('championships').select('id,logo').in('id', champIds)
+  const { data: champs } = await supabase
+    .from('championships')
+    .select('id,logo,notify_whatsapp')
+    .in('id', champIds)
   const logoOf = new Map<string, string | null>((champs ?? []).map((c) => [c.id, c.logo ?? null]))
+  const orgOf = new Map<string, string | null>((champs ?? []).map((c) => [c.id, c.notify_whatsapp ?? null]))
 
   const iniciou = Date.now()
   let sent = 0, failed = 0, first = true
 
   for (const row of pending as OutboxRow[]) {
     const { data: teams } = await supabase.from('teams').select('id,phone').in('id', row.target_teams ?? [])
-    const numbers = Array.from(new Set((teams ?? [])
-      .map((t) => normalizePhone(t.phone ?? ''))
-      .filter((n): n is string => !!n)))
+    const numbers = Array.from(new Set([
+      ...(teams ?? []).map((t) => normalizePhone(t.phone ?? '')),
+      normalizePhone(orgOf.get(row.championship_id) ?? ''), // cópia para o organizador
+    ].filter((n): n is string => !!n)))
 
     if (!numbers.length) {
       await supabase.from('whatsapp_outbox')
