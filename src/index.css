@@ -294,6 +294,15 @@ a.btn { text-decoration: none; cursor: pointer; }
 .pill--finished { background: rgba(100, 116, 139, 0.16); color: #475569; }
 .pill--live { background: #fee2e2; color: #b91c1c; }
 
+/* Sobre o herói colorido (painel do organizador e página pública), os fundos
+   translúcidos do pill somem no gradiente — "Em andamento" ficava ilegível. No
+   herói o selo ganha fundo sólido e branco, com o texto na cor da situação. */
+.manage__hero .pill { background: #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18); }
+.manage__hero .pill--draft { color: #475569; }
+.manage__hero .pill--active { color: var(--brand-dark); }
+.manage__hero .pill--finished { color: #475569; }
+.manage__hero .pill--live { color: #b91c1c; }
+
 /* ---------- Modal ---------- */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); display: grid; place-items: center; z-index: 50; padding: 1rem; backdrop-filter: blur(2px); }
 .modal { background: var(--surface); border-radius: 18px; width: 100%; max-width: 480px; box-shadow: var(--shadow-lg); max-height: 92vh; display: flex; flex-direction: column; animation: pop 0.15s ease-out; }
@@ -960,6 +969,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .dashboard__head { flex-direction: column; align-items: stretch; }
   .dashboard__head h1 { font-size: 1.5rem; }
   .champ-grid { grid-template-columns: 1fr; }
+  /* No celular o nome não deve virar "Copa Tabe…": ocupa a largura toda do
+     cartão e o selo de situação desce para a linha de baixo. */
+  .champ-card__top { align-items: flex-start; flex-wrap: wrap; }
+  .champ-card__top h3 {
+    flex: 1 1 100%; white-space: normal; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
   .form-row { grid-template-columns: 1fr; }
   .event-form { grid-template-columns: 1fr 1fr; }
   .manage__title { flex-wrap: wrap; }
