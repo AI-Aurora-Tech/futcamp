@@ -3,6 +3,7 @@ import { defaultMatchWriter, type MatchWriter, type NewEvent } from '../services
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
+import { flushWhatsapp } from '../services/evolution'
 import {
   EVENT_LABELS,
   type Championship,
@@ -192,7 +193,11 @@ export function MatchResultModal({
     await w.updateMatch(match.id, patch)
     // Encerrar a partida enfileira, de uma vez, o resultado, o resumo de cada
     // equipe, as suspensões e — se a rodada fechou — a classificação.
-    if (newStatus === 'finished') void flushPush(match.championshipId)
+    if (newStatus === 'finished') {
+      void flushPush(match.championshipId)
+      // Avisa os responsáveis dos times pelo WhatsApp com o placar final.
+      void flushWhatsapp(match.championshipId)
+    }
     setBusy(false)
     onSaved()
   }

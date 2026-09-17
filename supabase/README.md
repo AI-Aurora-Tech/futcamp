@@ -37,6 +37,8 @@ Backend do Tabelaço: autenticação de organizadores + banco Postgres com RLS.
 | `functions/asaas-status/` | Pergunta ao Asaas se o campeonato já foi pago e libera na hora — é o que o botão "Já paguei" chama. Rede de segurança para quando o webhook falha. Um `GET ?championshipId=…` mostra onde a busca parou. Secrets: `ASAAS_API_KEY`, `ASAAS_ENV`. Publique com `--no-verify-jwt`. |
 | `functions/asaas-webhook/` | Recebe a notificação do Asaas, reconsulta o pagamento na API oficial e libera o campeonato quando confirmado. Secrets: `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN`. Publique com `--no-verify-jwt`. |
 | `functions/send-push/` | Entrega a fila `push_outbox` por Web Push (VAPID). Secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. |
+| `migrations/0039_evolution_whatsapp.sql` | **Avisos por WhatsApp (Evolution API)** ao responsável do time (`teams.phone`): fila `whatsapp_outbox` + gatilhos (jogo marcado/remarcado, jogo encerrado com o placar) e o gerador de relógio `wa_gerar_lembretes_inscricao()` (lembrete de 6h antes do fim do prazo de inscrição da rodada). Reaproveita os auxiliares de formatação do push. |
+| `functions/send-whatsapp/` | Gera o lembrete de inscrição e entrega a fila `whatsapp_outbox` pela Evolution API. Resolve o telefone do responsável na hora do envio. Secrets: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, `EVOLUTION_COUNTRY_CODE` (opcional). Agende a cada 15 min. |
 | `functions/validate-athlete/` | Edge Function que valida CPF e confere CPF × data de nascimento (ver `SETUP.md`). |
 | `seed.sql` | Dados de exemplo (opcional). Requer um `owner_id` válido. |
 | `config.toml` | Configuração do Supabase CLI (dev local). |
@@ -163,6 +165,50 @@ valor cobre o devido e chama `mark_championship_paid()`. O campeonato passa a
 O CPF do pagador é pedido pelo Asaas, na página dele: por isso a integração usa
 o **Checkout hospedado** e não a cobrança direta, que exigiria `cpfCnpj` na
 chamada da API — o Tabelaço não coleta nem guarda dado fiscal do organizador.
+
+## Avisos por WhatsApp (Evolution API)
+
+Além do push do navegador (`send-push`), o Tabelaço avisa o **responsável do
+time** pelo canal que ele realmente lê — o WhatsApp — usando a
+[Evolution API](https://doc.evolution-api.com/) (auto-hospedada). São três
+avisos, enviados para `teams.phone`:
+
+1. **Jogo marcado ou remarcado** — com data, hora e local.
+2. **Jogo encerrado** — com o placar final.
+3. **Faltam 6 horas para o fim do prazo de inscrição da rodada** — o prazo é
+   `registration_cutoff_hours` antes do jogo (migration 0005), a mesma conta
+   que o app faz para travar a inscrição.
+
+Os dois primeiros nascem de gatilhos no banco (`0039`), que enfileiram em
+`whatsapp_outbox`. O terceiro nasce do relógio: `wa_gerar_lembretes_inscricao()`
+é chamada pela função antes de esvaziar a fila — por isso o agendamento é
+obrigatório.
+
+1. **Secrets** (Project Settings → Edge Functions → Secrets, ou pelo CLI):
+   ```bash
+   supabase secrets set EVOLUTION_API_URL="https://evo.seudominio.com" \
+                        EVOLUTION_API_KEY="sua-apikey-da-instancia" \
+                        EVOLUTION_INSTANCE="nome-da-instancia"
+   # Opcional — DDI para números salvos sem código de país (padrão 55):
+   supabase secrets set EVOLUTION_COUNTRY_CODE="55"
+   ```
+   `EVOLUTION_INSTANCE` é a instância já conectada (QR Code lido) ao número que
+   vai **enviar** os avisos. As chaves são secrets de servidor: nunca no `.env`
+   do front nem com prefixo `VITE_`.
+2. **Publique a função**:
+   ```bash
+   supabase functions deploy send-whatsapp
+   ```
+3. **Agende a cada 15 minutos** (Supabase → Edge Functions → `send-whatsapp` →
+   Schedules, ou via `pg_cron`). É o que faz o lembrete de inscrição sair na
+   hora certa — sem relógio, ele nunca nasce. O app também chama a função logo
+   depois de marcar um jogo e de encerrar uma partida, para a entrega desses
+   dois ser imediata; o agendamento é a rede que entrega o resto.
+
+O envio de fato só acontece para times **com telefone cadastrado** — quem não
+informou o responsável simplesmente não recebe, e a fila não fica presa por
+isso. O número é normalizado no servidor (só dígitos, com DDI), a mesma régua
+dos links `wa.me` do app.
 
 ## Modelo de acesso (RLS)
 
