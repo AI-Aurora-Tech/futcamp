@@ -35,7 +35,7 @@
 import { serve } from 'https://deno.land/std@0.203.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const VERSAO = '1'
+const VERSAO = '2'
 
 // Ritmo de envio pedido pelo organizador: 10 s de um envio para o outro.
 const INTERVALO_MS = 10_000
@@ -68,7 +68,12 @@ function comLink(body: string, championshipId: string): string {
   return body.replace(/\[\[LINK\]\]/g, `${APP_URL}/#/c/${championshipId}`)
 }
 
-/** Envia UMA mensagem pela Evolution API. Devolve ok + erro legível. */
+/**
+ * Envia UMA mensagem pela Evolution API. Tenta o formato da v2 (`{number,text}`)
+ * e, se a instância recusar (o corpo da v1 é diferente), tenta o formato da v1
+ * (`{number, textMessage:{text}}`). Devolve ok + o erro cru da Evolution, que é
+ * o que revela a causa real (número inválido, instância desconectada, etc.).
+ */
 async function enviar(
   base: string,
   instance: string,
@@ -77,18 +82,29 @@ async function enviar(
   text: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const url = `${base.replace(/\/+$/, '')}/message/sendText/${encodeURIComponent(instance)}`
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey },
-      body: JSON.stringify({ number, text }),
-    })
-    if (resp.ok) return { ok: true }
-    const detalhe = (await resp.text()).slice(0, 300)
-    return { ok: false, error: `HTTP ${resp.status}: ${detalhe}` }
-  } catch (err) {
-    return { ok: false, error: String(err) }
+  const corpos = [
+    { number, text }, // Evolution API v2
+    { number, options: { delay: 0, presence: 'composing' }, textMessage: { text } }, // v1.x
+  ]
+  let ultimo = ''
+  for (const corpo of corpos) {
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey },
+        body: JSON.stringify(corpo),
+      })
+      if (resp.ok) return { ok: true }
+      ultimo = `HTTP ${resp.status}: ${(await resp.text()).slice(0, 300)}`
+      // 400/422 costuma ser "formato do corpo errado" → vale tentar a outra forma.
+      // 401/403/404 (auth/instância/rota) não muda com o corpo — para aqui.
+      if (![400, 422].includes(resp.status)) break
+    } catch (err) {
+      ultimo = String(err)
+      break
+    }
   }
+  return { ok: false, error: ultimo || 'falha desconhecida' }
 }
 
 serve(async (req) => {
@@ -124,12 +140,25 @@ serve(async (req) => {
 
   let championshipId: string | undefined
   let limit = 100
+  let teste: { to?: string; text?: string } | null = null
   try {
     const body = await req.json()
     championshipId = body?.championshipId
     if (Number.isFinite(body?.limit)) limit = Math.min(500, Math.max(1, body.limit))
+    if (body?.test) teste = { to: body?.to, text: body?.text }
   } catch {
     /* sem corpo: drena o que estiver pendente */
+  }
+
+  // Modo de teste: envia UMA mensagem avulsa e devolve a resposta CRUA da
+  // Evolution — isola o caminho app → Evolution sem depender de gatilho/fila.
+  //   curl -X POST .../whatsapp-evolution -H "Content-Type: application/json" \
+  //        -d '{"test":true,"to":"5511999998888","text":"Teste Tabelaço"}'
+  if (teste) {
+    const to = String(teste.to ?? '').replace(/\D/g, '')
+    if (!to) return json({ ok: false, error: 'Informe "to" (telefone com DDI).', versao: VERSAO }, 400)
+    const r = await enviar(base, instance, apikey, to, teste.text || 'Teste do Tabelaço ✅')
+    return json({ ok: r.ok, to, resposta: r.error ?? 'enviado', versao: VERSAO }, r.ok ? 200 : 502)
   }
 
   // 1. Avisos que dependem do relógio: 18 h antes do prazo de inscrição.
