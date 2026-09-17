@@ -47,6 +47,25 @@ export function statusDaCategoria(
   return categoriaPorId(champ, categoryId)?.status ?? champ?.status ?? 'draft'
 }
 
+/**
+ * Situação EFETIVA do campeonato, olhando as categorias.
+ *
+ * Com várias categorias, cada uma tem a sua situação — e o campeonato como um
+ * todo não pode continuar "rascunho" quando as categorias já estão em
+ * andamento. A regra: encerrado só quando TODAS terminaram; em andamento se
+ * alguma está em andamento (ou já encerrou, mas nem todas); senão, rascunho.
+ */
+export function statusEfetivo(
+  champ: Pick<Championship, 'categories' | 'status'> | null | undefined,
+): ChampionshipStatus {
+  const cats = champ?.categories ?? []
+  if (cats.length === 0) return champ?.status ?? 'draft'
+  const sts = cats.map((c) => statusDaCategoria(champ, c.id))
+  if (sts.every((s) => s === 'finished')) return 'finished'
+  if (sts.some((s) => s === 'active' || s === 'finished')) return 'active'
+  return champ?.status ?? 'draft'
+}
+
 /** Quando esta categoria foi encerrada (ou o campeonato, como reserva). */
 export function encerradaEm(
   champ: Pick<Championship, 'categories' | 'finishedAt'> | null | undefined,

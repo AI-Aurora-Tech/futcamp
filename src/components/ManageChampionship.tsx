@@ -47,6 +47,7 @@ import {
   elencoDeTimes,
   partidasDaCategoria,
   statusDaCategoria,
+  statusEfetivo,
   temVariasCategorias,
 } from '../lib/categorias'
 import { setCategoryStatus } from '../services/championships'
@@ -156,8 +157,20 @@ export function ManageChampionship({
    * pode encerrar o Sub-17, que ainda está na semifinal.
    */
   async function changeStatus(status: Championship['status']) {
-    if (varias && catAtual) await setCategoryStatus(championshipId, catAtual, status)
-    else await updateChampionship(championshipId, { status })
+    if (varias && catAtual) {
+      await setCategoryStatus(championshipId, catAtual, status)
+      // Mantém a situação do campeonato em sincronia com as categorias — senão
+      // ele fica "rascunho" mesmo com as categorias já em andamento.
+      const fresh = await getChampionship(championshipId).catch(() => null)
+      if (fresh) {
+        const efetivo = statusEfetivo(fresh)
+        if (efetivo !== fresh.status) {
+          await updateChampionship(championshipId, { status: efetivo }).catch(() => {})
+        }
+      }
+    } else {
+      await updateChampionship(championshipId, { status })
+    }
     await reload()
   }
 

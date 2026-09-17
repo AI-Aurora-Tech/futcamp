@@ -20,6 +20,17 @@ import { MatchesReadOnly } from './MatchesReadOnly'
 import { MatchCalendar } from './MatchCalendar'
 import { SponsorsStrip } from './SponsorsStrip'
 import { StatsPanel } from './StatsPanel'
+import {
+  atletaDaCategoria,
+  categoriaInicial,
+  categoriaPadrao,
+  competicaoDaCategoria,
+  elencoDeTimes,
+  partidasDaCategoria,
+  statusDaCategoria,
+  statusEfetivo,
+  temVariasCategorias,
+} from '../lib/categorias'
 
 type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
 
@@ -30,6 +41,8 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const [matches, setMatches] = useState<Match[]>([])
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [tab, setTab] = useState<Tab>('overview')
+  /** Categoria escolhida nas abas (cada categoria é uma competição à parte). */
+  const [catId, setCatId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
@@ -76,6 +89,18 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
     { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   ]
 
+  // Cada categoria é uma competição à parte (tabela, jogos, campeão próprios).
+  // A aba escolhe qual delas está na tela — como no painel do organizador.
+  const varias = temVariasCategorias(champ)
+  const padraoCat = categoriaPadrao(champ)
+  const catAtual = varias ? catId ?? categoriaInicial(champ) : padraoCat
+  const comp = competicaoDaCategoria(champ, catAtual)
+  const timesCat = elencoDeTimes(teams, varias ? catAtual : undefined)
+  const partidasCat = partidasDaCategoria(matches, varias ? catAtual : undefined, padraoCat)
+  const atletasCat = players.filter((p) => atletaDaCategoria(p.categoryId, varias ? catAtual : undefined, padraoCat))
+  const idsCat = new Set(partidasCat.map((m) => m.id))
+  const eventosCat = events.filter((e) => idsCat.has(e.matchId))
+
   return (
     <div className="manage public" style={{ '--accent': champ.primaryColor ?? '#16a34a' } as React.CSSProperties}>
       <div className="manage__hero">
@@ -86,16 +111,35 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
             <div>
               <div className="manage__title-row">
                 <h1>{champ.name}</h1>
-                <StatusPill status={champ.status} />
+                <StatusPill status={varias ? statusDaCategoria(champ, catAtual) : statusEfetivo(champ)} />
               </div>
               <p className="manage__meta">
-                {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[champ.format]}
+                {SPORT_LABELS[champ.sport]} · {FORMAT_LABELS[comp.format]}
                 {champ.season ? ` · ${champ.season}` : ''}
               </p>
-              <ChampionTag podium={computePodium(champ, teams, matches, events)} teams={teams} />
+              <ChampionTag podium={computePodium(comp, timesCat, partidasCat, eventosCat)} teams={timesCat} />
             </div>
           </div>
           {champ.description && <p className="public__desc">{champ.description}</p>}
+
+          {varias && (
+            <nav className="cat-tabs" aria-label="Categorias">
+              {champ.categories.map((c) => {
+                const st = statusDaCategoria(champ, c.id)
+                return (
+                  <button
+                    key={c.id}
+                    className={`cat-tab ${catAtual === c.id ? 'is-active' : ''} cat-tab--${st}`}
+                    onClick={() => setCatId(c.id)}
+                  >
+                    {c.name}
+                    {st === 'finished' && <span className="cat-tab__mark" title="Categoria encerrada">🏁</span>}
+                  </button>
+                )
+              })}
+            </nav>
+          )}
+
           <nav className="tabs">
             {tabs.map((t) => (
               <button key={t.id} className={`tab ${tab === t.id ? 'is-active' : ''}`} onClick={() => setTab(t.id)}>
@@ -109,10 +153,10 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       <SponsorsStrip sponsors={champ.sponsors ?? []} />
 
       <div className="container manage__content">
-        {tab === 'overview' && <Overview championship={champ} teams={teams} matches={matches} players={players} events={events} />}
-        {tab === 'matches' && <MatchesReadOnly championship={champ} teams={teams} matches={matches} />}
-        {tab === 'calendar' && <MatchCalendar championship={champ} teams={teams} matches={matches} />}
-        {tab === 'stats' && <StatsPanel events={events} players={players} teams={teams} matches={matches} categories={champ.categories} />}
+        {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
+        {tab === 'matches' && <MatchesReadOnly championship={comp} teams={timesCat} matches={partidasCat} />}
+        {tab === 'calendar' && <MatchCalendar championship={comp} teams={timesCat} matches={partidasCat} />}
+        {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
       </div>
 
       <footer className="public__footer">

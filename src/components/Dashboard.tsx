@@ -10,6 +10,7 @@ import { FORMAT_LABELS, SPORT_LABELS, type Championship, type PlanKey } from '..
 import { forgetPlan, pendingPlan } from '../lib/planChoice'
 import { formatBRL, isLocked, planOf } from '../lib/pricing'
 import { Button, ChampLogo, EmptyState, Modal, Spinner, StatusPill } from './ui'
+import { statusEfetivo } from '../lib/categorias'
 import { ChampionshipForm } from './ChampionshipForm'
 import { PaymentPanel } from './PaymentPanel'
 
@@ -125,7 +126,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
                   {isLocked(c) ? (
                     <span className="pill pill--pay">🔒 pagamento pendente</span>
                   ) : (
-                    <StatusPill status={c.status} />
+                    <StatusPill status={statusEfetivo(c)} />
                   )}
                   {isMaster && organizer && c.ownerId !== organizer.id && (
                     <span className="master-tag" title="Campeonato de outro organizador">de outro organizador</span>
