@@ -30,3 +30,17 @@ export async function flushWhatsapp(championshipId: string): Promise<void> {
     /* fila permanece pendente */
   }
 }
+
+/**
+ * Enfileira o aviso de "partida cancelada" para os responsáveis dos dois times.
+ * Chamada ANTES de excluir a partida (depois do DELETE não haveria mais dados).
+ * Falha em silêncio: cancelar não pode depender do WhatsApp estar no ar.
+ */
+export async function notifyMatchCanceled(matchId: string): Promise<void> {
+  if (authMode !== 'supabase' || !supabase) return
+  try {
+    await supabase.rpc('wa_cancelar_partida', { p_match: matchId })
+  } catch {
+    /* segue a exclusão mesmo assim */
+  }
+}

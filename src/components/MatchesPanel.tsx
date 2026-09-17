@@ -32,6 +32,7 @@ import { Button, EmptyState, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
 import { ManualMatchModal } from './ManualMatchModal'
+import { flushWhatsapp, notifyMatchCanceled } from '../services/evolution'
 
 export function MatchesPanel({
   championship,
@@ -287,7 +288,10 @@ export function MatchesPanel({
           players={players}
           officials={officials}
           onDelete={async (m) => {
+            // Avisa os times ANTES de apagar (depois não há mais dados do jogo).
+            await notifyMatchCanceled(m.id)
             await deleteMatch(m.id)
+            void flushWhatsapp(m.championshipId)
             onChange()
           }}
           onClose={() => setEditing(null)}

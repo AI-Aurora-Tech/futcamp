@@ -135,6 +135,41 @@ serve(async (req) => {
   if (!pending?.length) return json({ ok: true, sent: 0, pending: 0, reminders })
 
   const sendText = `${apiUrl}/message/sendText/${encodeURIComponent(instance)}`
+  const sendMedia = `${apiUrl}/message/sendMedia/${encodeURIComponent(instance)}`
+
+  // Logo do campeonato: substitui a 🏆 no início da mensagem.
+  //  • emoji  → entra no próprio texto;
+  //  • imagem (data:/http) → a mensagem vira legenda de uma imagem (a logo).
+  const champIds = Array.from(new Set((pending as OutboxRow[]).map((r) => r.championship_id)))
+  const { data: champs } = await supabase.from('championships').select('id,logo').in('id', champIds)
+  const logoOf = new Map<string, string | null>((champs ?? []).map((c) => [c.id, c.logo ?? null]))
+
+  /** Entrega uma mensagem a um número, aplicando a logo do campeonato. */
+  async function enviarUm(number: string, message: string, logo: string | null): Promise<Response> {
+    const isImage = !!logo && (logo.startsWith('data:') || logo.startsWith('http'))
+    // Logo em imagem: manda a imagem com a mensagem como legenda (sem a 🏆).
+    if (isImage) {
+      const caption = message.replace(/^🏆\s*/, '')
+      const m = /^data:([^;]+);base64,(.*)$/s.exec(logo!)
+      const body = m
+        ? { number, mediatype: 'image', mimetype: m[1], media: m[2], fileName: 'logo', caption }
+        : { number, mediatype: 'image', media: logo, fileName: 'logo', caption }
+      const res = await fetch(sendMedia, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: apiKey },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) return res
+      // Se a mídia falhar, não perde o aviso: cai para texto puro.
+    }
+    // Logo em emoji: troca a 🏆 pela logo. Sem logo: mantém a 🏆.
+    const text = logo && !isImage ? message.replace('🏆', logo) : message
+    return fetch(sendText, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: apiKey },
+      body: JSON.stringify({ number, text }),
+    })
+  }
 
   let sent = 0
   let failed = 0
@@ -174,6 +209,7 @@ serve(async (req) => {
       continue
     }
 
+    const logo = logoOf.get(row.championship_id) ?? null
     let allOk = true
     let lastError: string | null = null
 
@@ -182,11 +218,7 @@ serve(async (req) => {
       if (!firstSend && sendDelayMs > 0) await sleep(sendDelayMs)
       firstSend = false
       try {
-        const res = await fetch(sendText, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: apiKey },
-          body: JSON.stringify({ number, text: row.message }),
-        })
+        const res = await enviarUm(number, row.message, logo)
         if (res.ok) {
           sent++
         } else {
