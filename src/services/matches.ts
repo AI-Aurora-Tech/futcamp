@@ -215,9 +215,10 @@ export async function generateLeague(
   doubleRound: boolean,
   force = false,
   categoryId?: string,
+  matchesPerTeam?: number,
 ): Promise<void> {
   await assertRegenerationAllowed(championshipId, force, categoryId)
-  const pairings = generateRoundRobin(teamIds, doubleRound)
+  const pairings = generateRoundRobin(teamIds, doubleRound, matchesPerTeam)
   await deleteMatchesOf(championshipId, categoryId)
   const toInsert: NewMatch[] = pairings.map((p) => ({
     championshipId,

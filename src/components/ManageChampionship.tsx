@@ -437,6 +437,20 @@ export function ManageChampionship({
               />
             </div>
 
+            <div className="settings-block">
+              <h3>WhatsApp (Evolution)</h3>
+              <p className="muted small">
+                Quando ligado no servidor, os responsáveis dos times recebem no WhatsApp os avisos
+                de jogo marcado, remarcado, cancelado, encerrado e do prazo de inscrição. Informe
+                aqui um número para <b>receber cópia</b> de todos esses avisos (opcional).
+              </p>
+              <WhatsappBlock
+                championshipId={championshipId}
+                value={champ.notifyWhatsapp ?? ''}
+                onSaved={reload}
+              />
+            </div>
+
             <div className="settings-block danger-zone">
               <h3>Zona de perigo</h3>
               {isMaster ? (
@@ -474,6 +488,52 @@ export function ManageChampionship({
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** Campo do WhatsApp do organizador (cópia dos avisos) — salva sob demanda. */
+function WhatsappBlock({
+  championshipId,
+  value,
+  onSaved,
+}: {
+  championshipId: string
+  value: string
+  onSaved: () => void
+}) {
+  const [num, setNum] = useState(value)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const changed = num.trim() !== (value ?? '').trim()
+
+  async function salvar() {
+    setBusy(true)
+    setMsg(null)
+    try {
+      await updateChampionship(championshipId, { notifyWhatsapp: num.trim() || undefined })
+      setMsg('Salvo.')
+      onSaved()
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'Não foi possível salvar.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="wa-org">
+      <input
+        type="tel"
+        inputMode="tel"
+        placeholder="(11) 99999-8888"
+        value={num}
+        onChange={(e) => setNum(e.target.value)}
+      />
+      <Button variant="soft" onClick={() => void salvar()} disabled={busy || !changed}>
+        {busy ? 'Salvando…' : 'Salvar número'}
+      </Button>
+      {msg && <span className="muted small">{msg}</span>}
     </div>
   )
 }
