@@ -81,6 +81,7 @@ export function MatchResultModal({
   const [status, setStatus] = useState<MatchStatus>(match.status)
   const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
   const [venue, setVenue] = useState<string>(match.venue ?? '')
+  const [round, setRound] = useState<string>(String(match.round))
   const [refereeId, setRefereeId] = useState<string>(match.refereeId ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
   const [winnerTeamId, setWinnerTeamId] = useState<string>(match.winnerTeamId ?? '')
@@ -187,6 +188,8 @@ export function MatchResultModal({
       patch.scheduledAt = scheduledAt ? new Date(scheduledAt).toISOString() : undefined
       patch.venue = venue.trim() || undefined
       patch.refereeId = refereeId || undefined
+      // Rodada só faz sentido na fase de grupos/pontos corridos.
+      if (!isKnockoutMatch) patch.round = Math.max(1, Number(round) || match.round)
     }
     if (officials) patch.officialId = officialId || undefined
     if (isKnockoutMatch) {
@@ -283,6 +286,17 @@ export function MatchResultModal({
 
       {!readOnlySchedule && (
         <div className="schedule-row">
+          {!isKnockoutMatch && (
+            <label className="field">
+              <span className="field__label">Rodada</span>
+              <input
+                type="number"
+                min={1}
+                value={round}
+                onChange={(e) => setRound(e.target.value)}
+              />
+            </label>
+          )}
           <label className="field">
             <span className="field__label">Data e hora do jogo</span>
             <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
