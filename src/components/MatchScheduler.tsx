@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { updateMatch } from '../services/matches'
 import { flushPush } from '../services/push'
+import { flushWhatsapp } from '../services/whatsapp'
 import { PHASE_LABELS, type Match, type MatchPhase, type Team, type Venue } from '../types'
 import { Button, TeamBadge } from './ui'
 
@@ -78,7 +79,12 @@ export function MatchScheduler({
       }
       // Marcar o jogo enfileira o aviso no banco; esta chamada é o que faz
       // ele sair agora, e não só no próximo agendamento.
-      if (mudou && matches[0]) void flushPush(matches[0].championshipId)
+      if (mudou && matches[0]) {
+        void flushPush(matches[0].championshipId)
+        // Mesmo caminho para o WhatsApp: marcar/remarcar enfileira o aviso no
+        // banco (gatilho), e esta chamada é o que faz a entrega começar agora.
+        void flushWhatsapp(matches[0].championshipId)
+      }
       onSaved()
     } finally {
       setBusy(false)

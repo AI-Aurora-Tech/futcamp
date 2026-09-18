@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPlayer, deletePlayer, updatePlayer, type NewPlayer } from '../services/players'
-import { checkEligibility, checkRosterLimit, formatCpf, isValidCpf } from '../lib/eligibility'
+import { checkEligibility, checkRosterLimit, formatCpf } from '../lib/eligibility'
 import { checkCpfConflict } from '../lib/duplicates'
 import {
   MODALIDADE_LABELS,
@@ -10,7 +10,6 @@ import {
   vagasFederados,
   type ModalidadeFederado,
 } from '../lib/federated'
-import { validateAthlete } from '../services/validation'
 import { fileToDataUrl } from '../lib/image'
 import {
   POSICAO_PADRAO,
@@ -361,10 +360,6 @@ function PlayerForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (cpf && !birthdate && !isValidCpf(cpf)) {
-      setError('CPF inválido.')
-      return
-    }
     const cpfConflict = checkCpfConflict({
       cpf,
       teamId,
@@ -399,14 +394,6 @@ function PlayerForm({
     }
     setBusy(true)
     try {
-      // Validação CPF × data de nascimento quando ambos informados.
-      if (cpf && birthdate) {
-        const check = await validateAthlete(cpf, birthdate)
-        if (!check.ok) {
-          setError(check.message)
-          return
-        }
-      }
       const payload: NewPlayer = {
         championshipId: championship.id,
         teamId,

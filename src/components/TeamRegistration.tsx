@@ -26,7 +26,6 @@ import {
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
 import { registrationLockForTeam } from '../lib/matchWindow'
-import { validateAthlete } from '../services/validation'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import {
   POSICAO_PADRAO,
@@ -793,14 +792,6 @@ export function AthleteDialog({
     setError(null)
     setBusy(true)
     try {
-      // Validação de CPF × data de nascimento (API + fallback local).
-      if (isAthlete || (cpf && birthdate)) {
-        const check = await validateAthlete(cpf, birthdate)
-        if (!check.ok) {
-          setError(check.message)
-          return
-        }
-      }
       const payload: PlayerInput = {
         name: name.trim(),
         cpf: cpf.replace(/\D/g, '') || undefined,
