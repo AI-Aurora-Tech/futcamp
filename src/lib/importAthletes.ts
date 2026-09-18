@@ -12,7 +12,6 @@
 // Excel. O CPF pode vir com ou sem máscara (e sem os zeros à esquerda que o
 // Excel costuma comer).
 // ---------------------------------------------------------------------------
-import { isValidCpf } from './eligibility'
 import { excelSerialToDate, parseDelimited, type SheetRows } from './spreadsheet'
 
 export interface ParsedAthlete {
@@ -132,7 +131,6 @@ function evaluate(
   let error: string | undefined
   if (!name) error = 'Nome vazio.'
   else if (!cpf) error = 'CPF não informado.'
-  else if (!isValidCpf(cpf)) error = 'CPF inválido.'
   else if (!dateRaw.trim()) error = 'Data de nascimento não informada.'
   else if (!birthdate) error = 'Data de nascimento inválida.'
   return { raw, name, cpf, birthdate, federated, error }
