@@ -35,12 +35,23 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const DELAY_MS = 10_000       // 10 s entre um envio e o outro
 const ORCAMENTO_MS = 110_000  // teto de tempo por execução
 
+// Endereço público do app, para o link na mensagem de fim de jogo. Ajustável
+// pelo secret APP_URL; o padrão é o domínio de produção.
+const APP_URL = (Deno.env.get('APP_URL') ?? 'https://tabelaco.auroratech.app.br').replace(/\/+$/, '')
+
 interface OutboxRow {
   id: number
   championship_id: string
+  category_id: string | null
   target_teams: string[] | null
   message: string
   attempts: number
+}
+
+/** Link público do campeonato, direto na categoria do aviso (quando houver). */
+function linkPublico(row: OutboxRow): string {
+  const base = `${APP_URL}/#/c/${row.championship_id}`
+  return row.category_id ? `${base}?cat=${encodeURIComponent(row.category_id)}` : base
 }
 
 /** Número só com dígitos, com DDI. BR sem país (10/11 díg.) ganha 55. */
@@ -107,7 +118,7 @@ serve(async (req) => {
   // --- DRENAR A FILA ---
   let q = supabase
     .from('whatsapp_outbox')
-    .select('id,championship_id,target_teams,message,attempts')
+    .select('id,championship_id,category_id,target_teams,message,attempts')
     .is('sent_at', null)
     .order('created_at')
     .limit(100)
@@ -144,9 +155,11 @@ serve(async (req) => {
       continue
     }
 
+    // Troca o marcador [[LINK]] pelo endereço público (com a categoria do jogo).
+    const corpo = row.message.replaceAll('[[LINK]]', linkPublico(row))
     const logo = logoOf.get(row.championship_id) ?? null
     const isEmoji = !!logo && !logo.startsWith('data:') && !logo.startsWith('http')
-    const text = isEmoji ? row.message.replace('🏆', logo!) : row.message
+    const text = isEmoji ? corpo.replace('🏆', logo!) : corpo
 
     let ok = true
     let err: string | null = null

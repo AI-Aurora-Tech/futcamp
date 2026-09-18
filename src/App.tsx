@@ -29,10 +29,12 @@ function readGuia(): boolean {
   return /^#\/como-usar\/?$/.test(window.location.hash)
 }
 
-/** Extrai o ID de campeonato público de um hash `#/c/<id>`, se houver. */
-function readPublicId(): string | null {
-  const m = window.location.hash.match(/^#\/c\/([^?]+)$/)
-  return m ? decodeURIComponent(m[1]) : null
+/** Extrai `#/c/<id>` (e o `?cat=<categoria>` opcional) da rota pública. */
+function readPublicId(): { id: string; cat?: string } | null {
+  const m = window.location.hash.match(/^#\/c\/([^?]+)(?:\?(.*))?$/)
+  if (!m) return null
+  const params = new URLSearchParams(m[2] ?? '')
+  return { id: decodeURIComponent(m[1]), cat: params.get('cat') ?? undefined }
 }
 
 /** Extrai `#/t/<teamId>?k=<token>` (link de inscrição de time), se houver. */
@@ -67,7 +69,7 @@ function readMesaId(): string | null {
 
 export default function App() {
   const { organizer, loading } = useAuth()
-  const [publicId, setPublicId] = useState<string | null>(readPublicId())
+  const [publicId, setPublicId] = useState<{ id: string; cat?: string } | null>(readPublicId())
   const [teamRoute, setTeamRoute] = useState(readTeamRoute())
   const [createTeamRoute, setCreateTeamRoute] = useState(readCreateTeamRoute())
   const [mesaId, setMesaId] = useState<string | null>(readMesaId())
@@ -140,7 +142,7 @@ export default function App() {
 
   // Página pública tem prioridade e não exige login.
   if (publicId) {
-    return <PublicChampionship championshipId={publicId} onHome={goHome} />
+    return <PublicChampionship championshipId={publicId.id} initialCategory={publicId.cat} onHome={goHome} />
   }
 
   if (loading) {
