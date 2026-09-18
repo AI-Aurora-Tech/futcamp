@@ -572,6 +572,8 @@ table { border-collapse: collapse; width: 100%; }
 /* ---------- Settings ---------- */
 .settings-block { border-top: 1px solid var(--line); padding-top: 1.25rem; margin-top: 1.25rem; }
 .settings-block h3 { font-size: 1.05rem; margin-bottom: 0.3rem; }
+.wa-org { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.6rem; }
+.wa-org input { flex: 1 1 200px; min-width: 180px; }
 .status-buttons { display: flex; gap: 0.5rem; margin-top: 0.85rem; flex-wrap: wrap; }
 .status-btn { border: 1.5px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 0.5rem 1.1rem; font-weight: 600; color: var(--ink-soft); }
 .status-btn.is-active { border-color: var(--brand); background: rgba(22, 163, 74, 0.12); color: var(--brand-dark); }

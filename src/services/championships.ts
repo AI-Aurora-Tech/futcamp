@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { planOf, totalCents } from '../lib/pricing'
+import { statusEfetivo } from '../lib/categorias'
 import type { Championship, ChampionshipStatus, PlanKey } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -59,6 +60,7 @@ function fromRow(r: any): Championship {
     paymentRef: r.payment_ref ?? undefined,
     paidAt: r.paid_at ?? undefined,
     benchSize: r.bench_size ?? undefined,
+    notifyWhatsapp: r.notify_whatsapp ?? undefined,
     finishedAt: r.finished_at ?? undefined,
     createdAt: r.created_at,
   }
@@ -97,6 +99,7 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.sponsors !== undefined) row.sponsors = c.sponsors
   if (c.plan !== undefined) row.plan = c.plan
   if (c.benchSize !== undefined) row.bench_size = c.benchSize
+  if (c.notifyWhatsapp !== undefined) row.notify_whatsapp = c.notifyWhatsapp
   if (c.amountCents !== undefined) row.amount_cents = c.amountCents
   // `payment_status`, `payment_ref` e `paid_at` NÃO são escritos pelo app: quem
   // confirma pagamento é a Edge Function `asaas-webhook` (service role). Um gatilho
@@ -150,8 +153,15 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Até quando o campeonato encerrado ainda aparece publicamente (ms). */
 export function publicUntil(c: Championship): number | null {
-  if (c.status !== 'finished') return null
-  const at = Date.parse(c.finishedAt ?? c.createdAt)
+  // Situação EFETIVA: um campeonato pode estar encerrado pelas categorias
+  // (todas finished) mesmo que `status` no banco ainda seja 'draft'/'active'.
+  if (statusEfetivo(c) !== 'finished') return null
+  // O carimbo de encerramento pode estar no campeonato OU na categoria que
+  // terminou por último — usamos o mais recente disponível.
+  const stamps = [c.finishedAt, ...(c.categories ?? []).map((cat) => cat.finishedAt)]
+    .map((s) => (s ? Date.parse(s) : NaN))
+    .filter((n) => !Number.isNaN(n))
+  const at = stamps.length ? Math.max(...stamps) : Date.parse(c.createdAt)
   return Number.isNaN(at) ? null : at + PUBLIC_FINISHED_DAYS * DAY_MS
 }
 
@@ -164,7 +174,9 @@ export function daysLeftPublic(c: Championship, now = Date.now()): number | null
 
 /** O campeonato aparece na vitrine pública agora? */
 export function isPubliclyListed(c: Championship, now = Date.now()): boolean {
-  if (c.status === 'active') return true
+  // "Em andamento" pela situação efetiva: basta uma categoria ativa, mesmo que
+  // o `status` do campeonato no banco tenha ficado 'draft' (sem sincronizar).
+  if (statusEfetivo(c) === 'active') return true
   const until = publicUntil(c)
   return until != null && until > now
 }
@@ -176,33 +188,33 @@ export function isPubliclyListed(c: Championship, now = Date.now()): boolean {
  */
 export async function listPublicChampionships(): Promise<Championship[]> {
   const now = Date.now()
-  const cutoff = new Date(now - PUBLIC_FINISHED_DAYS * DAY_MS).toISOString()
-  const order = (a: Championship, b: Championship) =>
-    a.status === b.status
+  // Ordena pela SITUAÇÃO EFETIVA (em andamento antes), não pelo `status` cru —
+  // que pode estar defasado das categorias.
+  const order = (a: Championship, b: Championship) => {
+    const sa = statusEfetivo(a)
+    const sb = statusEfetivo(b)
+    return sa === sb
       ? b.createdAt.localeCompare(a.createdAt)
-      : a.status === 'active'
+      : sa === 'active'
         ? -1
         : 1
+  }
 
   if (authMode === 'supabase' && supabase) {
+    // Buscar por `status.eq.active` no banco perde o campeonato que está em
+    // andamento só pelas CATEGORIAS (championships.status ainda 'draft'). Como
+    // "em andamento" mora no jsonb das categorias, trazemos os mais recentes e
+    // filtramos pela situação efetiva aqui — o mesmo critério do resto do app.
     const { data, error } = await supabase
       .from('championships')
       .select('*')
-      .or(`status.eq.active,and(status.eq.finished,finished_at.gte.${cutoff})`)
       .order('created_at', { ascending: false })
-      .limit(60)
-    // Banco sem a coluna finished_at (migration 0020 pendente): cai no filtro
-    // antigo em vez de deixar a vitrine vazia.
-    if (error) {
-      const { data: actives } = await supabase
-        .from('championships')
-        .select('*')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(60)
-      return (actives ?? []).map(fromRow)
-    }
-    return (data ?? []).map(fromRow).sort(order)
+      .limit(200)
+    if (error) throw error
+    return (data ?? [])
+      .map(fromRow)
+      .filter((c) => isPubliclyListed(c, now))
+      .sort(order)
   }
   return query((d) => d.championships.filter((c) => isPubliclyListed(c, now)).sort(order))
 }

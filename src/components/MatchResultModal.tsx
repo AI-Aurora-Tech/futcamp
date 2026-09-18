@@ -3,6 +3,7 @@ import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
+import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
 import {
   EVENT_LABELS,
   type Championship,
@@ -73,6 +74,7 @@ export function MatchResultModal({
   const [awayScore, setAwayScore] = useState<string>(match.awayScore != null ? String(match.awayScore) : '')
   const [status, setStatus] = useState<MatchStatus>(match.status)
   const [scheduledAt, setScheduledAt] = useState<string>(toLocalInput(match.scheduledAt))
+  const [round, setRound] = useState<string>(String(match.round))
   const [venue, setVenue] = useState<string>(match.venue ?? '')
   const [refereeId, setRefereeId] = useState<string>(match.refereeId ?? '')
   const [officialId, setOfficialId] = useState<string>(match.officialId ?? '')
@@ -180,6 +182,9 @@ export function MatchResultModal({
       patch.scheduledAt = scheduledAt ? new Date(scheduledAt).toISOString() : undefined
       patch.venue = venue.trim() || undefined
       patch.refereeId = refereeId || undefined
+      // Trocar a rodada é só para a fase de grupos/pontos corridos — no
+      // mata-mata a "rodada" é derivada da fase e não deve ser mexida à mão.
+      if (match.phase === 'group') patch.round = Math.max(1, Number(round) || match.round)
     }
     if (officials) patch.officialId = officialId || undefined
     if (isKnockoutMatch) {
@@ -193,6 +198,9 @@ export function MatchResultModal({
     // Encerrar a partida enfileira, de uma vez, o resultado, o resumo de cada
     // equipe, as suspensões e — se a rodada fechou — a classificação.
     if (newStatus === 'finished') void flushPush(match.championshipId)
+    // WhatsApp: encerrar (resultado + classificação) ou mexer no agendamento
+    // (marcar/remarcar) enfileira o aviso no gatilho; aqui a entrega começa.
+    if (newStatus === 'finished' || !readOnlySchedule) void flushWhatsapp(match.championshipId)
     setBusy(false)
     onSaved()
   }
@@ -239,7 +247,7 @@ export function MatchResultModal({
         : 'disponível (antes do jogo)'
 
   return (
-    <Modal title="Registrar resultado" onClose={onClose} wide>
+    <Modal title="Registrar resultado" onClose={onClose} wide dismissable={false}>
       <div className="status-tabs">
         {(['scheduled', 'live', 'finished'] as MatchStatus[]).map((s) => (
           <button
@@ -283,6 +291,18 @@ export function MatchResultModal({
               ))}
             </select>
           </label>
+          {match.phase === 'group' && (
+            <label className="field">
+              <span className="field__label">Rodada</span>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={round}
+                onChange={(e) => setRound(e.target.value)}
+              />
+            </label>
+          )}
         </div>
       )}
 
@@ -488,6 +508,9 @@ export function MatchResultModal({
               if (!confirm('Excluir este jogo? Placar, gols e cartões lançados nele serão removidos.')) return
               setBusy(true)
               try {
+                // Antes de apagar, enfileira o aviso de partida cancelada — os
+                // times e o horário precisam ainda existir para a mensagem.
+                await cancelMatchWhatsapp(match.id, match.championshipId)
                 await deleteMatch(match.id)
                 onSaved()
               } catch (e) {

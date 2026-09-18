@@ -7,6 +7,8 @@ import {
   generateLeague,
 } from '../services/matches'
 import { updateChampionship } from '../services/championships'
+import { flushWhatsapp } from '../services/whatsapp'
+import { flushPush } from '../services/push'
 import { useAuth } from '../context/AuthContext'
 import {
   hasKnockoutStage,
@@ -312,6 +314,7 @@ export function MatchesPanel({
           championship={championship}
           teams={teams}
           matches={matches}
+          officials={officials}
           categoryId={categoryId}
           onClose={() => setAdding(false)}
           onSaved={() => {
@@ -333,6 +336,7 @@ function AddMatchModal({
   championship,
   teams,
   matches,
+  officials,
   categoryId,
   onClose,
   onSaved,
@@ -340,6 +344,7 @@ function AddMatchModal({
   championship: Championship
   teams: Team[]
   matches: Match[]
+  officials: Official[]
   categoryId?: string
   onClose: () => void
   onSaved: () => void
@@ -352,6 +357,10 @@ function AddMatchModal({
   const [away, setAway] = useState('')
   const [round, setRound] = useState(String(proximaRodada))
   const [group, setGroup] = useState(grupos[0] ?? '')
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [venue, setVenue] = useState('')
+  const [refereeId, setRefereeId] = useState('')
+  const [officialId, setOfficialId] = useState('')
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -382,7 +391,17 @@ function AddMatchModal({
         homeScore: null,
         awayScore: null,
         status: 'scheduled',
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        venue: venue.trim() || undefined,
+        refereeId: refereeId || undefined,
+        officialId: officialId || undefined,
       })
+      // Com data definida, o jogo já nasce "marcado": os avisos (push/WhatsApp)
+      // são enfileirados pelo gatilho — aqui a entrega começa na hora.
+      if (scheduledAt) {
+        void flushPush(championship.id)
+        void flushWhatsapp(championship.id)
+      }
       onSaved()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível criar o jogo.')
@@ -392,7 +411,7 @@ function AddMatchModal({
   }
 
   return (
-    <Modal title="Adicionar jogo" onClose={onClose}>
+    <Modal title="Adicionar jogo" onClose={onClose} dismissable={false}>
       <form onSubmit={salvar} className="form-grid">
         <p className="field__hint">
           Crie uma partida na mão — dá para montar a tabela jogo a jogo em vez de gerar tudo
@@ -446,6 +465,43 @@ function AddMatchModal({
         {home && away && home !== away && (
           <p className="field__hint">🆚 <b>{nomeTime(home)}</b> × <b>{nomeTime(away)}</b></p>
         )}
+
+        <div className="form-row">
+          <Field label="Data e hora">
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+            />
+          </Field>
+          <Field label="Local">
+            <select value={venue} onChange={(e) => setVenue(e.target.value)}>
+              <option value="">— sem local —</option>
+              {(championship.venues ?? []).map((v) => (
+                <option key={v.id} value={v.name}>{v.name}{v.address ? ` — ${v.address}` : ''}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <div className="form-row">
+          <Field label="Árbitro">
+            <select value={refereeId} onChange={(e) => setRefereeId(e.target.value)}>
+              <option value="">— sem árbitro —</option>
+              {(championship.referees ?? []).map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Mesário">
+            <select value={officialId} onChange={(e) => setOfficialId(e.target.value)}>
+              <option value="">— sem mesário —</option>
+              {officials.map((o) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
 
         {erro && <p className="auth-error">{erro}</p>}
 

@@ -433,6 +433,12 @@ export interface Championship {
    */
   benchSize?: number
   /**
+   * WhatsApp do organizador que recebe CÓPIA dos avisos enviados aos times
+   * pela integração com a Evolution API. Nulo = sem cópia. Não afeta em nada
+   * os campeonatos que não preenchem o campo.
+   */
+  notifyWhatsapp?: string
+  /**
    * Momento em que o campeonato foi encerrado. Preenchido automaticamente na
    * troca de status — é o que mantém o campeão na vitrine pública pelos dias
    * seguintes (ver `PUBLIC_FINISHED_DAYS`).
