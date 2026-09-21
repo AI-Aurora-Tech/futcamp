@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createKnockoutStage,
   createMatch,
@@ -350,13 +350,36 @@ function AddMatchModal({
   onSaved: () => void
 }) {
   const grupos = [...new Set(teams.map((t) => t.group).filter((g): g is string => !!g))].sort()
-  const proximaRodada =
-    Math.max(0, ...matches.filter((m) => m.phase === 'group').map((m) => m.round)) + 1
+
+  // Conta quantos jogos da 1ª fase (fase de grupos) cada time já tem.
+  const jogosPorTime = useMemo(() => {
+    const contagem = new Map<string, number>()
+    for (const m of matches) {
+      if (m.phase !== 'group') continue
+      if (m.homeTeamId) contagem.set(m.homeTeamId, (contagem.get(m.homeTeamId) ?? 0) + 1)
+      if (m.awayTeamId) contagem.set(m.awayTeamId, (contagem.get(m.awayTeamId) ?? 0) + 1)
+    }
+    return contagem
+  }, [matches])
+
+  // Times de um grupo (ou todos, quando o campeonato não usa grupos).
+  const timesDoGrupo = (g: string) => (g ? teams.filter((t) => t.group === g) : teams)
+
+  // A rodada é determinada automaticamente: o time com menos jogos manda.
+  // Rodada = (menor quantidade de jogos entre os times do grupo) + 1.
+  const rodadaDoGrupo = (g: string) => {
+    const times = timesDoGrupo(g)
+    if (times.length === 0) return 1
+    const menor = Math.min(...times.map((t) => jogosPorTime.get(t.id) ?? 0))
+    return menor + 1
+  }
+
+  const grupoInicial = grupos[0] ?? ''
   const [phase, setPhase] = useState<MatchPhase>('group')
   const [home, setHome] = useState('')
   const [away, setAway] = useState('')
-  const [round, setRound] = useState(String(proximaRodada))
-  const [group, setGroup] = useState(grupos[0] ?? '')
+  const [round, setRound] = useState(String(rodadaDoGrupo(grupoInicial)))
+  const [group, setGroup] = useState(grupoInicial)
   const [scheduledAt, setScheduledAt] = useState('')
   const [venue, setVenue] = useState('')
   const [refereeId, setRefereeId] = useState('')
@@ -366,6 +389,20 @@ function AddMatchModal({
 
   const isGroupPhase = phase === 'group'
   const nomeTime = (id: string) => teams.find((t) => t.id === id)?.name ?? ''
+
+  // Ao selecionar o grupo, só aparecem os times daquele grupo. Fora da fase de
+  // grupos (mata-mata) todos os times ficam disponíveis.
+  const timesElegiveis = isGroupPhase && group ? teams.filter((t) => t.group === group) : teams
+
+  // Ao trocar o grupo: recalcula a rodada automaticamente e descarta seleções de
+  // times que não pertencem ao grupo escolhido.
+  useEffect(() => {
+    if (!isGroupPhase) return
+    setRound(String(rodadaDoGrupo(group)))
+    setHome((atual) => (atual && !timesDoGrupo(group).some((t) => t.id === atual) ? '' : atual))
+    setAway((atual) => (atual && !timesDoGrupo(group).some((t) => t.id === atual) ? '' : atual))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group, isGroupPhase])
 
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
@@ -428,7 +465,7 @@ function AddMatchModal({
 
         {isGroupPhase && (
           <div className="form-row">
-            <Field label="Rodada">
+            <Field label="Rodada" hint="Sugerida pelo time com menos jogos — ajuste se precisar.">
               <input type="number" min={1} max={200} value={round} onChange={(e) => setRound(e.target.value)} />
             </Field>
             {grupos.length > 0 && (
@@ -447,7 +484,7 @@ function AddMatchModal({
           <Field label="Time mandante">
             <select value={home} onChange={(e) => setHome(e.target.value)}>
               <option value="">Escolha…</option>
-              {teams.map((t) => (
+              {timesElegiveis.map((t) => (
                 <option key={t.id} value={t.id} disabled={t.id === away}>{t.name}</option>
               ))}
             </select>
@@ -455,7 +492,7 @@ function AddMatchModal({
           <Field label="Time visitante">
             <select value={away} onChange={(e) => setAway(e.target.value)}>
               <option value="">Escolha…</option>
-              {teams.map((t) => (
+              {timesElegiveis.map((t) => (
                 <option key={t.id} value={t.id} disabled={t.id === home}>{t.name}</option>
               ))}
             </select>
