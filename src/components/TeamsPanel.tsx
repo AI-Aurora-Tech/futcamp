@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createTeam,
+  createTeamManager,
   deleteTeam,
   ensureChampCategoryToken,
   ensureChampTeamToken,
@@ -283,6 +284,12 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
   const [managers, setManagers] = useState<TeamManager[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [addBusy, setAddBusy] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const canAdd = managers != null && managers.length < 2
 
   async function load() {
     try {
@@ -297,6 +304,23 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team.id])
+
+  async function addManager(e: React.FormEvent) {
+    e.preventDefault()
+    setAddError(null)
+    setAddBusy(true)
+    try {
+      await createTeamManager(team.id, email, password)
+      setEmail('')
+      setPassword('')
+      setAdding(false)
+      await load()
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Não foi possível cadastrar o responsável.')
+    } finally {
+      setAddBusy(false)
+    }
+  }
 
   async function reset(m: TeamManager) {
     if (!confirm(`Zerar a senha de "${m.username}"?\n\nEle perde o acesso pela página inicial e criará uma nova senha no próximo acesso pelo link de inscrição.`)) return
@@ -315,15 +339,15 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
   return (
     <Modal title={`Gestores — ${team.name}`} onClose={onClose}>
       <p className="muted">
-        Zere a senha de um gestor que a esqueceu. Ele entrará pelo <b>link de inscrição</b> com o
-        mesmo e-mail e criará uma nova senha — a redefinição não passa pela página inicial, para
-        que ninguém entre no time só sabendo o endereço de e-mail do gestor.
+        Cadastre o responsável pelo time definindo e-mail e senha — ele já entra pela página
+        inicial do Tabelaço, sem precisar do link. Ou zere a senha de um gestor que a esqueceu:
+        ele criará uma nova pelo <b>link de inscrição</b>.
       </p>
       {managers === null ? (
         <div className="pad-lg center"><Spinner /></div>
       ) : managers.length === 0 ? (
-        <EmptyState icon="👤" title="Nenhum gestor cadastrado">
-          <p>Este time ainda não tem acesso criado. Envie o link de inscrição para o responsável criar a conta com o e-mail dele.</p>
+        <EmptyState icon="👤" title="Nenhum responsável cadastrado">
+          <p>Cadastre o acesso do responsável abaixo, ou envie o link de inscrição para ele criar a conta com o e-mail dele.</p>
         </EmptyState>
       ) : (
         <ul className="manager-list">
@@ -338,6 +362,53 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
         </ul>
       )}
       {error && <p className="auth-error">{error}</p>}
+
+      {canAdd && !adding && (
+        <div className="form-actions">
+          <Button variant="soft" type="button" onClick={() => { setAdding(true); setAddError(null) }}>
+            ＋ Cadastrar responsável
+          </Button>
+        </div>
+      )}
+
+      {canAdd && adding && (
+        <form onSubmit={addManager} className="form-grid" style={{ marginTop: 12 }}>
+          <div className="form-row">
+            <Field label="E-mail do responsável">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="responsavel@email.com"
+                autoComplete="off"
+                required
+              />
+            </Field>
+            <Field label="Senha">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={4}
+                autoComplete="new-password"
+                required
+              />
+            </Field>
+          </div>
+          <p className="field__hint">
+            Combine a senha com o responsável — ele entra pela página inicial com este e-mail e pode
+            trocá-la depois. O time pode ter até 2 gestores.
+          </p>
+          {addError && <p className="auth-error">{addError}</p>}
+          <div className="form-actions">
+            <Button variant="ghost" type="button" onClick={() => { setAdding(false); setAddError(null) }}>Cancelar</Button>
+            <Button type="submit" disabled={addBusy || !email.trim() || !password}>
+              {addBusy ? 'Cadastrando…' : 'Cadastrar responsável'}
+            </Button>
+          </div>
+        </form>
+      )}
+
       <div className="form-actions">
         <Button variant="ghost" type="button" onClick={onClose}>Fechar</Button>
       </div>

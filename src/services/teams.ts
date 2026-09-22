@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { accessToken, uid } from '../lib/id'
 import { cabeMaisUmTime, motivoLimiteDeTimes } from '../lib/pricing'
+import { emailPlausivel, normalizarEmail } from '../lib/email'
+import { demoHash } from './registration'
 import type { Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -384,6 +386,59 @@ export async function listTeamManagers(teamId: string): Promise<TeamManager[]> {
     if (t?.username) out.push({ username: t.username, reset: !t.passwordHash })
     if (t?.username2) out.push({ username: t.username2, reset: !t.passwordHash2 })
     return out
+  })
+}
+
+/**
+ * Organizador (ou master) CADASTRA o responsável/gestor do time direto pelo
+ * painel — sem precisar do link de inscrição. Preenche o próximo slot livre
+ * (até 2 gestores). Com o e-mail e a senha definidos aqui, o responsável já
+ * entra pela página inicial do Tabelaço.
+ */
+export async function createTeamManager(
+  teamId: string,
+  username: string,
+  password: string,
+): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('admin_create_team_manager', {
+      p_team: teamId,
+      p_username: username.trim(),
+      p_password: password,
+    })
+    if (error) {
+      // RPC ausente = migration 0043 pendente no servidor.
+      throw new Error(
+        /does not exist|PGRST202/i.test(error.message ?? '')
+          ? 'O cadastro do responsável pelo painel ainda não foi liberado neste servidor (migration 0043).'
+          : error.message,
+      )
+    }
+    return
+  }
+  const u = normalizarEmail(username)
+  if (!emailPlausivel(u)) {
+    throw new Error('Informe um e-mail válido para o responsável (ex.: nome@email.com).')
+  }
+  if (!password) throw new Error('Informe a senha do responsável.')
+  mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) throw new Error('Time não encontrado.')
+    const slot1 = Boolean(t.username && t.passwordHash)
+    const slot2 = Boolean(t.username2 && t.passwordHash2)
+    if (slot1 && slot2) throw new Error('Este time já possui 2 gestores.')
+    if (normalizarEmail(t.username) === u || normalizarEmail(t.username2) === u) {
+      throw new Error('Este e-mail já é gestor deste time.')
+    }
+    if (!t.accessToken) t.accessToken = accessToken()
+    if (!slot1) {
+      t.username = u
+      t.passwordHash = demoHash(password)
+    } else {
+      t.username2 = u
+      t.passwordHash2 = demoHash(password)
+    }
+    return undefined
   })
 }
 
