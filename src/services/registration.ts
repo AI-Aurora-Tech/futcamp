@@ -91,7 +91,7 @@ function semMigration0028(error: { message?: string; code?: string }): boolean {
 }
 
 /** Hash leve de senha (apenas modo demo; o Supabase usa pgcrypto). */
-function demoHash(password: string): string {
+export function demoHash(password: string): string {
   let h = 5381
   const s = `futcamp:${password}`
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
