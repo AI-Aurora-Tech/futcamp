@@ -443,6 +443,43 @@ export async function createTeamManager(
 }
 
 /**
+ * Organizador (ou master) REMOVE o responsável/gestor do time — esvazia o slot
+ * (usuário + senha), liberando a vaga. A pessoa deixa de entrar pela página
+ * inicial e pelo link. É a contraparte de `createTeamManager`.
+ */
+export async function removeTeamManager(teamId: string, username: string): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('admin_remove_team_manager', {
+      p_team: teamId,
+      p_username: username.trim(),
+    })
+    if (error) {
+      // RPC ausente = migration 0044 pendente no servidor.
+      throw new Error(
+        /does not exist|PGRST202/i.test(error.message ?? '')
+          ? 'A remoção do responsável pelo painel ainda não foi liberada neste servidor (migration 0044).'
+          : error.message,
+      )
+    }
+    return
+  }
+  const u = normalizarEmail(username)
+  mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) throw new Error('Time não encontrado.')
+    if (normalizarEmail(t.username) === u) {
+      t.username = undefined
+      t.passwordHash = undefined
+    }
+    if (normalizarEmail(t.username2) === u) {
+      t.username2 = undefined
+      t.passwordHash2 = undefined
+    }
+    return undefined
+  })
+}
+
+/**
  * Administrador ZERA (recupera) a senha de um gestor do time. No próximo login
  * pelo link de inscrição, o gestor deverá criar uma nova senha.
  */

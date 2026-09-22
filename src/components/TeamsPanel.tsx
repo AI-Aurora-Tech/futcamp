@@ -7,6 +7,7 @@ import {
   ensureChampTeamToken,
   ensureTeamToken,
   listTeamManagers,
+  removeTeamManager,
   resetTeamManagerPassword,
   setTeamCategories,
   updateTeam,
@@ -336,6 +337,20 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
     }
   }
 
+  async function remove(m: TeamManager) {
+    if (!confirm(`Remover o responsável "${m.username}" deste time?\n\nEle perde o acesso pela página inicial e pelo link. A vaga fica livre para cadastrar outro.`)) return
+    setBusy(m.username)
+    setError(null)
+    try {
+      await removeTeamManager(team.id, m.username)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível remover o responsável agora.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <Modal title={`Gestores — ${team.name}`} onClose={onClose}>
       <p className="muted">
@@ -354,9 +369,18 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
           {managers.map((m) => (
             <li key={m.username} className="manager-list__item" style={{ justifyContent: 'space-between' }}>
               <span>👤 {m.username} {m.reset && <span className="muted small">· senha zerada</span>}</span>
-              <Button variant="soft" type="button" disabled={busy === m.username || m.reset} onClick={() => void reset(m)}>
-                {busy === m.username ? 'Zerando…' : m.reset ? 'Aguardando nova senha' : '🔑 Zerar senha'}
-              </Button>
+              <span className="manager-list__actions">
+                <Button variant="soft" type="button" disabled={busy === m.username || m.reset} onClick={() => void reset(m)}>
+                  {busy === m.username ? 'Zerando…' : m.reset ? 'Aguardando nova senha' : '🔑 Zerar senha'}
+                </Button>
+                <button
+                  className="icon-btn icon-btn--danger"
+                  type="button"
+                  title="Remover responsável"
+                  disabled={busy === m.username}
+                  onClick={() => void remove(m)}
+                >🗑</button>
+              </span>
             </li>
           ))}
         </ul>
