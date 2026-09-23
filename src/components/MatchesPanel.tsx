@@ -350,12 +350,9 @@ function AddMatchModal({
   onSaved: () => void
 }) {
   const grupos = [...new Set(teams.map((t) => t.group).filter((g): g is string => !!g))].sort()
-  const proximaRodada =
-    Math.max(0, ...matches.filter((m) => m.phase === 'group').map((m) => m.round)) + 1
   const [phase, setPhase] = useState<MatchPhase>('group')
   const [home, setHome] = useState('')
   const [away, setAway] = useState('')
-  const [round, setRound] = useState(String(proximaRodada))
   const [group, setGroup] = useState(grupos[0] ?? '')
   const [scheduledAt, setScheduledAt] = useState('')
   const [venue, setVenue] = useState('')
@@ -367,6 +364,45 @@ function AddMatchModal({
   const isGroupPhase = phase === 'group'
   const nomeTime = (id: string) => teams.find((t) => t.id === id)?.name ?? ''
 
+  // Na fase de grupos, só entram no confronto os times do grupo escolhido.
+  const timesDisponiveis =
+    isGroupPhase && group ? teams.filter((t) => t.group === group) : teams
+
+  // Jogos de cada time na 1ª fase de grupos — é o que define a rodada.
+  const jogosPorTime = useMemo(() => {
+    const cont = new Map<string, number>()
+    for (const m of matches) {
+      if (m.phase !== 'group' || matchStage(m) !== 1) continue
+      for (const id of [m.homeTeamId, m.awayTeamId]) {
+        if (id) cont.set(id, (cont.get(id) ?? 0) + 1)
+      }
+    }
+    return cont
+  }, [matches])
+  const jogosDe = (id: string) => jogosPorTime.get(id) ?? 0
+
+  // Times com menos jogos primeiro: são eles que ainda faltam na rodada atual.
+  const opcoesTimes = [...timesDisponiveis].sort(
+    (a, b) => jogosDe(a.id) - jogosDe(b.id) || a.name.localeCompare(b.name),
+  )
+
+  /**
+   * Rodada gerada automaticamente pelo time com MAIS partidas: escolhidos os
+   * times, é a próxima rodada de quem jogou mais entre os dois (assim nenhum
+   * deles joga duas vezes na mesma rodada); antes disso, a do time do grupo
+   * com mais partidas.
+   */
+  const base = home || away ? [home, away].filter(Boolean) : opcoesTimes.map((t) => t.id)
+  const round = Math.max(0, ...base.map(jogosDe)) + 1
+
+  function trocarGrupo(g: string) {
+    setGroup(g)
+    // Times de outro grupo deixam de valer para o confronto.
+    const doGrupo = (id: string) => teams.some((t) => t.id === id && t.group === g)
+    if (home && !doGrupo(home)) setHome('')
+    if (away && !doGrupo(away)) setAway('')
+  }
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
     setErro(null)
@@ -375,7 +411,7 @@ function AddMatchModal({
     // Fase eliminatória entra fora da numeração das rodadas da 1ª fase.
     const koIdx = KNOCKOUT_ORDER.indexOf(phase)
     const rodada = isGroupPhase
-      ? Math.max(1, Number(round) || 1)
+      ? round
       : KNOCKOUT_ROUND_BASE + (phase === 'third_place' ? KNOCKOUT_ORDER.length : Math.max(0, koIdx))
     setBusy(true)
     try {
@@ -428,18 +464,18 @@ function AddMatchModal({
 
         {isGroupPhase && (
           <div className="form-row">
-            <Field label="Rodada">
-              <input type="number" min={1} max={200} value={round} onChange={(e) => setRound(e.target.value)} />
-            </Field>
             {grupos.length > 0 && (
               <Field label="Grupo">
-                <select value={group} onChange={(e) => setGroup(e.target.value)}>
+                <select value={group} onChange={(e) => trocarGrupo(e.target.value)}>
                   {grupos.map((g) => (
                     <option key={g} value={g}>Grupo {g}</option>
                   ))}
                 </select>
               </Field>
             )}
+            <Field label="Rodada" hint="Automática, pelo time com mais partidas.">
+              <input type="number" value={round} readOnly disabled />
+            </Field>
           </div>
         )}
 
@@ -447,16 +483,20 @@ function AddMatchModal({
           <Field label="Time mandante">
             <select value={home} onChange={(e) => setHome(e.target.value)}>
               <option value="">Escolha…</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id} disabled={t.id === away}>{t.name}</option>
+              {opcoesTimes.map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id === away}>
+                  {t.name}{isGroupPhase ? ` (${jogosDe(t.id)} jogo${jogosDe(t.id) === 1 ? '' : 's'})` : ''}
+                </option>
               ))}
             </select>
           </Field>
           <Field label="Time visitante">
             <select value={away} onChange={(e) => setAway(e.target.value)}>
               <option value="">Escolha…</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id} disabled={t.id === home}>{t.name}</option>
+              {opcoesTimes.map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id === home}>
+                  {t.name}{isGroupPhase ? ` (${jogosDe(t.id)} jogo${jogosDe(t.id) === 1 ? '' : 's'})` : ''}
+                </option>
               ))}
             </select>
           </Field>
