@@ -19,6 +19,7 @@ import {
   stageExists,
 } from '../lib/groupStages'
 import type { PlanoEliminacao } from '../lib/eliminacao'
+import type { PlanoTabela } from '../lib/tabela'
 import type {
   Championship,
   LineupEntry,
@@ -547,6 +548,19 @@ export async function eliminateTeam(
 ): Promise<void> {
   for (const { match, patch } of plano.atualizar) await updateMatch(match.id, patch)
   if (criarFaltantes && plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
+}
+
+/**
+ * Aplica o plano de "Gerar tabela" (lib/tabela.ts): remove os jogos não
+ * realizados que deixaram de valer e cria os confrontos que faltam. Jogos
+ * realizados nunca são tocados.
+ */
+export async function applyFixturePlan(plano: PlanoTabela, championshipId: string): Promise<void> {
+  for (const m of plano.remover) {
+    if (m.status !== 'scheduled') continue
+    await deleteMatch(m.id)
+  }
+  if (plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
 }
 
 async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<void> {
