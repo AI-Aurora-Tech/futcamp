@@ -289,6 +289,7 @@ export function TeamsPanel({
           teams={daCategoria}
           matches={matches}
           categoryId={categoryId}
+          categoryName={catNome}
           onClose={() => setEliminating(null)}
           onDone={() => {
             setEliminating(null)
@@ -309,6 +310,7 @@ function EliminateModal({
   teams,
   matches,
   categoryId,
+  categoryName,
   onClose,
   onDone,
 }: {
@@ -318,6 +320,7 @@ function EliminateModal({
   teams: Team[]
   matches: Match[]
   categoryId?: string
+  categoryName?: string
   onClose: () => void
   onDone: () => void
 }) {
@@ -343,9 +346,26 @@ function EliminateModal({
   }
 
   const nada = pendentes === 0 && faltantes === 0
+  // Clube em mais de uma categoria: a eliminação vale SÓ para a categoria em
+  // foco — as outras inscrições seguem normalmente.
+  const outrasCategorias = (team.categoryIds ?? [])
+    .filter((c) => c !== categoryId)
+    .map((c) => championship.categories.find((x) => x.id === c)?.name)
+    .filter((n): n is string => !!n)
+  const variasCategorias = !!categoryName && outrasCategorias.length > 0
 
   return (
-    <Modal title={`Eliminar ${team.name}`} onClose={onClose} dismissable={false}>
+    <Modal
+      title={variasCategorias ? `Eliminar ${team.name} · ${categoryName}` : `Eliminar ${team.name}`}
+      onClose={onClose}
+      dismissable={false}
+    >
+      {variasCategorias && (
+        <p className="auth-error">
+          ⚠️ {team.name} está inscrito em mais de uma categoria. Será eliminado <b>somente do{' '}
+          {categoryName}</b> — continua disputando {outrasCategorias.join(', ')}.
+        </p>
+      )}
       <p>
         O time sai da disputa: cada jogo que ele ainda teria vira <b>derrota por W.O.</b>, com{' '}
         <b>{WO_GOLS} × 0</b> para o adversário. Os jogos já encerrados continuam valendo, e o time
@@ -366,7 +386,11 @@ function EliminateModal({
 
       {faltantes > 0 && (
         <p>
-          <b>Deseja criar todos os jogos que {team.name} deveria jogar e aplicar o W.O. ({WO_GOLS} × 0 para o adversário)?</b>
+          <b>
+            Deseja criar todos os jogos que {team.name} deveria jogar
+            {variasCategorias ? ` no ${categoryName}` : ''} e aplicar o W.O. ({WO_GOLS} × 0 para o
+            adversário)?
+          </b>
         </p>
       )}
 
@@ -380,7 +404,13 @@ function EliminateModal({
           </Button>
         )}
         <Button variant="danger" type="button" onClick={() => void eliminar(true)} disabled={busy || nada}>
-          {busy ? 'Eliminando…' : faltantes > 0 ? 'Sim, criar jogos e aplicar W.O.' : 'Eliminar e aplicar W.O.'}
+          {busy
+            ? 'Eliminando…'
+            : faltantes > 0
+              ? 'Sim, criar jogos e aplicar W.O.'
+              : variasCategorias
+                ? `Eliminar do ${categoryName}`
+                : 'Eliminar e aplicar W.O.'}
         </Button>
       </div>
     </Modal>
