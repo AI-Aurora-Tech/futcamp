@@ -385,6 +385,7 @@ a.btn { text-decoration: none; cursor: pointer; }
   align-self: flex-start; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.03em;
   color: var(--brand-dark); background: rgba(22, 163, 74, 0.12); border-radius: 999px; padding: 0.1rem 0.45rem;
 }
+.team-item__group--out { color: var(--danger); background: rgba(220, 38, 38, 0.12); }
 .team-item__actions {
   grid-area: actions; display: flex; gap: 0.25rem; justify-content: flex-end;
   border-top: 1px solid var(--line); padding-top: 0.4rem; margin-top: 0.1rem;
