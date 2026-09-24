@@ -27,6 +27,8 @@ export interface PlanoTabela {
   remover: Match[]
   /** Confrontos que faltam. */
   criar: NovoJogo[]
+  /** Jogos gravados com o grupo errado (ex.: tabela gerada antes de um novo sorteio). */
+  corrigirGrupo: { match: Match; group: string }[]
 }
 
 const par = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
@@ -169,5 +171,16 @@ export function planejarTabela(
     }
   }
 
-  return { realizados, mantidos, remover, criar }
+  // Rótulo de grupo desatualizado: os dois times estão no mesmo grupo, mas o
+  // jogo foi gravado com outro. Só corrige o rótulo — placar e data ficam.
+  const corrigirGrupo: { match: Match; group: string }[] = []
+  if (isGroups) {
+    for (const m of daFase) {
+      if (removidos.has(m.id) || !m.homeTeamId || !m.awayTeamId) continue
+      const g = grupoDe.get(m.homeTeamId)
+      if (g && g === grupoDe.get(m.awayTeamId) && m.group !== g) corrigirGrupo.push({ match: m, group: g })
+    }
+  }
+
+  return { realizados, mantidos, remover, criar, corrigirGrupo }
 }

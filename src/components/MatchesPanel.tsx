@@ -20,6 +20,7 @@ import {
 import {
   allGroupStagesComplete,
   groupStagesOf,
+  grupoDoJogo,
   matchStage,
   matchesOfStage,
   nextGroupStageToCreate,
@@ -184,7 +185,7 @@ export function MatchesPanel({
     }
 
     const plano = planejarTabela(championship, teams, matches, categoryId)
-    if (plano.criar.length === 0 && plano.remover.length === 0) {
+    if (plano.criar.length === 0 && plano.remover.length === 0 && plano.corrigirGrupo.length === 0) {
       alert('A tabela já está completa: todos os confrontos previstos pelas regras do campeonato existem.')
       return
     }
@@ -192,6 +193,8 @@ export function MatchesPanel({
       `✅ ${plano.realizados} jogo(s) já realizado(s) continuam como estão.`,
       plano.mantidos > 0 && `📅 ${plano.mantidos} jogo(s) ainda não realizado(s) continuam (com data e local).`,
       plano.criar.length > 0 && `＋ ${plano.criar.length} jogo(s) que faltam serão criados.`,
+      plano.corrigirGrupo.length > 0 &&
+        `🔁 ${plano.corrigirGrupo.length} jogo(s) estavam no grupo errado e serão movidos para o grupo atual dos times.`,
       plano.remover.length > 0 &&
         `🗑 ${plano.remover.length} jogo(s) não realizado(s) serão removidos por não valerem mais pelas regras (grupo, turno/returno ou time fora da categoria).`,
     ].filter(Boolean)
@@ -211,12 +214,13 @@ export function MatchesPanel({
 
   // Agrupa por rodada (primeira fase) e por fase (mata-mata).
   // Com grupos, a lista pode ser vista por grupo (padrão) ou por rodada.
-  const temGrupos = new Set(groupMatchesOnly.map((m) => m.group).filter(Boolean)).size > 1
+  const grupoDoTime = useMemo(() => new Map(teams.map((t) => [t.id, t.group] as const)), [teams])
+  const temGrupos = new Set(groupMatchesOnly.map((m) => grupoDoJogo(m, grupoDoTime)).filter(Boolean)).size > 1
   const [porGrupo, setPorGrupo] = useState(true)
   const verPorGrupo = temGrupos && porGrupo
   const sections = useMemo(
-    () => (verPorGrupo ? matchSectionsByGroup(matches) : matchSections(matches)),
-    [matches, verPorGrupo],
+    () => (verPorGrupo ? matchSectionsByGroup(matches, teams) : matchSections(matches)),
+    [matches, teams, verPorGrupo],
   )
   const closedRounds = new Set(championship.closedRounds ?? [])
 
@@ -750,12 +754,13 @@ export function matchSections(matches: Match[]): Section[] {
  * Seções agrupadas por GRUPO: cada grupo (de cada fase de grupos) com os seus
  * jogos em ordem de rodada e, depois, as fases do mata-mata.
  */
-export function matchSectionsByGroup(matches: Match[]): Section[] {
+export function matchSectionsByGroup(matches: Match[], teams: Team[]): Section[] {
+  const grupoDoTime = new Map(teams.map((t) => [t.id, t.group] as const))
   const deGrupo = matches.filter((m) => m.phase === 'group')
   const multiStage = new Set(deGrupo.map(matchStage)).size > 1
   const byGroup = new Map<string, Match[]>()
   for (const m of deGrupo) {
-    const k = `${matchStage(m)}|${m.group ?? ''}`
+    const k = `${matchStage(m)}|${grupoDoJogo(m, grupoDoTime) ?? ''}`
     if (!byGroup.has(k)) byGroup.set(k, [])
     byGroup.get(k)!.push(m)
   }

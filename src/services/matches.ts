@@ -552,14 +552,15 @@ export async function eliminateTeam(
 
 /**
  * Aplica o plano de "Gerar tabela" (lib/tabela.ts): remove os jogos não
- * realizados que deixaram de valer e cria os confrontos que faltam. Jogos
- * realizados nunca são tocados.
+ * realizados que deixaram de valer, acerta o grupo gravado nos jogos e cria os
+ * confrontos que faltam. Placar e data dos jogos realizados nunca mudam.
  */
 export async function applyFixturePlan(plano: PlanoTabela, championshipId: string): Promise<void> {
   for (const m of plano.remover) {
     if (m.status !== 'scheduled') continue
     await deleteMatch(m.id)
   }
+  for (const { match, group } of plano.corrigirGrupo) await updateMatch(match.id, { group })
   if (plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
 }
 
