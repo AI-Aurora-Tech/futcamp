@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import {
   createKnockoutStage,
   applyFixturePlan,
@@ -210,7 +210,14 @@ export function MatchesPanel({
   }
 
   // Agrupa por rodada (primeira fase) e por fase (mata-mata).
-  const sections = useMemo(() => matchSections(matches), [matches])
+  // Com grupos, a lista pode ser vista por grupo (padrão) ou por rodada.
+  const temGrupos = new Set(groupMatchesOnly.map((m) => m.group).filter(Boolean)).size > 1
+  const [porGrupo, setPorGrupo] = useState(true)
+  const verPorGrupo = temGrupos && porGrupo
+  const sections = useMemo(
+    () => (verPorGrupo ? matchSectionsByGroup(matches) : matchSections(matches)),
+    [matches, verPorGrupo],
+  )
   const closedRounds = new Set(championship.closedRounds ?? [])
 
   async function toggleRound(round: number) {
@@ -300,8 +307,18 @@ export function MatchesPanel({
         </EmptyState>
       ) : (
         <div className="rounds">
+          {temGrupos && (
+            <div className="view-switch" role="group" aria-label="Organizar jogos">
+              <button type="button" className={`view-switch__btn ${porGrupo ? 'is-active' : ''}`} onClick={() => setPorGrupo(true)}>
+                Por grupo
+              </button>
+              <button type="button" className={`view-switch__btn ${!porGrupo ? 'is-active' : ''}`} onClick={() => setPorGrupo(false)}>
+                Por rodada
+              </button>
+            </div>
+          )}
           {sections.map((sec) => {
-            const roundNo = sec.matches[0]?.round
+            const roundNo = sec.byGroup ? undefined : sec.matches[0]?.round
             const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
             return (
               <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
@@ -319,8 +336,16 @@ export function MatchesPanel({
                   )}
                 </div>
                 <div className="round__matches">
-                  {sec.matches.map((m) => (
-                    <MatchRow key={m.id} match={m} teams={teams} onClick={() => setEditing(m)} showSchedule venues={championship.venues} />
+                  {sec.matches.map((m, i) => (
+                    <Fragment key={m.id}>
+                      {sec.byGroup && m.round !== sec.matches[i - 1]?.round && (
+                        <span className="round__sub">
+                          Rodada {m.round}
+                          {closedRounds.has(m.round) && ' · 🔒 inscrições encerradas'}
+                        </span>
+                      )}
+                      <MatchRow match={m} teams={teams} onClick={() => setEditing(m)} showSchedule venues={championship.venues} />
+                    </Fragment>
                   ))}
                 </div>
               </div>
@@ -664,6 +689,8 @@ export interface Section {
   matches: Match[]
   /** Seção de mata-mata (sem fechamento de inscrições por rodada). */
   isKnockout: boolean
+  /** Seção de um grupo: os jogos vêm em ordem de rodada, com a rodada indicada. */
+  byGroup?: boolean
 }
 
 /** "2ª fase · Rodada 4" quando há mais de uma fase de grupos. */
@@ -717,4 +744,40 @@ export function matchSections(matches: Match[]): Section[] {
   }))
 
   return [...rounds, ...phases]
+}
+
+/**
+ * Seções agrupadas por GRUPO: cada grupo (de cada fase de grupos) com os seus
+ * jogos em ordem de rodada e, depois, as fases do mata-mata.
+ */
+export function matchSectionsByGroup(matches: Match[]): Section[] {
+  const deGrupo = matches.filter((m) => m.phase === 'group')
+  const multiStage = new Set(deGrupo.map(matchStage)).size > 1
+  const byGroup = new Map<string, Match[]>()
+  for (const m of deGrupo) {
+    const k = `${matchStage(m)}|${m.group ?? ''}`
+    if (!byGroup.has(k)) byGroup.set(k, [])
+    byGroup.get(k)!.push(m)
+  }
+  const grupos: Section[] = [...byGroup.entries()]
+    .sort(([a], [b]) => {
+      const [sa, ga] = a.split('|')
+      const [sb, gb] = b.split('|')
+      return Number(sa) - Number(sb) || ga.localeCompare(gb)
+    })
+    .map(([k, list]) => {
+      const [stage, g] = k.split('|')
+      const nome = g ? `Grupo ${g}` : 'Sem grupo'
+      return {
+        key: `g${k}`,
+        title: multiStage ? `${stage}ª fase · ${nome}` : nome,
+        matches: [...list].sort(
+          (a, b) => a.round - b.round || (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''),
+        ),
+        isKnockout: false,
+        byGroup: true,
+      }
+    })
+  const fases = matchSections(matches.filter((m) => m.phase !== 'group'))
+  return [...grupos, ...fases]
 }
