@@ -309,7 +309,7 @@ export function ManageChampionship({
 
       <div className="container manage__content">
         {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
-        {tab === 'teams' && <TeamsPanel championship={comp} teams={teams} categoryId={varias ? catAtual : undefined} onChange={reload} />}
+        {tab === 'teams' && <TeamsPanel championship={comp} teams={teams} matches={partidasCat} categoryId={varias ? catAtual : undefined} onChange={reload} />}
         {tab === 'players' && (
           <PlayersPanel
             championship={comp}
