@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   createKnockoutStage,
   applyFixturePlan,
@@ -340,16 +340,22 @@ export function MatchesPanel({
                   )}
                 </div>
                 <div className="round__matches">
-                  {sec.matches.map((m, i) => (
-                    <Fragment key={m.id}>
-                      {sec.byGroup && m.round !== sec.matches[i - 1]?.round && (
-                        <span className="round__sub">
-                          Rodada {m.round}
-                          {closedRounds.has(m.round) && ' · 🔒 inscrições encerradas'}
-                        </span>
-                      )}
-                      <MatchRow match={m} teams={teams} onClick={() => setEditing(m)} showSchedule venues={championship.venues} />
-                    </Fragment>
+                  {sec.matches.map((m) => (
+                    <MatchRow
+                      key={m.id}
+                      match={m}
+                      teams={teams}
+                      onClick={() => setEditing(m)}
+                      showSchedule
+                      venues={championship.venues}
+                      // Na visão por grupo os jogos vêm pela situação, não
+                      // pela rodada — então a rodada vai no próprio jogo.
+                      roundLabel={
+                        sec.byGroup
+                          ? `Rodada ${m.round}${closedRounds.has(m.round) ? ' · 🔒 inscrições encerradas' : ''}`
+                          : undefined
+                      }
+                    />
                   ))}
                 </div>
               </div>
@@ -625,12 +631,15 @@ export function MatchRow({
   onClick,
   showSchedule,
   venues,
+  roundLabel,
 }: {
   match: Match
   teams: Team[]
   onClick?: () => void
   showSchedule?: boolean
   venues?: Venue[]
+  /** Rodada do jogo, quando a lista não está agrupada por rodada. */
+  roundLabel?: string
 }) {
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
@@ -642,7 +651,9 @@ export function MatchRow({
   const unscheduled = !finished && !live && !match.scheduledAt
   const hasScore = match.homeScore != null && match.awayScore != null
   const showScore = finished || live
-  const schedule = showSchedule ? matchScheduleText(match, venues) : null
+  const schedule = [roundLabel, showSchedule ? matchScheduleText(match, venues) : null]
+    .filter(Boolean)
+    .join(' · ')
   return (
     <button
       className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''} ${finished ? 'is-finished' : ''} ${scheduled ? 'is-scheduled' : ''} ${unscheduled ? 'is-unscheduled' : ''}`}
@@ -720,6 +731,26 @@ const PHASE_ORDER: MatchPhase[] = [
  * Seções da lista de jogos: as rodadas da primeira fase e, na sequência, as
  * fases do mata-mata (que podem coexistir no formato grupos + mata-mata).
  */
+/**
+ * Ordem dos jogos dentro da rodada ou do grupo: encerrados, ao vivo, com data
+ * e hora marcadas e, por último, os ainda sem data. Dentro de cada situação,
+ * pela data (quando houver) e pela rodada.
+ */
+function situacao(m: Match): number {
+  if (m.status === 'finished') return 0
+  if (m.status === 'live') return 1
+  return m.scheduledAt ? 2 : 3
+}
+
+export function porSituacao(a: Match, b: Match): number {
+  return (
+    situacao(a) - situacao(b) ||
+    (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '') ||
+    a.round - b.round ||
+    a.createdAt.localeCompare(b.createdAt)
+  )
+}
+
 export function matchSections(matches: Match[]): Section[] {
   const byRound = new Map<number, Match[]>()
   const byPhase = new Map<MatchPhase, Match[]>()
@@ -739,7 +770,7 @@ export function matchSections(matches: Match[]): Section[] {
     .map((r) => ({
       key: `r${r}`,
       title: roundTitle(byRound.get(r)!, r, multiStage),
-      matches: byRound.get(r)!,
+      matches: [...byRound.get(r)!].sort(porSituacao),
       isKnockout: false,
     }))
 
@@ -779,9 +810,7 @@ export function matchSectionsByGroup(matches: Match[], teams: Team[]): Section[]
       return {
         key: `g${k}`,
         title: multiStage ? `${stage}ª fase · ${nome}` : nome,
-        matches: [...list].sort(
-          (a, b) => a.round - b.round || (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''),
-        ),
+        matches: [...list].sort(porSituacao),
         isKnockout: false,
         byGroup: true,
       }

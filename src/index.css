@@ -1159,34 +1159,41 @@ html, body { max-width: 100%; overflow-x: hidden; }
   padding: 0.2rem 0.55rem; border-radius: 999px; white-space: nowrap;
 }
 
-/* ---------- Jogo encerrado: cor própria para admin e mesário ---------- */
+/* ---------- Situação da partida: cores fortes para diferenciar de longe ---------- */
+/* Encerrada: verde */
 .match-row.is-finished {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  border-left: 4px solid var(--brand);
+  border-color: #22c55e;
+  background: #bbf7d0;
+  border-left: 6px solid #15803d;
 }
-.match-row.is-finished .match-row__name { color: var(--ink-soft); }
-.match-row.is-finished .match-row__score.is-played { background: rgba(22, 163, 74, 0.14); color: var(--brand-dark); }
-.match-row.is-finished.is-clickable:hover { background: #e7f8ed; }
+.match-row.is-finished .match-row__name { color: #14532d; }
+.match-row.is-finished .match-row__score.is-played { background: #15803d; color: #fff; }
+.match-row.is-finished .finished-tag { color: #dcfce7; }
+.match-row.is-finished .match-row__meta { color: #166534; }
+.match-row.is-finished.is-clickable:hover { background: #86efac; border-color: #15803d; }
 
-/* ---------- Por jogar: azul com data e hora, cinza sem ---------- */
+/* Com data e hora: azul */
 .match-row.is-scheduled {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  border-left: 4px solid #2563eb;
+  border-color: #3b82f6;
+  background: #bfdbfe;
+  border-left: 6px solid #1d4ed8;
 }
-.match-row.is-scheduled.is-clickable:hover { background: #dbeafe; border-color: #2563eb; }
-.match-row.is-scheduled .match-row__meta { color: #1d4ed8; }
+.match-row.is-scheduled .match-row__name { color: #1e3a8a; }
+.match-row.is-scheduled .match-row__meta { color: #1e40af; font-weight: 600; }
+.match-row.is-scheduled.is-clickable:hover { background: #93c5fd; border-color: #1d4ed8; }
+
+/* Sem data e hora: cinza */
 .match-row.is-unscheduled {
-  border-color: #e5e7eb;
-  background: #f3f4f6;
-  border-left: 4px solid #9ca3af;
+  border-color: #9ca3af;
+  background: #d1d5db;
+  border-left: 6px solid #4b5563;
 }
-.match-row.is-unscheduled .match-row__name { color: var(--ink-soft); }
-.match-row.is-unscheduled.is-clickable:hover { background: #e5e7eb; border-color: #9ca3af; }
+.match-row.is-unscheduled .match-row__name { color: #1f2937; }
+.match-row.is-unscheduled .match-row__meta { color: #374151; }
+.match-row.is-unscheduled.is-clickable:hover { background: #bfc4cb; border-color: #4b5563; }
 .finished-tag {
   display: block; font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
-  letter-spacing: 0.04em; color: var(--brand-dark); margin-bottom: 1px;
+  letter-spacing: 0.04em; color: #14532d; margin-bottom: 1px;
 }
 
 /* ---------- Mata-mata: avisos e configuração ---------- */
