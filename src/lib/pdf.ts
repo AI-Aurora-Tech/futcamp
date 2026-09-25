@@ -135,7 +135,7 @@ export function escaparWinAnsi(texto: string): number[] {
  * quando a origem tem dezenas de milhares de itens — exatamente o tamanho de
  * um regulamento longo.
  */
-export function anexar(destino: number[], origem: readonly number[]): void {
+export function anexar(destino: number[], origem: ArrayLike<number>): void {
   for (let i = 0; i < origem.length; i++) destino.push(origem[i])
 }
 
@@ -236,6 +236,14 @@ export function gerarPdf(doc: DocumentoPdf): Uint8Array {
   return empacotarPdf(conteudos, doc.titulo)
 }
 
+/** Imagem JPEG para desenhar com `/<nome> Do` (ex.: o logo na súmula). */
+export interface ImagemPdf {
+  nome: string
+  jpeg: Uint8Array
+  largura: number
+  altura: number
+}
+
 /**
  * Empacota fluxos de desenho já prontos (um por página) num arquivo PDF, com
  * Helvetica normal (/F1) e negrito (/F2) disponíveis em todas as páginas.
@@ -248,6 +256,7 @@ export function empacotarPdf(
   titulo: string,
   largura = LARGURA,
   altura = ALTURA,
+  imagens: ImagemPdf[] = [],
 ): Uint8Array {
   // 3. Objetos do arquivo.
   const objetos: number[][] = []
@@ -267,6 +276,20 @@ export function empacotarPdf(
   const idCatalogo = add([])
   const idPages = add([])
 
+  // Imagens JPEG: o PDF lê o JPEG como está (DCTDecode), sem decodificar.
+  const idsImagem = imagens.map((img) => {
+    const corpo = bytesDe(
+      `<< /Type /XObject /Subtype /Image /Width ${img.largura} /Height ${img.altura} ` +
+        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.jpeg.length} >>\nstream\n`,
+    )
+    anexar(corpo, img.jpeg)
+    anexar(corpo, bytesDe('\nendstream'))
+    return add(corpo)
+  })
+  const xobjects = imagens.length
+    ? ` /XObject << ${imagens.map((img, i) => `/${img.nome} ${idsImagem[i]} 0 R`).join(' ')} >>`
+    : ''
+
   const idsPagina: number[] = []
   for (const conteudo of conteudos) {
     const idConteudo = add([
@@ -278,7 +301,7 @@ export function empacotarPdf(
       add(
         bytesDe(
           `<< /Type /Page /Parent ${idPages} 0 R /MediaBox [0 0 ${largura.toFixed(2)} ${altura.toFixed(2)}] ` +
-            `/Resources << /Font << /F1 ${idFonteNormal} 0 R /F2 ${idFonteNegrito} 0 R >> >> ` +
+            `/Resources << /Font << /F1 ${idFonteNormal} 0 R /F2 ${idFonteNegrito} 0 R >>${xobjects} >> ` +
             `/Contents ${idConteudo} 0 R >>`,
         ),
       ),

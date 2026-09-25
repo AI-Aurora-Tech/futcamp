@@ -3,6 +3,7 @@ import { porNome } from '../lib/ordem'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
 import { gerarSumulaPdf, nomeArquivoSumula } from '../lib/sumula'
 import { abrirPdf, baixarBytesPdf } from '../lib/pdf'
+import { logoParaJpeg } from '../lib/image'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -207,12 +208,13 @@ export function MatchResultModal({
     onSaved()
   }
 
-  function generateSumula(action: 'print' | 'download') {
+  async function generateSumula(action: 'print' | 'download') {
     // A categoria da partida (ou a única do campeonato): a súmula lista só o
     // elenco dela, não o clube inteiro.
     const category =
       championship.categories.find((c) => c.id === match.categoryId) ??
       (championship.categories.length === 1 || !match.categoryId ? championship.categories[0] : undefined)
+    const logo = await logoParaJpeg(championship.logo)
     const pdf = gerarSumulaPdf({
       championship,
       match: {
@@ -226,6 +228,7 @@ export function MatchResultModal({
       players,
       events,
       category,
+      logo,
     })
     const arquivo = nomeArquivoSumula(home, away)
     if (action === 'print') abrirPdf(pdf, arquivo)
@@ -499,8 +502,8 @@ export function MatchResultModal({
       <div className="sumula-row">
         <span className="muted small">Súmula {sumulaHint}</span>
         <div className="sumula-row__actions">
-          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('print')}>🖨️ Imprimir</Button>
-          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('download')}>⬇ Baixar súmula (PDF)</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => void generateSumula('print')}>🖨️ Imprimir</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => void generateSumula('download')}>⬇ Baixar súmula (PDF)</Button>
         </div>
       </div>
 

@@ -8,7 +8,7 @@
 // O que já foi lançado no sistema ocupa as primeiras linhas.
 // ---------------------------------------------------------------------------
 import { porNome } from './ordem'
-import { anexar, bytesDe, empacotarPdf, escaparWinAnsi } from './pdf'
+import { anexar, bytesDe, empacotarPdf, escaparWinAnsi, type ImagemPdf } from './pdf'
 import {
   PHASE_LABELS,
   labelDaPosicao,
@@ -94,6 +94,11 @@ class Tela {
     const y = topo - h
     if (preencher) this.cmd(`${preencher.join(' ')} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f\n`)
     if (contorno) this.cmd(`0.5 w 0.35 0.35 0.35 RG ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re S\n`)
+  }
+
+  /** Desenha uma imagem registrada no PDF; (x, y) é o canto inferior esquerdo. */
+  imagem(nome: string, x: number, y: number, w: number, h: number) {
+    this.cmd(`q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /${nome} Do Q\n`)
   }
 
   linha(x1: number, y1: number, x2: number, y2: number, espessura = 0.8) {
@@ -217,11 +222,13 @@ export interface SumulaParams {
   players: Player[]
   events: MatchEvent[]
   category?: Category
+  /** Logo do campeonato já em JPEG (ver `logoParaJpeg`). */
+  logo?: Omit<ImagemPdf, 'nome'>
 }
 
 /** Monta o PDF da súmula e devolve os bytes. */
 export function gerarSumulaPdf(params: SumulaParams): Uint8Array {
-  const { championship, match, teams, players, events, category } = params
+  const { championship, match, teams, players, events, category, logo } = params
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
   const doTime = (teamId?: string) =>
@@ -248,8 +255,20 @@ export function gerarSumulaPdf(params: SumulaParams): Uint8Array {
   const t = new Tela()
 
   // --- Cabeçalho --------------------------------------------------------
-  t.texto(MARGEM, t.y - 14, caber(championship.name, UTIL * 0.55, 14, true), 14, true)
-  t.texto(MARGEM, t.y - 27, `Súmula da partida${category ? ` — ${category.name}` : ''}`, 9, false, CINZA)
+  // Logo à esquerda, num quadrado de 40 pt, sem distorcer a proporção.
+  let xTitulo = MARGEM
+  if (logo) {
+    const lado = 40
+    const escala = Math.min(lado / logo.largura, lado / logo.altura)
+    const w = logo.largura * escala
+    const h = logo.altura * escala
+    const x = MARGEM + (lado - w) / 2
+    const y = t.y - 2 - lado + (lado - h) / 2
+    t.imagem('Logo', x, y, w, h)
+    xTitulo = MARGEM + lado + 8
+  }
+  t.texto(xTitulo, t.y - 14, caber(championship.name, UTIL * 0.55 - (xTitulo - MARGEM), 14, true), 14, true)
+  t.texto(xTitulo, t.y - 27, `Súmula da partida${category ? ` — ${category.name}` : ''}`, 9, false, CINZA)
 
   const placar =
     match.homeScore != null && match.awayScore != null ? `${match.homeScore}  x  ${match.awayScore}` : '____  x  ____'
@@ -411,7 +430,7 @@ export function gerarSumulaPdf(params: SumulaParams): Uint8Array {
     anexar(partes, bytesDe(') Tj ET\n'))
   })
 
-  return empacotarPdf(t.paginas, titulo, LARGURA, ALTURA)
+  return empacotarPdf(t.paginas, titulo, LARGURA, ALTURA, logo ? [{ nome: 'Logo', ...logo }] : [])
 }
 
 function quebrarLinhas(texto: string, max: number, tamanho: number): string[] {
