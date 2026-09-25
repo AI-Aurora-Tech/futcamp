@@ -135,11 +135,11 @@ export function escaparWinAnsi(texto: string): number[] {
  * quando a origem tem dezenas de milhares de itens — exatamente o tamanho de
  * um regulamento longo.
  */
-function anexar(destino: number[], origem: readonly number[]): void {
+export function anexar(destino: number[], origem: readonly number[]): void {
   for (let i = 0; i < origem.length; i++) destino.push(origem[i])
 }
 
-function bytesDe(texto: string): number[] {
+export function bytesDe(texto: string): number[] {
   // Cabeçalhos e comandos do PDF são ASCII puro.
   const out: number[] = []
   for (let i = 0; i < texto.length; i++) out.push(texto.charCodeAt(i) & 0xff)
@@ -233,6 +233,22 @@ export function gerarPdf(doc: DocumentoPdf): Uint8Array {
     return partes
   })
 
+  return empacotarPdf(conteudos, doc.titulo)
+}
+
+/**
+ * Empacota fluxos de desenho já prontos (um por página) num arquivo PDF, com
+ * Helvetica normal (/F1) e negrito (/F2) disponíveis em todas as páginas.
+ *
+ * É a metade "arquivo" do gerador: `gerarPdf` usa para o texto corrido do
+ * regulamento, e a súmula usa para as suas tabelas.
+ */
+export function empacotarPdf(
+  conteudos: number[][],
+  titulo: string,
+  largura = LARGURA,
+  altura = ALTURA,
+): Uint8Array {
   // 3. Objetos do arquivo.
   const objetos: number[][] = []
   const add = (corpo: number[]) => {
@@ -261,7 +277,7 @@ export function gerarPdf(doc: DocumentoPdf): Uint8Array {
     idsPagina.push(
       add(
         bytesDe(
-          `<< /Type /Page /Parent ${idPages} 0 R /MediaBox [0 0 ${LARGURA.toFixed(2)} ${ALTURA.toFixed(2)}] ` +
+          `<< /Type /Page /Parent ${idPages} 0 R /MediaBox [0 0 ${largura.toFixed(2)} ${altura.toFixed(2)}] ` +
             `/Resources << /Font << /F1 ${idFonteNormal} 0 R /F2 ${idFonteNegrito} 0 R >> >> ` +
             `/Contents ${idConteudo} 0 R >>`,
         ),
@@ -271,7 +287,7 @@ export function gerarPdf(doc: DocumentoPdf): Uint8Array {
 
   const idInfo = add([
     ...bytesDe('<< /Title '),
-    ...textoUtf16(doc.titulo),
+    ...textoUtf16(titulo),
     ...bytesDe(' /Producer (Tabelaco) /Creator (Tabelaco) >>'),
   ])
 
@@ -314,7 +330,11 @@ export function gerarPdf(doc: DocumentoPdf): Uint8Array {
 
 /** Gera o PDF e dispara o download no navegador. */
 export function baixarPdf(doc: DocumentoPdf, nomeArquivo: string): void {
-  const bytes = gerarPdf(doc)
+  baixarBytesPdf(gerarPdf(doc), nomeArquivo)
+}
+
+/** Dispara o download de um PDF já gerado. */
+export function baixarBytesPdf(bytes: Uint8Array, nomeArquivo: string): void {
   // `slice()` devolve um ArrayBuffer próprio — é o que o Blob aceita sem
   // reclamar do tipo do buffer subjacente.
   const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'application/pdf' }))
@@ -326,4 +346,19 @@ export function baixarPdf(doc: DocumentoPdf, nomeArquivo: string): void {
   a.remove()
   // Espera o navegador começar o download antes de soltar o objeto.
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+/**
+ * Abre um PDF já gerado numa nova aba — o leitor do navegador cuida de
+ * imprimir. Se o bloqueador de pop-up impedir, cai para o download.
+ */
+export function abrirPdf(bytes: Uint8Array, nomeArquivo: string): void {
+  const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'application/pdf' }))
+  const w = window.open(url, '_blank')
+  if (!w) {
+    URL.revokeObjectURL(url)
+    baixarBytesPdf(bytes, nomeArquivo)
+    return
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
