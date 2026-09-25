@@ -4,6 +4,7 @@ import { MatchRow, matchSections } from './MatchesPanel'
 import { EmptyState } from './ui'
 
 export function MatchesReadOnly({
+  championship,
   teams,
   matches,
 }: {
@@ -30,7 +31,9 @@ export function MatchesReadOnly({
           <div key={sec.key} className="round">
             <h3 className="round__title">{sec.title}</h3>
             <div className="round__matches">
-              {sec.matches.map((m) => <MatchRow key={m.id} match={m} teams={teams} />)}
+              {sec.matches.map((m) => (
+                <MatchRow key={m.id} match={m} teams={teams} showSchedule venues={championship?.venues} />
+              ))}
             </div>
           </div>
         ))}

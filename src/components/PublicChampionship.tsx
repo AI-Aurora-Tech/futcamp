@@ -17,7 +17,6 @@ import { Overview } from './Overview'
 import { ChampionTag } from './ChampionBanner'
 import { computePodium } from '../lib/champion'
 import { MatchesReadOnly } from './MatchesReadOnly'
-import { MatchCalendar } from './MatchCalendar'
 import { jogoPublico } from '../lib/matchWindow'
 import { SponsorsStrip } from './SponsorsStrip'
 import { StatsPanel } from './StatsPanel'
@@ -33,7 +32,7 @@ import {
   temVariasCategorias,
 } from '../lib/categorias'
 
-type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
+type Tab = 'overview' | 'matches' | 'stats'
 
 export function PublicChampionship({ championshipId, onHome }: { championshipId: string; onHome: () => void }) {
   const [champ, setChamp] = useState<Championship | null>(null)
@@ -86,7 +85,6 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Classificação', icon: '📊' },
     { id: 'matches', label: 'Jogos', icon: '📅' },
-    { id: 'calendar', label: 'Calendário', icon: '📆' },
     { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   ]
 
@@ -158,7 +156,6 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       <div className="container manage__content">
         {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} publico />}
         {tab === 'matches' && <MatchesReadOnly championship={comp} teams={timesCat} matches={partidasPublicas} />}
-        {tab === 'calendar' && <MatchCalendar championship={comp} teams={timesCat} matches={partidasPublicas} />}
         {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
       </div>
 

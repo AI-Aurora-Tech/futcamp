@@ -698,7 +698,9 @@ function matchScheduleText(match: Match, venues?: Venue[]): string {
     const v = venues?.find((x) => x.name === match.venue)
     parts.push(`📍 ${v?.address ? `${match.venue} — ${v.address}` : match.venue}`)
   }
-  return parts.length ? parts.join(' · ') : 'Data, horário e local a definir'
+  if (parts.length) return parts.join(' · ')
+  // Jogo já encerrado sem data registrada: "a definir" não faz sentido.
+  return match.status === 'finished' ? '' : 'Data, horário e local a definir'
 }
 
 export interface Section {
