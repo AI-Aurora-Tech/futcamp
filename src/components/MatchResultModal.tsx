@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { porNome } from '../lib/ordem'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
@@ -120,9 +121,9 @@ export function MatchResultModal({
   // Só atletas PRESENTES (na escalação salva) podem receber eventos.
   const presentIds = new Set(lineup.map((l) => l.playerId))
   const lineupNumber = new Map(lineup.map((l) => [l.playerId, l.number] as const))
-  const teamPlayers = players.filter(
-    (p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id),
-  )
+  const teamPlayers = players
+    .filter((p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id))
+    .sort(porNome)
   /** Nº da camisa desta partida (cai para o nº de inscrição se não definido). */
   const shirtOf = (p: Player) => lineupNumber.get(p.id) ?? p.number
   const playerOption = (p: Player) => `${shirtOf(p) ? `${shirtOf(p)} · ` : ''}${p.name}`
@@ -560,7 +561,7 @@ function PresencePanel({
   suspensos: Map<string, Suspensao>
   onSave: (entries: LineupEntry[]) => Promise<void>
 }) {
-  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta')
+  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort(porNome)
 
   const build = (): Record<string, PresenceRow> => {
     const present = new Set(lineup.map((l) => l.playerId))

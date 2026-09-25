@@ -1,3 +1,4 @@
+import { porNome } from './ordem'
 import {
   PHASE_LABELS,
   labelDaPosicao,
@@ -21,8 +22,8 @@ function fmtDate(iso?: string): string {
 }
 
 function rosterRows(players: Player[]): string {
-  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
-  const staff = players.filter((p) => p.role === 'comissao')
+  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort(porNome)
+  const staff = players.filter((p) => p.role === 'comissao').sort(porNome)
   const posLabel = (p: Player) => labelDaPosicao(p.position)
   const line = (p: Player) =>
     `<tr><td class="num">${esc(p.number ?? '')}</td><td>${esc(p.name)}</td><td>${esc(p.cpf ? p.cpf.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '')}</td><td>${esc(posLabel(p))}</td><td class="sign"></td></tr>`

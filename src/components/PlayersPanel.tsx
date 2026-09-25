@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { porNome } from '../lib/ordem'
 import { createPlayer, deletePlayer, updatePlayer, type NewPlayer } from '../services/players'
 import { checkEligibility, checkRosterLimit, formatCpf } from '../lib/eligibility'
 import { checkCpfConflict } from '../lib/duplicates'
@@ -82,7 +83,7 @@ export function PlayersPanel({
   }, [teams, search])
 
   const teamPlayers = useMemo(
-    () => players.filter((p) => p.teamId === selectedTeam).sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+    () => players.filter((p) => p.teamId === selectedTeam).sort(porNome),
     [players, selectedTeam],
   )
   const team = teams.find((t) => t.id === selectedTeam)
