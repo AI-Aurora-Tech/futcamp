@@ -2,6 +2,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
+import { fetchAllRows } from '../lib/paginate'
 import { generateGroupFixtures, generateRoundRobin } from '../lib/fixtures'
 import {
   hasKnockoutStage,
@@ -99,14 +100,18 @@ export interface MatchWriter {
 
 export async function listMatches(championshipId: string): Promise<Match[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('round')
-      .order('created_at')
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const db = supabase
+    const rows = await fetchAllRows((from, to) =>
+      db
+        .from('matches')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('round')
+        .order('created_at')
+        .order('id')
+        .range(from, to),
+    )
+    return rows.map(fromRow)
   }
   return query((d) =>
     d.matches
@@ -591,12 +596,16 @@ function eventToRow(e: Partial<MatchEvent>): Record<string, unknown> {
 
 export async function listEvents(championshipId: string): Promise<MatchEvent[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('match_events')
-      .select('*')
-      .eq('championship_id', championshipId)
-    if (error) throw error
-    return (data ?? []).map(eventFromRow)
+    const db = supabase
+    const rows = await fetchAllRows((from, to) =>
+      db
+        .from('match_events')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('id')
+        .range(from, to),
+    )
+    return rows.map(eventFromRow)
   }
   return query((d) => d.events.filter((e) => e.championshipId === championshipId))
 }
