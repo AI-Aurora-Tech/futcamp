@@ -11,7 +11,6 @@ import { porNome } from './ordem'
 import { anexar, bytesDe, empacotarPdf, escaparWinAnsi, type ImagemPdf } from './pdf'
 import {
   PHASE_LABELS,
-  labelDaPosicao,
   type Category,
   type Championship,
   type Match,
@@ -302,7 +301,7 @@ export function gerarSumulaPdf(params: SumulaParams): Uint8Array {
   // --- Escalações, lado a lado -----------------------------------------
   const gap = 10
   const meia = (UTIL - gap) / 2
-  const colsElenco = colunas(meia, [['Nº', 1.1, true], ['Nome', 5.6], ['CPF', 4.1], ['Posição', 2.9], ['Assinatura', 3.5]])
+  const colsElenco = colunas(meia, [['Nº', 1.1, true], ['Nome', 7.4], ['CPF', 4.1], ['Assinatura', 4.6]])
   const linhasElenco = (lista: Player[]): { celulas: Celula[]; secao?: boolean }[] => {
     const atletas = lista.filter((p) => (p.role ?? 'atleta') === 'atleta').sort(porNome)
     const comissao = lista.filter((p) => p.role === 'comissao').sort(porNome)
@@ -310,15 +309,14 @@ export function gerarSumulaPdf(params: SumulaParams): Uint8Array {
       p.number != null ? String(p.number) : '',
       p.name,
       fmtCpf(p.cpf),
-      labelDaPosicao(p.position) || '',
       '',
     ]
     const out: { celulas: Celula[]; secao?: boolean }[] = atletas.map((p) => ({ celulas: linha(p) }))
     if (comissao.length) {
-      out.push({ celulas: ['', 'Comissão técnica', '', '', ''], secao: true })
+      out.push({ celulas: ['', 'Comissão técnica', '', ''], secao: true })
       out.push(...comissao.map((p) => ({ celulas: linha(p) })))
     }
-    if (!out.length) out.push({ celulas: ['', 'Sem atletas inscritos.', '', '', ''] })
+    if (!out.length) out.push({ celulas: ['', 'Sem atletas inscritos.', '', ''] })
     return out
   }
   const lados = [
