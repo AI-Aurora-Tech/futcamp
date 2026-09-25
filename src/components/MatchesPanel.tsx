@@ -637,15 +637,18 @@ export function MatchRow({
   const live = match.status === 'live'
   // Jogo encerrado ganha cor própria na lista do administrador e do mesário.
   const finished = match.status === 'finished'
+  // Ainda por jogar: azul com data e hora marcadas, cinza sem.
+  const scheduled = !finished && !live && Boolean(match.scheduledAt)
+  const unscheduled = !finished && !live && !match.scheduledAt
   const hasScore = match.homeScore != null && match.awayScore != null
   const showScore = finished || live
   const schedule = showSchedule ? matchScheduleText(match, venues) : null
   return (
     <button
-      className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''} ${finished ? 'is-finished' : ''}`}
+      className={`match-row ${onClick ? 'is-clickable' : ''} ${live ? 'is-live' : ''} ${finished ? 'is-finished' : ''} ${scheduled ? 'is-scheduled' : ''} ${unscheduled ? 'is-unscheduled' : ''}`}
       onClick={onClick}
       disabled={!onClick}
-      title={finished ? 'Partida encerrada' : undefined}
+      title={finished ? 'Partida encerrada' : scheduled ? 'Data e hora marcadas' : unscheduled ? 'Sem data e hora' : undefined}
     >
       <span className="match-row__side match-row__side--home">
         <span className="match-row__name" title={home?.name}>{home?.name ?? 'A definir'}</span>

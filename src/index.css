@@ -1168,6 +1168,22 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .match-row.is-finished .match-row__name { color: var(--ink-soft); }
 .match-row.is-finished .match-row__score.is-played { background: rgba(22, 163, 74, 0.14); color: var(--brand-dark); }
 .match-row.is-finished.is-clickable:hover { background: #e7f8ed; }
+
+/* ---------- Por jogar: azul com data e hora, cinza sem ---------- */
+.match-row.is-scheduled {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  border-left: 4px solid #2563eb;
+}
+.match-row.is-scheduled.is-clickable:hover { background: #dbeafe; border-color: #2563eb; }
+.match-row.is-scheduled .match-row__meta { color: #1d4ed8; }
+.match-row.is-unscheduled {
+  border-color: #e5e7eb;
+  background: #f3f4f6;
+  border-left: 4px solid #9ca3af;
+}
+.match-row.is-unscheduled .match-row__name { color: var(--ink-soft); }
+.match-row.is-unscheduled.is-clickable:hover { background: #e5e7eb; border-color: #9ca3af; }
 .finished-tag {
   display: block; font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
   letter-spacing: 0.04em; color: var(--brand-dark); margin-bottom: 1px;
