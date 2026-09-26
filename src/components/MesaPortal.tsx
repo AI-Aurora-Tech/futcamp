@@ -131,7 +131,14 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
   const padraoCat = categoriaPadrao(champ)
   const catPartida = editing && varias ? editing.categoryId ?? padraoCat : undefined
   const compPartida = competicaoDaCategoria(champ, catPartida)
+  // Os dois clubes do jogo ficam sempre — mesmo que a inscrição deles na
+  // categoria esteja incompleta, o mesário precisa vê-los na partida.
   const timesPartida = elencoDeTimes(teams, catPartida)
+  for (const t of teams) {
+    if ((t.id === editing?.homeTeamId || t.id === editing?.awayTeamId) && !timesPartida.some((x) => x.id === t.id)) {
+      timesPartida.push(t)
+    }
+  }
   const partidasCat = partidasDaCategoria(todasPartidas, catPartida, padraoCat)
   const atletasPartida = players.filter((p) => atletaDaCategoria(p.categoryId, catPartida, padraoCat))
 

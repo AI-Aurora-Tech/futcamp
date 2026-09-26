@@ -13,6 +13,7 @@ import { simpleHash, uid } from '../lib/id'
 import {
   addEvent as addEventAdmin,
   deleteEvent as deleteEventAdmin,
+  fromRow as matchFromRow,
   listEvents as listEventsAdmin,
   type MatchWriter,
   type NewEvent,
@@ -194,28 +195,9 @@ export async function listAssignedMatches(
       .eq('official_id', officialId)
       .order('scheduled_at', { nullsFirst: false })
     if (error) throw error
-    // Reaproveita o mapeamento público do serviço de partidas.
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      championshipId: r.championship_id,
-      round: r.round,
-      phase: r.phase,
-      group: r.group ?? undefined,
-      homeTeamId: r.home_team_id,
-      awayTeamId: r.away_team_id,
-      homeScore: r.home_score,
-      awayScore: r.away_score,
-      status: r.status,
-      scheduledAt: r.scheduled_at ?? undefined,
-      venue: r.venue ?? undefined,
-      officialId: r.official_id ?? undefined,
-      lineup: Array.isArray(r.lineup) ? r.lineup : undefined,
-      bracketPos: r.bracket_pos ?? undefined,
-      winnerTeamId: r.winner_team_id ?? undefined,
-      penaltyHome: r.penalty_home ?? undefined,
-      penaltyAway: r.penalty_away ?? undefined,
-      createdAt: r.created_at,
-    }))
+    // O mesmo mapeamento das partidas do administrador — inclusive a
+    // categoria, que decide quais atletas e clubes o mesário vê no jogo.
+    return (data ?? []).map(matchFromRow)
   }
   return query((d) =>
     d.matches.filter((m) => m.championshipId === championshipId && m.officialId === officialId),

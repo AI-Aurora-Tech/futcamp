@@ -29,7 +29,7 @@ import type {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-function fromRow(r: any): Match {
+export function fromRow(r: any): Match {
   return {
     id: r.id,
     championshipId: r.championship_id,
