@@ -31,12 +31,15 @@ function fromRow(r: any): Championship {
     teamsPerGroup: r.teams_per_group ?? undefined,
     advancePerGroup: r.advance_per_group ?? undefined,
     leagueQualifiers: r.league_qualifiers ?? undefined,
+    leagueMatchesPerTeam: r.league_matches_per_team ?? undefined,
+    leagueEntries: Array.isArray(r.league_entries) ? r.league_entries : undefined,
     advanceByGroup: r.advance_by_group ?? undefined,
     groupStages: Array.isArray(r.group_stages) ? r.group_stages : undefined,
     tiebreakers: Array.isArray(r.tiebreakers) ? r.tiebreakers : undefined,
     bracket: Array.isArray(r.bracket) ? r.bracket : undefined,
     thirdPlace: r.third_place ?? undefined,
     autoKnockout: r.auto_knockout ?? undefined,
+    generalStanding: r.general_standing ?? undefined,
     referees: Array.isArray(r.referees) ? r.referees : [],
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
@@ -88,12 +91,15 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.teamsPerGroup !== undefined) row.teams_per_group = c.teamsPerGroup
   if (c.advancePerGroup !== undefined) row.advance_per_group = c.advancePerGroup
   if (c.leagueQualifiers !== undefined) row.league_qualifiers = c.leagueQualifiers
+  if (c.leagueMatchesPerTeam !== undefined) row.league_matches_per_team = c.leagueMatchesPerTeam
+  if (c.leagueEntries !== undefined) row.league_entries = c.leagueEntries
   if (c.advanceByGroup !== undefined) row.advance_by_group = c.advanceByGroup
   if (c.groupStages !== undefined) row.group_stages = c.groupStages
   if (c.tiebreakers !== undefined) row.tiebreakers = c.tiebreakers
   if (c.bracket !== undefined) row.bracket = c.bracket
   if (c.thirdPlace !== undefined) row.third_place = c.thirdPlace
   if (c.autoKnockout !== undefined) row.auto_knockout = c.autoKnockout
+  if (c.generalStanding !== undefined) row.general_standing = c.generalStanding
   if (c.referees !== undefined) row.referees = c.referees
   if (c.venues !== undefined) row.venues = c.venues
   if (c.sponsors !== undefined) row.sponsors = c.sponsors
@@ -105,6 +111,47 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   // confirma pagamento é a Edge Function `asaas-webhook` (service role). Um gatilho
   // no banco (migration 0021) rejeita a tentativa vinda do cliente.
   return row
+}
+
+/**
+ * Descobre, na mensagem de erro do Postgres/PostgREST, o nome de uma coluna que
+ * o banco NÃO tem — para o app rodar mesmo sem uma migration opcional aplicada
+ * (ex.: `league_entries`, `league_matches_per_team`, `general_standing` das
+ * migrations 0039/0040). Os dados por categoria continuam no jsonb `categories`,
+ * então tirar a coluna espelho do nível do campeonato não perde nada essencial.
+ */
+function colunaAusente(message: string | undefined, row: Record<string, unknown>): string | null {
+  if (!message) return null
+  const m =
+    /Could not find the '([a-z_]+)' column/i.exec(message) ||
+    /column "?([a-z_]+)"? of relation/i.exec(message) ||
+    /column ([a-z_.]+) does not exist/i.exec(message)
+  const col = (m?.[1] ?? '').replace(/^championships\./, '')
+  return col && col in row ? col : null
+}
+
+/**
+ * `insert`/`update` que tolera colunas ausentes: se o banco reclamar de uma
+ * coluna que não existe (migration opcional não aplicada), remove-a e tenta de
+ * novo, até o esquema aceitar. Evita que criar/editar um campeonato "trave"
+ * quando o servidor está numa migration mais antiga.
+ */
+async function escreverResiliente(
+  row: Record<string, unknown>,
+  run: (r: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>,
+): Promise<unknown> {
+  const atual = { ...row }
+  for (let i = 0; i < 12; i++) {
+    const { data, error } = await run(atual)
+    if (!error) return data
+    const col = colunaAusente(error.message, atual)
+    if (!col) throw error
+    delete atual[col]
+  }
+  // Última tentativa (deixa o erro final propagar).
+  const { data, error } = await run(atual)
+  if (error) throw error
+  return data
 }
 
 /** Lista os campeonatos do organizador (ou todos, no modo demo). */
@@ -382,12 +429,10 @@ export async function createChampionship(
   input: NewChampionship,
 ): Promise<Championship> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('championships')
-      .insert(toRow({ ...input, ownerId }))
-      .select('*')
-      .single()
-    if (error) throw error
+    const sb = supabase
+    const data = await escreverResiliente(toRow({ ...input, ownerId }), (r) =>
+      sb.from('championships').insert(r).select('*').single(),
+    )
     return fromRow(data)
   }
   // Modo demo: o preço é calculado aqui (no Supabase quem calcula é o gatilho
@@ -425,12 +470,10 @@ export async function updateChampionship(
     // `.select()` para saber quantas linhas mudaram: quando a RLS recusa, o
     // Postgres não devolve erro — ele simplesmente não altera nada, e a tela
     // ficaria dizendo que salvou.
-    const { data, error } = await supabase
-      .from('championships')
-      .update(toRow(patch))
-      .eq('id', id)
-      .select('id')
-    if (error) throw error
+    const sb = supabase
+    const data = (await escreverResiliente(toRow(patch), (r) =>
+      sb.from('championships').update(r).eq('id', id).select('id'),
+    )) as { id: string }[] | null
     if (!data?.length) throw new Error(RECUSADO('editar'))
     return
   }
