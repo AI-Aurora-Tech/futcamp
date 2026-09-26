@@ -10,6 +10,14 @@ import {
   setOfficialPassword,
   type MesaContext,
 } from '../services/officials'
+import {
+  atletaDaCategoria,
+  categoriaPadrao,
+  competicaoDaCategoria,
+  elencoDeTimes,
+  partidasDaCategoria,
+  temVariasCategorias,
+} from '../lib/categorias'
 import type { Championship, Match, Player, Team } from '../types'
 import { Button, ChampLogo, EmptyState, Field, Spinner, StatusPill } from './ui'
 import { MatchRow } from './MatchesPanel'
@@ -117,6 +125,16 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
     ? mesaWriter({ championshipId, officialId: session.officialId, username: session.username, password: session.password })
     : null
 
+  // A partida aberta é de UMA categoria: o mesário só vê os atletas, os clubes
+  // e as partidas dela — o mesmo recorte que o painel do administrador faz.
+  const varias = temVariasCategorias(champ)
+  const padraoCat = categoriaPadrao(champ)
+  const catPartida = editing && varias ? editing.categoryId ?? padraoCat : undefined
+  const compPartida = competicaoDaCategoria(champ, catPartida)
+  const timesPartida = elencoDeTimes(teams, catPartida)
+  const partidasCat = partidasDaCategoria(todasPartidas, catPartida, padraoCat)
+  const atletasPartida = players.filter((p) => atletaDaCategoria(p.categoryId, catPartida, padraoCat))
+
   return (
     <div className="reg" style={{ '--accent': champ.primaryColor ?? '#16a34a' } as React.CSSProperties}>
       <header className="reg__hero">
@@ -169,11 +187,11 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
 
       {editing && writer && (
         <MatchResultModal
-          championship={champ}
+          championship={compPartida}
           match={editing}
-          allMatches={todasPartidas}
-          teams={teams}
-          players={players}
+          allMatches={partidasCat}
+          teams={timesPartida}
+          players={atletasPartida}
           writer={writer}
           readOnlySchedule
           onClose={() => setEditing(null)}
