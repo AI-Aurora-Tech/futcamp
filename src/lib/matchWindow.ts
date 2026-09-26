@@ -70,3 +70,13 @@ export function matchRegistrationClosed(
   if (Number.isNaN(at.getTime())) return false
   return now.getTime() >= at.getTime() - cutoffHours * 3600_000
 }
+
+/**
+ * O jogo pode aparecer no painel público (e no link dos times)? Só com data e
+ * horário definidos — os ainda sem agenda ficam visíveis apenas para o
+ * organizador e o master. Jogo já disputado (em andamento ou encerrado, como
+ * um W.O.) sempre aparece: o resultado vale na classificação.
+ */
+export function jogoPublico(m: Match): boolean {
+  return m.status !== 'scheduled' || !!m.scheduledAt
+}

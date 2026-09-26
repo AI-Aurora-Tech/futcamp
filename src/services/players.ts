@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkCpfConflict } from '../lib/duplicates'
+import { fetchAllRows } from '../lib/paginate'
 import type { Player } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -45,13 +46,17 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
 
 export async function listPlayers(championshipId: string): Promise<Player[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('number', { nullsFirst: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const db = supabase
+    const rows = await fetchAllRows((from, to) =>
+      db
+        .from('players')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('number', { nullsFirst: false })
+        .order('id')
+        .range(from, to),
+    )
+    return rows.map(fromRow)
   }
   return query((d) => d.players.filter((p) => p.championshipId === championshipId))
 }

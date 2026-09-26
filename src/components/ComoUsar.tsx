@@ -86,7 +86,7 @@ const ORGANIZADOR: Passo[] = [
     texto:
       'Na aba Jogos, "Gerar tabela" cria todos os confrontos de uma vez, respeitando o formato e o turno/returno.',
     atencao:
-      'Regerar a tabela apaga os jogos daquela categoria. Com resultado já lançado, o app avisa antes.',
+      'Gerar tabela com jogos já criados completa o que falta pelas regras do campeonato: jogos realizados ficam como estão, e só os não realizados que deixaram de valer são removidos.',
   },
   {
     titulo: 'Marque data, hora e local',

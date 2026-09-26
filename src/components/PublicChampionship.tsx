@@ -17,7 +17,7 @@ import { Overview } from './Overview'
 import { ChampionTag } from './ChampionBanner'
 import { computePodium } from '../lib/champion'
 import { MatchesReadOnly } from './MatchesReadOnly'
-import { MatchCalendar } from './MatchCalendar'
+import { jogoPublico } from '../lib/matchWindow'
 import { SponsorsStrip } from './SponsorsStrip'
 import { StatsPanel } from './StatsPanel'
 import {
@@ -32,7 +32,7 @@ import {
   temVariasCategorias,
 } from '../lib/categorias'
 
-type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
+type Tab = 'overview' | 'matches' | 'stats'
 
 export function PublicChampionship({ championshipId, onHome }: { championshipId: string; onHome: () => void }) {
   const [champ, setChamp] = useState<Championship | null>(null)
@@ -85,7 +85,6 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Classificação', icon: '📊' },
     { id: 'matches', label: 'Jogos', icon: '📅' },
-    { id: 'calendar', label: 'Calendário', icon: '📆' },
     { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   ]
 
@@ -100,6 +99,8 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const atletasCat = players.filter((p) => atletaDaCategoria(p.categoryId, varias ? catAtual : undefined, padraoCat))
   const idsCat = new Set(partidasCat.map((m) => m.id))
   const eventosCat = events.filter((e) => idsCat.has(e.matchId))
+  // Jogos ainda sem data e horário só aparecem para o organizador e o master.
+  const partidasPublicas = partidasCat.filter(jogoPublico)
 
   return (
     <div className="manage public" style={{ '--accent': champ.primaryColor ?? '#16a34a' } as React.CSSProperties}>
@@ -153,9 +154,8 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       <SponsorsStrip sponsors={champ.sponsors ?? []} />
 
       <div className="container manage__content">
-        {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
-        {tab === 'matches' && <MatchesReadOnly championship={comp} teams={timesCat} matches={partidasCat} />}
-        {tab === 'calendar' && <MatchCalendar championship={comp} teams={timesCat} matches={partidasCat} />}
+        {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} publico />}
+        {tab === 'matches' && <MatchesReadOnly championship={comp} teams={timesCat} matches={partidasPublicas} />}
         {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
       </div>
 

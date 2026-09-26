@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { porNome } from '../lib/ordem'
 import {
   motivoDaFalha,
   addRegPlayer,
@@ -520,9 +521,11 @@ function RosterCard({
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
 
-  const doElenco = varias
-    ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
-    : data.players
+  const doElenco = (
+    varias
+      ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
+      : [...data.players]
+  ).sort(porNome)
   const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name
