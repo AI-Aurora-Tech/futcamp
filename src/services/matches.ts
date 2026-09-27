@@ -18,6 +18,8 @@ import {
   qualifiersOfStage,
   stageExists,
 } from '../lib/groupStages'
+import type { PlanoEliminacao } from '../lib/eliminacao'
+import type { PlanoTabela } from '../lib/tabela'
 import type {
   Championship,
   LineupEntry,
@@ -532,6 +534,34 @@ export async function requestKnockoutSync(
     return
   }
   await syncKnockout(champ, teams, matches, events)
+}
+
+/**
+ * Elimina um time: aplica o W.O. (3 × 0 para o adversário) nos jogos dele
+ * ainda não encerrados e, com `criarFaltantes`, cria já com W.O. os jogos que
+ * ele ainda deveria disputar. Ver lib/eliminacao.ts.
+ */
+export async function eliminateTeam(
+  plano: PlanoEliminacao,
+  championshipId: string,
+  criarFaltantes: boolean,
+): Promise<void> {
+  for (const { match, patch } of plano.atualizar) await updateMatch(match.id, patch)
+  if (criarFaltantes && plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
+}
+
+/**
+ * Aplica o plano de "Gerar tabela" (lib/tabela.ts): remove os jogos não
+ * realizados que deixaram de valer, acerta o grupo gravado nos jogos e cria os
+ * confrontos que faltam. Placar e data dos jogos realizados nunca mudam.
+ */
+export async function applyFixturePlan(plano: PlanoTabela, championshipId: string): Promise<void> {
+  for (const m of plano.remover) {
+    if (m.status !== 'scheduled') continue
+    await deleteMatch(m.id)
+  }
+  for (const { match, group } of plano.corrigirGrupo) await updateMatch(match.id, { group })
+  if (plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
 }
 
 async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<void> {

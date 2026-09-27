@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import {
   createKnockoutStage,
+  applyFixturePlan,
   createMatch,
   generateGroups,
   generateKnockout,
@@ -19,6 +20,7 @@ import {
 import {
   allGroupStagesComplete,
   groupStagesOf,
+  grupoDoJogo,
   matchStage,
   matchesOfStage,
   nextGroupStageToCreate,
@@ -38,6 +40,7 @@ import {
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
+import { planejarTabela } from '../lib/tabela'
 
 export function MatchesPanel({
   championship,
@@ -69,10 +72,8 @@ export function MatchesPanel({
   const [adding, setAdding] = useState(false)
   const isKnockout = championship.format === 'knockout'
   const isGroups = championship.format === 'groups_knockout'
-  // Regerar a tabela apaga TODAS as partidas. Com jogos já encerrados isso
-  // levaria junto placares, gols, cartões e súmulas — então fica bloqueado.
+  // Jogos já encerrados nunca são apagados por "Gerar tabela".
   const finishedCount = matches.filter((m) => m.status === 'finished').length
-  const regenBlocked = finishedCount > 0 && !isMaster
   const groupMatchesOnly = matches.filter((m) => m.phase === 'group')
   const knockoutMatches = matches.filter((m) => m.phase !== 'group')
   const stages = groupStagesOf(championship)
@@ -113,25 +114,9 @@ export function MatchesPanel({
       alert('Cadastre pelo menos 2 times para gerar a tabela.')
       return
     }
-    if (finishedCount > 0) {
-      if (!isMaster) {
-        alert(
-          `Não é possível regerar a tabela: ${finishedCount} jogo(s) já foram encerrados.\n\n` +
-            'Regerar apagaria placares, gols, cartões e súmulas já registrados. ' +
-            'Se a tabela precisa mesmo ser refeita, fale com o administrador master.',
-        )
-        return
-      }
-      // Master pode refazer a tabela, mas com aviso explícito do que se perde.
-      if (
-        !confirm(
-          `ATENÇÃO: ${finishedCount} jogo(s) encerrados serão APAGADOS junto com os placares, ` +
-            'gols, cartões e súmulas. Esta ação não pode ser desfeita.\n\nRegerar mesmo assim?',
-        )
-      ) {
-        return
-      }
-    } else if (matches.length > 0 && !confirm('Isso substitui todas as partidas atuais. Continuar?')) {
+    // Já há jogos: completa a tabela com o que falta, sem apagar resultados.
+    if (matches.length > 0) {
+      await completeTable()
       return
     }
     setGenerating(true)
@@ -165,8 +150,78 @@ export function MatchesPanel({
     }
   }
 
+  /**
+   * "Gerar tabela" com jogos já criados: mantém os jogos realizados, confere os
+   * não realizados contra as regras do campeonato e cria os confrontos que
+   * faltam (ver lib/tabela.ts).
+   */
+  async function completeTable() {
+    if (isKnockout) {
+      if (finishedCount > 0) {
+        alert(
+          'No mata-mata os vencedores avançam sozinhos para a fase seguinte — não há jogos a gerar.\n\n' +
+            'Para um confronto novo, use “Adicionar jogo”.',
+        )
+        return
+      }
+      if (!confirm('Nenhum jogo foi realizado ainda. Refazer o chaveamento com os times atuais?')) return
+      setGenerating(true)
+      try {
+        await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace, false, categoryId)
+        onChange()
+      } catch (e) {
+        alert(e instanceof Error ? e.message : 'Não foi possível gerar a tabela.')
+      } finally {
+        setGenerating(false)
+      }
+      return
+    }
+    if (knockoutMatches.length > 0 || groupMatchesOnly.some((m) => matchStage(m) > 1)) {
+      alert(
+        'A fase de classificação inicial já foi encerrada — as fases seguintes são montadas ' +
+          'automaticamente com os classificados. Para um jogo avulso, use “Adicionar jogo”.',
+      )
+      return
+    }
+
+    const plano = planejarTabela(championship, teams, matches, categoryId)
+    if (plano.criar.length === 0 && plano.remover.length === 0 && plano.corrigirGrupo.length === 0) {
+      alert('A tabela já está completa: todos os confrontos previstos pelas regras do campeonato existem.')
+      return
+    }
+    const linhas = [
+      `✅ ${plano.realizados} jogo(s) já realizado(s) continuam como estão.`,
+      plano.mantidos > 0 && `📅 ${plano.mantidos} jogo(s) ainda não realizado(s) continuam (com data e local).`,
+      plano.criar.length > 0 && `＋ ${plano.criar.length} jogo(s) que faltam serão criados.`,
+      plano.corrigirGrupo.length > 0 &&
+        `🔁 ${plano.corrigirGrupo.length} jogo(s) estavam no grupo errado e serão movidos para o grupo atual dos times.`,
+      plano.remover.length > 0 &&
+        `🗑 ${plano.remover.length} jogo(s) não realizado(s) serão removidos por não valerem mais pelas regras (grupo, turno/returno ou time fora da categoria).`,
+    ].filter(Boolean)
+    if (!confirm(`Gerar a tabela com os jogos que ainda não foram realizados?\n\n${linhas.join('\n')}`)) return
+
+    setGenerating(true)
+    try {
+      await applyFixturePlan(plano, championship.id)
+      onChange()
+      if (plano.criar.length > 0) setScheduling(true) // datas e horários dos jogos novos
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível gerar a tabela.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   // Agrupa por rodada (primeira fase) e por fase (mata-mata).
-  const sections = useMemo(() => matchSections(matches), [matches])
+  // Com grupos, a lista pode ser vista por grupo (padrão) ou por rodada.
+  const grupoDoTime = useMemo(() => new Map(teams.map((t) => [t.id, t.group] as const)), [teams])
+  const temGrupos = new Set(groupMatchesOnly.map((m) => grupoDoJogo(m, grupoDoTime)).filter(Boolean)).size > 1
+  const [porGrupo, setPorGrupo] = useState(true)
+  const verPorGrupo = temGrupos && porGrupo
+  const sections = useMemo(
+    () => (verPorGrupo ? matchSectionsByGroup(matches, teams) : matchSections(matches)),
+    [matches, teams, verPorGrupo],
+  )
   const closedRounds = new Set(championship.closedRounds ?? [])
 
   async function toggleRound(round: number) {
@@ -204,25 +259,17 @@ export function MatchesPanel({
           )}
           <Button
             onClick={() => void generate()}
-            disabled={generating || regenBlocked}
+            disabled={generating}
             title={
-              regenBlocked
-                ? `Bloqueado: ${finishedCount} jogo(s) já encerrados. Regerar apagaria os resultados.`
+              matches.length
+                ? 'Completa a tabela com os jogos que ainda não foram realizados, pelas regras do campeonato. Jogos já realizados não são alterados.'
                 : undefined
             }
           >
-            {generating ? 'Gerando…' : matches.length ? '↻ Regerar tabela' : '⚙ Gerar tabela de jogos'}
+            {generating ? 'Gerando…' : matches.length ? '⚙ Gerar tabela' : '⚙ Gerar tabela de jogos'}
           </Button>
         </div>
       </div>
-
-      {finishedCount > 0 && (
-        <p className="ko-note ko-note--lock">
-          🔒 A tabela não pode mais ser regerada: {finishedCount} jogo(s) já encerrados.
-          Regerar apagaria placares, gols, cartões e súmulas.
-          {isMaster && ' Como administrador master, você ainda pode forçar — com perda dos resultados.'}
-        </p>
-      )}
 
       {!isKnockout && hasKnockoutStage(championship) && groupMatchesOnly.length > 0 && (
         <p className={`ko-note ${knockoutMatches.length ? 'ko-note--done' : ''}`}>
@@ -264,8 +311,18 @@ export function MatchesPanel({
         </EmptyState>
       ) : (
         <div className="rounds">
+          {temGrupos && (
+            <div className="view-switch" role="group" aria-label="Organizar jogos">
+              <button type="button" className={`view-switch__btn ${porGrupo ? 'is-active' : ''}`} onClick={() => setPorGrupo(true)}>
+                Por grupo
+              </button>
+              <button type="button" className={`view-switch__btn ${!porGrupo ? 'is-active' : ''}`} onClick={() => setPorGrupo(false)}>
+                Por rodada
+              </button>
+            </div>
+          )}
           {sections.map((sec) => {
-            const roundNo = sec.matches[0]?.round
+            const roundNo = sec.byGroup ? undefined : sec.matches[0]?.round
             const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
             return (
               <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
@@ -283,8 +340,16 @@ export function MatchesPanel({
                   )}
                 </div>
                 <div className="round__matches">
-                  {sec.matches.map((m) => (
-                    <MatchRow key={m.id} match={m} teams={teams} onClick={() => setEditing(m)} showSchedule venues={championship.venues} />
+                  {sec.matches.map((m, i) => (
+                    <Fragment key={m.id}>
+                      {sec.byGroup && m.round !== sec.matches[i - 1]?.round && (
+                        <span className="round__sub">
+                          Rodada {m.round}
+                          {closedRounds.has(m.round) && ' · 🔒 inscrições encerradas'}
+                        </span>
+                      )}
+                      <MatchRow match={m} teams={teams} onClick={() => setEditing(m)} showSchedule venues={championship.venues} />
+                    </Fragment>
                   ))}
                 </div>
               </div>
@@ -350,12 +415,9 @@ function AddMatchModal({
   onSaved: () => void
 }) {
   const grupos = [...new Set(teams.map((t) => t.group).filter((g): g is string => !!g))].sort()
-  const proximaRodada =
-    Math.max(0, ...matches.filter((m) => m.phase === 'group').map((m) => m.round)) + 1
   const [phase, setPhase] = useState<MatchPhase>('group')
   const [home, setHome] = useState('')
   const [away, setAway] = useState('')
-  const [round, setRound] = useState(String(proximaRodada))
   const [group, setGroup] = useState(grupos[0] ?? '')
   const [scheduledAt, setScheduledAt] = useState('')
   const [venue, setVenue] = useState('')
@@ -367,6 +429,45 @@ function AddMatchModal({
   const isGroupPhase = phase === 'group'
   const nomeTime = (id: string) => teams.find((t) => t.id === id)?.name ?? ''
 
+  // Na fase de grupos, só entram no confronto os times do grupo escolhido.
+  const timesDisponiveis =
+    isGroupPhase && group ? teams.filter((t) => t.group === group) : teams
+
+  // Jogos de cada time na 1ª fase de grupos — é o que define a rodada.
+  const jogosPorTime = useMemo(() => {
+    const cont = new Map<string, number>()
+    for (const m of matches) {
+      if (m.phase !== 'group' || matchStage(m) !== 1) continue
+      for (const id of [m.homeTeamId, m.awayTeamId]) {
+        if (id) cont.set(id, (cont.get(id) ?? 0) + 1)
+      }
+    }
+    return cont
+  }, [matches])
+  const jogosDe = (id: string) => jogosPorTime.get(id) ?? 0
+
+  // Times com menos jogos primeiro: são eles que ainda faltam na rodada atual.
+  const opcoesTimes = [...timesDisponiveis].sort(
+    (a, b) => jogosDe(a.id) - jogosDe(b.id) || a.name.localeCompare(b.name),
+  )
+
+  /**
+   * Rodada gerada automaticamente pelo time com MAIS partidas: escolhidos os
+   * times, é a próxima rodada de quem jogou mais entre os dois (assim nenhum
+   * deles joga duas vezes na mesma rodada); antes disso, a do time do grupo
+   * com mais partidas.
+   */
+  const base = home || away ? [home, away].filter(Boolean) : opcoesTimes.map((t) => t.id)
+  const round = Math.max(0, ...base.map(jogosDe)) + 1
+
+  function trocarGrupo(g: string) {
+    setGroup(g)
+    // Times de outro grupo deixam de valer para o confronto.
+    const doGrupo = (id: string) => teams.some((t) => t.id === id && t.group === g)
+    if (home && !doGrupo(home)) setHome('')
+    if (away && !doGrupo(away)) setAway('')
+  }
+
   async function salvar(e: React.FormEvent) {
     e.preventDefault()
     setErro(null)
@@ -375,7 +476,7 @@ function AddMatchModal({
     // Fase eliminatória entra fora da numeração das rodadas da 1ª fase.
     const koIdx = KNOCKOUT_ORDER.indexOf(phase)
     const rodada = isGroupPhase
-      ? Math.max(1, Number(round) || 1)
+      ? round
       : KNOCKOUT_ROUND_BASE + (phase === 'third_place' ? KNOCKOUT_ORDER.length : Math.max(0, koIdx))
     setBusy(true)
     try {
@@ -428,18 +529,18 @@ function AddMatchModal({
 
         {isGroupPhase && (
           <div className="form-row">
-            <Field label="Rodada">
-              <input type="number" min={1} max={200} value={round} onChange={(e) => setRound(e.target.value)} />
-            </Field>
             {grupos.length > 0 && (
               <Field label="Grupo">
-                <select value={group} onChange={(e) => setGroup(e.target.value)}>
+                <select value={group} onChange={(e) => trocarGrupo(e.target.value)}>
                   {grupos.map((g) => (
                     <option key={g} value={g}>Grupo {g}</option>
                   ))}
                 </select>
               </Field>
             )}
+            <Field label="Rodada" hint="Automática, pelo time com mais partidas.">
+              <input type="number" value={round} readOnly disabled />
+            </Field>
           </div>
         )}
 
@@ -447,16 +548,20 @@ function AddMatchModal({
           <Field label="Time mandante">
             <select value={home} onChange={(e) => setHome(e.target.value)}>
               <option value="">Escolha…</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id} disabled={t.id === away}>{t.name}</option>
+              {opcoesTimes.map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id === away}>
+                  {t.name}{isGroupPhase ? ` (${jogosDe(t.id)} jogo${jogosDe(t.id) === 1 ? '' : 's'})` : ''}
+                </option>
               ))}
             </select>
           </Field>
           <Field label="Time visitante">
             <select value={away} onChange={(e) => setAway(e.target.value)}>
               <option value="">Escolha…</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id} disabled={t.id === home}>{t.name}</option>
+              {opcoesTimes.map((t) => (
+                <option key={t.id} value={t.id} disabled={t.id === home}>
+                  {t.name}{isGroupPhase ? ` (${jogosDe(t.id)} jogo${jogosDe(t.id) === 1 ? '' : 's'})` : ''}
+                </option>
               ))}
             </select>
           </Field>
@@ -588,6 +693,8 @@ export interface Section {
   matches: Match[]
   /** Seção de mata-mata (sem fechamento de inscrições por rodada). */
   isKnockout: boolean
+  /** Seção de um grupo: os jogos vêm em ordem de rodada, com a rodada indicada. */
+  byGroup?: boolean
 }
 
 /** "2ª fase · Rodada 4" quando há mais de uma fase de grupos. */
@@ -641,4 +748,41 @@ export function matchSections(matches: Match[]): Section[] {
   }))
 
   return [...rounds, ...phases]
+}
+
+/**
+ * Seções agrupadas por GRUPO: cada grupo (de cada fase de grupos) com os seus
+ * jogos em ordem de rodada e, depois, as fases do mata-mata.
+ */
+export function matchSectionsByGroup(matches: Match[], teams: Team[]): Section[] {
+  const grupoDoTime = new Map(teams.map((t) => [t.id, t.group] as const))
+  const deGrupo = matches.filter((m) => m.phase === 'group')
+  const multiStage = new Set(deGrupo.map(matchStage)).size > 1
+  const byGroup = new Map<string, Match[]>()
+  for (const m of deGrupo) {
+    const k = `${matchStage(m)}|${grupoDoJogo(m, grupoDoTime) ?? ''}`
+    if (!byGroup.has(k)) byGroup.set(k, [])
+    byGroup.get(k)!.push(m)
+  }
+  const grupos: Section[] = [...byGroup.entries()]
+    .sort(([a], [b]) => {
+      const [sa, ga] = a.split('|')
+      const [sb, gb] = b.split('|')
+      return Number(sa) - Number(sb) || ga.localeCompare(gb)
+    })
+    .map(([k, list]) => {
+      const [stage, g] = k.split('|')
+      const nome = g ? `Grupo ${g}` : 'Sem grupo'
+      return {
+        key: `g${k}`,
+        title: multiStage ? `${stage}ª fase · ${nome}` : nome,
+        matches: [...list].sort(
+          (a, b) => a.round - b.round || (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''),
+        ),
+        isKnockout: false,
+        byGroup: true,
+      }
+    })
+  const fases = matchSections(matches.filter((m) => m.phase !== 'group'))
+  return [...grupos, ...fases]
 }
