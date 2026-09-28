@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getChampionship } from '../services/championships'
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
@@ -17,8 +17,8 @@ import { Overview } from './Overview'
 import { ChampionTag } from './ChampionBanner'
 import { computePodium } from '../lib/champion'
 import { MatchesReadOnly } from './MatchesReadOnly'
-import { MatchCalendar } from './MatchCalendar'
 import { SponsorsStrip } from './SponsorsStrip'
+import { useRealtimeChampionship } from '../lib/realtime'
 import { StatsPanel } from './StatsPanel'
 import {
   atletaDaCategoria,
@@ -32,7 +32,7 @@ import {
   temVariasCategorias,
 } from '../lib/categorias'
 
-type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
+type Tab = 'overview' | 'matches' | 'stats'
 
 export function PublicChampionship({ championshipId, onHome }: { championshipId: string; onHome: () => void }) {
   const [champ, setChamp] = useState<Championship | null>(null)
@@ -45,6 +45,28 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const [catId, setCatId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+
+  // Resultados ao vivo: recarrega sozinho quando algo muda no campeonato.
+  const refresh = useCallback(async () => {
+    try {
+      const [c, t, p, m, e] = await Promise.all([
+        getChampionship(championshipId),
+        listTeams(championshipId),
+        listPlayers(championshipId),
+        listMatches(championshipId),
+        listEvents(championshipId),
+      ])
+      if (!c) return
+      setChamp(c)
+      setTeams(t)
+      setPlayers(p)
+      setMatches(m)
+      setEvents(e)
+    } catch {
+      /* mantém o que já está na tela; tenta de novo na próxima mudança */
+    }
+  }, [championshipId])
+  useRealtimeChampionship(notFound ? null : championshipId, refresh)
 
   useEffect(() => {
     let active = true
@@ -85,7 +107,6 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Classificação', icon: '📊' },
     { id: 'matches', label: 'Jogos', icon: '📅' },
-    { id: 'calendar', label: 'Calendário', icon: '📆' },
     { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   ]
 
@@ -155,7 +176,6 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       <div className="container manage__content">
         {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
         {tab === 'matches' && <MatchesReadOnly championship={comp} teams={timesCat} matches={partidasCat} />}
-        {tab === 'calendar' && <MatchCalendar championship={comp} teams={timesCat} matches={partidasCat} />}
         {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
       </div>
 

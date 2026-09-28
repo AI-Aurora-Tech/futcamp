@@ -8,8 +8,8 @@ import {
   mesaLogin,
   mesaWriter,
   setOfficialPassword,
-  type MesaContext,
 } from '../services/officials'
+import { abrirSessaoMesa, fecharSessaoMesa, lerSessaoMesa, type MesaSession } from '../lib/mesaSession'
 import {
   atletaDaCategoria,
   categoriaPadrao,
@@ -22,12 +22,9 @@ import type { Championship, Match, Player, Team } from '../types'
 import { Button, ChampLogo, EmptyState, Field, Spinner, StatusPill } from './ui'
 import { MatchRow } from './MatchesPanel'
 import { MatchResultModal } from './MatchResultModal'
+import { useRealtimeChampionship } from '../lib/realtime'
 
-const sessKey = (champ: string) => `futcamp:mesa:${champ}`
-
-interface Session extends MesaContext {
-  name: string
-}
+type Session = MesaSession
 
 export function MesaPortal({ championshipId, onHome }: { championshipId: string; onHome: () => void }) {
   const [champ, setChamp] = useState<Championship | null>(null)
@@ -48,12 +45,7 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
     getChampionship(championshipId)
       .then(setChamp)
       .finally(() => setLoading(false))
-    try {
-      const raw = sessionStorage.getItem(sessKey(championshipId))
-      if (raw) setSession(JSON.parse(raw) as Session)
-    } catch {
-      /* ignore */
-    }
+    setSession(lerSessaoMesa(championshipId))
   }, [championshipId])
 
   const loadData = useCallback(async () => {
@@ -74,6 +66,10 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
     void loadData()
   }, [loadData])
 
+  // Tempo real: jogos atribuídos, remarcados ou alterados pelo organizador
+  // aparecem sem recarregar a janela.
+  useRealtimeChampionship(session ? championshipId : null, () => void loadData().catch(() => {}))
+
   /**
    * Depois que o mesário salva um jogo: se aquele era o último da primeira
    * fase, o mata-mata é criado na hora (e os vencedores avançam) — sem
@@ -92,20 +88,12 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
   }, [champ, championshipId, loadData])
 
   function onLoggedIn(s: Session) {
-    try {
-      sessionStorage.setItem(sessKey(championshipId), JSON.stringify(s))
-    } catch {
-      /* ignore */
-    }
+    abrirSessaoMesa(s)
     setSession(s)
   }
 
   function logout() {
-    try {
-      sessionStorage.removeItem(sessKey(championshipId))
-    } catch {
-      /* ignore */
-    }
+    fecharSessaoMesa(championshipId)
     setSession(null)
     setMatches([])
   }
