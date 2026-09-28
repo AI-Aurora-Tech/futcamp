@@ -174,6 +174,8 @@ a.btn { text-decoration: none; cursor: pointer; }
   padding: 0.6rem 0.75rem; cursor: pointer; transition: border-color 0.15s, background 0.15s;
 }
 .team-pick__item:hover { border-color: var(--brand); background: var(--surface); }
+.team-pick__logo { flex: none; width: 40px; height: 40px; display: grid; place-items: center; font-size: 1.6rem; overflow: hidden; border-radius: 8px; }
+.team-pick__logo img { width: 100%; height: 100%; object-fit: contain; }
 .team-pick__text { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
 .team-pick__text strong { font-size: 0.95rem; }
 .team-pick__text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1102,7 +1104,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 /* número fica FIXO à direita, sempre visível — nunca empurra a tela.          */
 .presence-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 3rem;
+  grid-template-columns: minmax(0, 1fr) 1.9rem 3rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.3rem 0.4rem;
@@ -1143,6 +1145,21 @@ html, body { max-width: 100%; overflow-x: hidden; }
   padding: 0.25rem 0.15rem;
   box-sizing: border-box;
 }
+/* Capitão: um por equipe, só entre os presentes. */
+.presence-col__cap { margin: 0 0 0.45rem; font-size: 0.8rem; }
+.presence-col__cap.is-empty { color: var(--muted, #6b7280); }
+.presence-item__cap {
+  width: 1.9rem; height: 1.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #d1d5db);
+  background: #fff;
+  color: var(--muted, #6b7280);
+  font-weight: 800; font-size: 0.8rem;
+  cursor: pointer; padding: 0;
+}
+.presence-item__cap:disabled { opacity: 0.35; cursor: not-allowed; }
+.presence-item__cap.is-on { background: #f59e0b; border-color: #d97706; color: #fff; }
+.presence-item.is-captain .presence-item__nome { font-weight: 700; }
 @media (max-width: 640px) {
   .presence-grid { grid-template-columns: 1fr; }
 }
@@ -1538,6 +1555,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* Botão do regulamento no cabeçalho do portal do time. */
 .reg__doc { margin-left: auto; }
+/* Sair do portal do time: ao lado do regulamento, ou sozinho à direita. */
+.reg__doc + .reg__logout { margin-left: 0.5rem; }
 
 @media (max-width: 640px) {
   .reg__doc { margin: 10px 0 0; width: 100%; }
@@ -1649,4 +1668,47 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .guia__passo { grid-template-columns: 2rem 1fr; gap: 0.7rem; }
   .guia__num { width: 2rem; height: 2rem; font-size: 0.9rem; }
   .topbar__ajuda { display: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Responsivo: computador, tablet e celular                            */
+/* ------------------------------------------------------------------ */
+/* Imagens e mídias nunca passam da largura do contêiner. */
+img, video, svg, canvas { max-width: 100%; }
+.topbar__right { min-width: 0; }
+.mode-tag { white-space: nowrap; }
+
+/* Tablet: as abas rolam de lado; esconde a barra de rolagem e dá um
+   degradê na borda para indicar que há mais abas à direita. */
+@media (max-width: 1024px) {
+  .tabs {
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+    padding-right: 1.5rem;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { scroll-snap-align: start; }
+  .modal--form { max-width: 100%; }
+}
+
+/* Celular */
+@media (max-width: 640px) {
+  .topbar { padding: 0.55rem 0.9rem; gap: 0.5rem; }
+  .topbar__right { gap: 0.5rem; }
+  .mode-tag { font-size: 0.6rem; padding: 0.15rem 0.45rem; }
+  .tab { padding: 0.75rem 0.8rem; font-size: 0.85rem; min-height: 44px; }
+  /* Modal ocupa a tela toda: mais espaço para súmula e presença. */
+  .modal-backdrop { padding: 0; place-items: end stretch; }
+  .modal { max-height: 100vh; max-height: 100dvh; border-radius: 16px 16px 0 0; }
+  .modal__head { padding: 0.9rem 1rem; }
+  .modal__body { padding: 1rem; }
+  /* Campos com 16px evitam o zoom automático do iPhone ao tocar. */
+  input, select, textarea { font-size: 16px; }
+  /* Cabeçalho dos portais (time e mesário): o Sair desce junto com o
+     regulamento, ocupando a largura. */
+  .reg__champ { flex-wrap: wrap; }
+  .reg__doc + .reg__logout { margin: 10px 0 0; width: 100%; justify-content: center; }
 }
