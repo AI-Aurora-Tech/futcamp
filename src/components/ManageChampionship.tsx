@@ -51,6 +51,7 @@ import {
   temVariasCategorias,
 } from '../lib/categorias'
 import { setCategoryStatus } from '../services/championships'
+import { useRealtimeChampionship } from '../lib/realtime'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
 
@@ -123,6 +124,10 @@ export function ManageChampionship({
     setLoading(true)
     reload().finally(() => setLoading(false))
   }, [reload])
+
+  // Tempo real: placares lançados pelos mesários e alterações dos times
+  // aparecem sem recarregar a janela.
+  useRealtimeChampionship(championshipId, () => void reload().catch(() => {}))
 
   async function saveEdit(data: NewChampionship) {
     await updateChampionship(championshipId, data)
