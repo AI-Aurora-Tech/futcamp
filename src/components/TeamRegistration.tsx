@@ -38,7 +38,7 @@ import {
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
-import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
+import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
 import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
 
@@ -92,6 +92,12 @@ export function TeamRegistration({
     void reload()
   }
 
+  function logout() {
+    fecharSessaoTime(teamId)
+    setAuthed(false)
+    onHome()
+  }
+
   if (loading) return <div className="container pad-lg"><Spinner /></div>
   if (invalid || !data) {
     return (
@@ -122,6 +128,9 @@ export function TeamRegistration({
               <div className="reg__doc">
                 <RegulamentoButton champ={data.championship} variant="soft" />
               </div>
+            )}
+            {authed && (
+              <button className="btn btn--ghost btn--sm mesa-logout reg__logout" onClick={logout}>Sair</button>
             )}
           </div>
         </div>
