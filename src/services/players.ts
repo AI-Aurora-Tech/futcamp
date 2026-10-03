@@ -43,6 +43,38 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
   return row
 }
 
+/**
+ * O Supabase devolve o erro como objeto simples — não como `Error`. Lançado
+ * assim, a tela não reconhece e mostra só "Erro ao salvar.", escondendo o
+ * motivo real. Aqui ele vira `Error` com uma mensagem que o organizador entende.
+ */
+function erroDoBanco(error: { message?: string; code?: string; details?: string }): Error {
+  const msg = error?.message ?? ''
+  if (error?.code === '42501' || /row-level security/i.test(msg)) {
+    return new Error(
+      'Sem permissão para salvar atletas neste campeonato. Sua sessão pode ter expirado — saia e entre novamente.',
+    )
+  }
+  if (error?.code === '23505' && /players_cpf_category_unique/.test(msg + (error.details ?? ''))) {
+    return new Error('Este CPF já está inscrito nesta categoria.')
+  }
+  return new Error(msg ? `Erro ao salvar: ${msg}` : 'Erro ao salvar.')
+}
+
+/**
+ * O banco não conhece as colunas de federado? Sinal de que a migration 0025
+ * ainda não foi aplicada (mesma checagem do portal do time).
+ */
+function semColunasFederado(error: { message?: string; code?: string }): boolean {
+  const m = (error?.message ?? '').toLowerCase()
+  return (error?.code === 'PGRST204' || error?.code === '42703') && m.includes('federated')
+}
+
+function semFederado(row: Record<string, unknown>): Record<string, unknown> {
+  const { federated: _f, federated_in: _fi, ...rest } = row
+  return rest
+}
+
 export async function listPlayers(championshipId: string): Promise<Player[]> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase
@@ -103,8 +135,14 @@ async function listTeamNames(championshipId: string): Promise<Map<string, string
 export async function createPlayer(input: NewPlayer): Promise<Player> {
   await assertCpfAvailable(input.championshipId, input)
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase.from('players').insert(toRow(input)).select('*').single()
-    if (error) throw error
+    const row = toRow(input)
+    let { data, error } = await supabase.from('players').insert(row).select('*').single()
+    // Banco sem a migration 0025: inscrever sem a marcação é melhor do que
+    // não inscrever.
+    if (error && semColunasFederado(error)) {
+      ;({ data, error } = await supabase.from('players').insert(semFederado(row)).select('*').single())
+    }
+    if (error) throw erroDoBanco(error)
     return fromRow(data)
   }
   const player: Player = { ...input, id: uid('player'), createdAt: new Date().toISOString() }
@@ -119,8 +157,12 @@ export async function updatePlayer(id: string, patch: Partial<Player>): Promise<
     await assertCpfAvailable(patch.championshipId, patch, id)
   }
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.from('players').update(toRow(patch)).eq('id', id)
-    if (error) throw error
+    const row = toRow(patch)
+    let { error } = await supabase.from('players').update(row).eq('id', id)
+    if (error && semColunasFederado(error)) {
+      ;({ error } = await supabase.from('players').update(semFederado(row)).eq('id', id))
+    }
+    if (error) throw erroDoBanco(error)
     return
   }
   mutate((d) => {
@@ -132,7 +174,7 @@ export async function updatePlayer(id: string, patch: Partial<Player>): Promise<
 export async function deletePlayer(id: string): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.from('players').delete().eq('id', id)
-    if (error) throw error
+    if (error) throw erroDoBanco(error)
     return
   }
   mutate((d) => {
