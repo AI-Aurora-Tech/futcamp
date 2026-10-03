@@ -48,7 +48,10 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
  * assim, a tela não reconhece e mostra só "Erro ao salvar.", escondendo o
  * motivo real. Aqui ele vira `Error` com uma mensagem que o organizador entende.
  */
-function erroDoBanco(error: { message?: string; code?: string; details?: string }): Error {
+function erroDoBanco(
+  error: { message?: string; code?: string; details?: string },
+  acao = 'salvar',
+): Error {
   const msg = error?.message ?? ''
   if (error?.code === '42501' || /row-level security/i.test(msg)) {
     return new Error(
@@ -58,7 +61,7 @@ function erroDoBanco(error: { message?: string; code?: string; details?: string 
   if (error?.code === '23505' && /players_cpf_category_unique/.test(msg + (error.details ?? ''))) {
     return new Error('Este CPF já está inscrito nesta categoria.')
   }
-  return new Error(msg ? `Erro ao salvar: ${msg}` : 'Erro ao salvar.')
+  return new Error(msg ? `Erro ao ${acao}: ${msg}` : `Erro ao ${acao}.`)
 }
 
 /**
@@ -75,15 +78,36 @@ function semFederado(row: Record<string, unknown>): Record<string, unknown> {
   return rest
 }
 
-export async function listPlayers(championshipId: string): Promise<Player[]> {
-  if (authMode === 'supabase' && supabase) {
+/**
+ * Atletas por página. A foto mora na própria linha (data URL), então uma
+ * consulta única do campeonato inteiro fica pesada a ponto de estourar o tempo
+ * do banco — e o PostgREST ainda corta em 1000 linhas. Em páginas, cada pedido
+ * é leve e ninguém fica de fora.
+ */
+const PAGINA = 200
+
+async function listarEmPaginas(championshipId: string, columns: string): Promise<any[]> {
+  if (!supabase) return []
+  const rows: any[] = []
+  for (let from = 0; ; from += PAGINA) {
     const { data, error } = await supabase
       .from('players')
-      .select('*')
+      .select(columns)
       .eq('championship_id', championshipId)
+      // `id` desempata: sem ordem estável, uma página pode repetir ou pular
+      // atletas com o mesmo número.
       .order('number', { nullsFirst: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+      .order('id')
+      .range(from, from + PAGINA - 1)
+    if (error) throw erroDoBanco(error, 'carregar os atletas')
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAGINA) return rows
+  }
+}
+
+export async function listPlayers(championshipId: string): Promise<Player[]> {
+  if (authMode === 'supabase' && supabase) {
+    return (await listarEmPaginas(championshipId, '*')).map(fromRow)
   }
   return query((d) => d.players.filter((p) => p.championshipId === championshipId))
 }
@@ -102,7 +126,11 @@ async function assertCpfAvailable(
 ): Promise<void> {
   const cpf = (patch.cpf ?? '').replace(/\D/g, '')
   if (!cpf || !patch.teamId) return
-  const players = await listPlayers(championshipId)
+  // Só o necessário para a regra do CPF — sem as fotos, que são o peso.
+  const players =
+    authMode === 'supabase' && supabase
+      ? (await listarEmPaginas(championshipId, 'id,team_id,championship_id,name,cpf,category_id')).map(fromRow)
+      : await listPlayers(championshipId)
   const teams = await listTeamNames(championshipId)
   const check = checkCpfConflict({
     cpf,
