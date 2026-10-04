@@ -195,7 +195,8 @@ export function computeStandingsByGroup(
     const ids = new Set(groupTeams.map((t) => t.id))
     const groupMatches = matches.filter(
       (m) =>
-        (m.group ? m.group === group : true) &&
+        // Os dois times no grupo bastam: o rótulo gravado no jogo pode estar
+        // desatualizado depois de um novo sorteio de grupos.
         m.homeTeamId != null &&
         m.awayTeamId != null &&
         ids.has(m.homeTeamId) &&

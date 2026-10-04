@@ -80,7 +80,10 @@ export function TeamsPanel({
       return
     }
     const onde = catNome ? ` do ${catNome}` : ''
-    if (!confirm(`Sortear ${daCategoria.length} time(s)${onde} em ${numGroups} grupo(s)? Isso substitui a divisão atual.`)) return
+    const aviso = matches.length
+      ? '\n\nJá existem jogos nesta categoria: depois do sorteio, use “Gerar tabela” na aba Partidas para ajustar os jogos aos novos grupos.'
+      : ''
+    if (!confirm(`Sortear ${daCategoria.length} time(s)${onde} em ${numGroups} grupo(s)? Isso substitui a divisão atual.${aviso}`)) return
     setDrawing(true)
     try {
       const labels = Array.from({ length: numGroups }, (_, i) => String.fromCharCode(65 + i))

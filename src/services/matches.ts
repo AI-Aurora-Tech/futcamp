@@ -2,6 +2,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
+import { fetchAllRows } from '../lib/paginate'
 import { generateGroupFixtures, generateRoundRobin } from '../lib/fixtures'
 import {
   hasKnockoutStage,
@@ -19,6 +20,7 @@ import {
   stageExists,
 } from '../lib/groupStages'
 import type { PlanoEliminacao } from '../lib/eliminacao'
+import type { PlanoTabela } from '../lib/tabela'
 import type {
   Championship,
   LineupEntry,
@@ -100,14 +102,18 @@ export interface MatchWriter {
 
 export async function listMatches(championshipId: string): Promise<Match[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('round')
-      .order('created_at')
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const db = supabase
+    const rows = await fetchAllRows((from, to) =>
+      db
+        .from('matches')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('round')
+        .order('created_at')
+        .order('id')
+        .range(from, to),
+    )
+    return rows.map(fromRow)
   }
   return query((d) =>
     d.matches
@@ -549,6 +555,20 @@ export async function eliminateTeam(
   if (criarFaltantes && plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
 }
 
+/**
+ * Aplica o plano de "Gerar tabela" (lib/tabela.ts): remove os jogos não
+ * realizados que deixaram de valer, acerta o grupo gravado nos jogos e cria os
+ * confrontos que faltam. Placar e data dos jogos realizados nunca mudam.
+ */
+export async function applyFixturePlan(plano: PlanoTabela, championshipId: string): Promise<void> {
+  for (const m of plano.remover) {
+    if (m.status !== 'scheduled') continue
+    await deleteMatch(m.id)
+  }
+  for (const { match, group } of plano.corrigirGrupo) await updateMatch(match.id, { group })
+  if (plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
+}
+
 async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const rows = matches.map(toRow)
@@ -606,12 +626,16 @@ function eventToRow(e: Partial<MatchEvent>): Record<string, unknown> {
 
 export async function listEvents(championshipId: string): Promise<MatchEvent[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('match_events')
-      .select('*')
-      .eq('championship_id', championshipId)
-    if (error) throw error
-    return (data ?? []).map(eventFromRow)
+    const db = supabase
+    const rows = await fetchAllRows((from, to) =>
+      db
+        .from('match_events')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('id')
+        .range(from, to),
+    )
+    return rows.map(eventFromRow)
   }
   return query((d) => d.events.filter((e) => e.championshipId === championshipId))
 }
