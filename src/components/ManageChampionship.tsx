@@ -77,6 +77,9 @@ export function ManageChampionship({
   const [champ, setChamp] = useState<Championship | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
+  // Falha ao carregar os atletas. Sem isso a lista aparece vazia, como se
+  // ninguém estivesse inscrito.
+  const [erroAtletas, setErroAtletas] = useState<string | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [officials, setOfficials] = useState<Official[]>([])
@@ -97,7 +100,16 @@ export function ManageChampionship({
       Promise.all([
         getChampionship(championshipId).catch(() => null),
         empty(listTeams(championshipId)),
-        empty(listPlayers(championshipId)),
+        listPlayers(championshipId).then(
+          (lista) => {
+            setErroAtletas(null)
+            return lista
+          },
+          (err: unknown) => {
+            setErroAtletas(err instanceof Error ? err.message : 'Não foi possível carregar os atletas.')
+            return [] as Player[]
+          },
+        ),
         empty(listMatches(championshipId)),
         empty(listEvents(championshipId)),
         empty(listOfficials(championshipId)),
@@ -315,6 +327,9 @@ export function ManageChampionship({
       <div className="container manage__content">
         {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
         {tab === 'teams' && <TeamsPanel championship={comp} teams={teams} matches={partidasCat} categoryId={varias ? catAtual : undefined} onChange={reload} />}
+        {erroAtletas && (tab === 'players' || tab === 'overview') && (
+          <p className="auth-error">{erroAtletas}</p>
+        )}
         {tab === 'players' && (
           <PlayersPanel
             championship={comp}
