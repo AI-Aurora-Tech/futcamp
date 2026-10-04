@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { porNome } from '../lib/ordem'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
-import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { gerarSumulaPdf, nomeArquivoSumula } from '../lib/sumula'
+import { abrirPdf, baixarBytesPdf } from '../lib/pdf'
+import { logoParaJpeg } from '../lib/image'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -120,9 +123,9 @@ export function MatchResultModal({
   // Só atletas PRESENTES (na escalação salva) podem receber eventos.
   const presentIds = new Set(lineup.map((l) => l.playerId))
   const lineupNumber = new Map(lineup.map((l) => [l.playerId, l.number] as const))
-  const teamPlayers = players.filter(
-    (p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id),
-  )
+  const teamPlayers = players
+    .filter((p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id))
+    .sort(porNome)
   /** Nº da camisa desta partida (cai para o nº de inscrição se não definido). */
   const shirtOf = (p: Player) => lineupNumber.get(p.id) ?? p.number
   const playerOption = (p: Player) => `${shirtOf(p) ? `${shirtOf(p)} · ` : ''}${p.name}`
@@ -205,9 +208,14 @@ export function MatchResultModal({
     onSaved()
   }
 
-  function generateSumula(action: 'print' | 'download') {
-    const category = championship.categories.length === 1 ? championship.categories[0] : undefined
-    const html = buildSumulaHtml({
+  async function generateSumula(action: 'print' | 'download') {
+    // A categoria da partida (ou a única do campeonato): a súmula lista só o
+    // elenco dela, não o clube inteiro.
+    const category =
+      championship.categories.find((c) => c.id === match.categoryId) ??
+      (championship.categories.length === 1 || !match.categoryId ? championship.categories[0] : undefined)
+    const logo = await logoParaJpeg(championship.logo)
+    const pdf = gerarSumulaPdf({
       championship,
       match: {
         ...match,
@@ -220,9 +228,11 @@ export function MatchResultModal({
       players,
       events,
       category,
+      logo,
     })
-    if (action === 'print') openSumula(html)
-    else downloadSumula(`sumula-${home?.shortName || 'mandante'}-x-${away?.shortName || 'visitante'}.html`, html)
+    const arquivo = nomeArquivoSumula(home, away)
+    if (action === 'print') abrirPdf(pdf, arquivo)
+    else baixarBytesPdf(pdf, arquivo)
   }
 
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
@@ -492,8 +502,8 @@ export function MatchResultModal({
       <div className="sumula-row">
         <span className="muted small">Súmula {sumulaHint}</span>
         <div className="sumula-row__actions">
-          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('print')}>🖨️ Imprimir</Button>
-          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('download')}>⬇ Baixar súmula</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => void generateSumula('print')}>🖨️ Imprimir</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => void generateSumula('download')}>⬇ Baixar súmula (PDF)</Button>
         </div>
       </div>
 
@@ -560,7 +570,7 @@ function PresencePanel({
   suspensos: Map<string, Suspensao>
   onSave: (entries: LineupEntry[]) => Promise<void>
 }) {
-  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta')
+  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort(porNome)
 
   const build = (): Record<string, PresenceRow> => {
     const present = new Set(lineup.map((l) => l.playerId))
@@ -574,8 +584,19 @@ function PresencePanel({
     }
     return draft
   }
+  /** Capitão salvo de cada time (id do time → id do atleta). */
+  const buildCaptains = (): Record<string, string> => {
+    const map: Record<string, string> = {}
+    for (const l of lineup) {
+      if (!l.captain || suspensos.has(l.playerId)) continue
+      const p = athletes.find((a) => a.id === l.playerId)
+      if (p) map[p.teamId] = p.id
+    }
+    return map
+  }
 
   const [draft, setDraft] = useState<Record<string, PresenceRow>>(build)
+  const [captains, setCaptains] = useState<Record<string, string>>(buildCaptains)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -592,6 +613,7 @@ function PresencePanel({
   const chaveSuspensos = [...suspensos.keys()].sort().join(',')
   useEffect(() => {
     setDraft(build())
+    setCaptains(buildCaptains())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineup, chaveSuspensos])
 
@@ -604,7 +626,27 @@ function PresencePanel({
 
   function toggle(id: string) {
     if (suspensos.has(id)) return
+    const p = athletes.find((a) => a.id === id)
+    // Quem deixa de estar presente deixa de ser o capitão.
+    if (p && draft[id]?.present && captains[p.teamId] === id) {
+      setCaptains((c) => {
+        const next = { ...c }
+        delete next[p.teamId]
+        return next
+      })
+    }
     setDraft((d) => ({ ...d, [id]: { ...d[id], present: !d[id]?.present } }))
+    setMsg(null)
+  }
+  /** Marca (ou desmarca) o capitão do time — só um por equipe. */
+  function toggleCaptain(p: Player) {
+    if (suspensos.has(p.id) || !draft[p.id]?.present) return
+    setCaptains((c) => {
+      const next = { ...c }
+      if (next[p.teamId] === p.id) delete next[p.teamId]
+      else next[p.teamId] = p.id
+      return next
+    })
     setMsg(null)
   }
   function setNumber(id: string, v: string) {
@@ -616,7 +658,11 @@ function PresencePanel({
     setBusy(true)
     const entries: LineupEntry[] = athletes
       .filter((p) => draft[p.id]?.present && !suspensos.has(p.id))
-      .map((p) => ({ playerId: p.id, number: draft[p.id].number ? Number(draft[p.id].number) : undefined }))
+      .map((p) => ({
+        playerId: p.id,
+        number: draft[p.id].number ? Number(draft[p.id].number) : undefined,
+        ...(captains[p.teamId] === p.id ? { captain: true } : {}),
+      }))
     try {
       await onSave(entries)
       setMsg('Presença salva ✅')
@@ -632,9 +678,13 @@ function PresencePanel({
   // cada tecla — foco perdido ao digitar o 2º dígito da camisa.
   const renderTeamColumn = (team?: Team) => {
     const list = athletes.filter((p) => p.teamId === team?.id)
+    const capitao = team ? list.find((p) => p.id === captains[team.id]) : undefined
     return (
       <div className="presence-col">
         <div className="presence-col__head"><TeamBadge team={team} size={22} /> <span>{team?.name ?? '—'}</span></div>
+        <p className={`presence-col__cap ${capitao ? '' : 'is-empty'}`}>
+          Capitão: {capitao ? <b>{capitao.name}</b> : 'não definido'}
+        </p>
         {list.length === 0 ? (
           <p className="muted small">Nenhum atleta inscrito.</p>
         ) : (
@@ -642,10 +692,11 @@ function PresencePanel({
             {list.map((p) => {
               const row = draft[p.id] ?? { present: false, number: '' }
               const susp = suspensos.get(p.id)
+              const isCap = captains[p.teamId] === p.id
               return (
                 <li
                   key={p.id}
-                  className={`presence-item ${row.present ? 'is-present' : ''} ${susp ? 'is-suspenso' : ''}`}
+                  className={`presence-item ${row.present ? 'is-present' : ''} ${susp ? 'is-suspenso' : ''} ${isCap ? 'is-captain' : ''}`}
                 >
                   <label className="presence-item__check">
                     <input
@@ -663,6 +714,17 @@ function PresencePanel({
                       )}
                     </span>
                   </label>
+                  <button
+                    type="button"
+                    className={`presence-item__cap ${isCap ? 'is-on' : ''}`}
+                    onClick={() => toggleCaptain(p)}
+                    disabled={!row.present || Boolean(susp)}
+                    aria-pressed={isCap}
+                    title={isCap ? 'Capitão da equipe (clique para desmarcar)' : 'Marcar como capitão da equipe'}
+                    aria-label={`Capitão: ${p.name}`}
+                  >
+                    C
+                  </button>
                   <input
                     className="presence-item__num"
                     inputMode="numeric"
@@ -691,6 +753,7 @@ function PresencePanel({
         <div className="presence-box__body">
           <p className="hint">
             Marque quem está presente e informe o número da camisa desta partida. Só os presentes recebem gols e cartões.
+            Toque em <b>C</b> para indicar o capitão de cada equipe.
             Chegou atrasado? Marque e salve novamente.
           </p>
 
