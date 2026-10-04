@@ -164,6 +164,8 @@ export function Landing() {
   const [ongoing, setOngoing] = useState<Championship[]>([])
   const [champions, setChampions] = useState<Record<string, ChampionInfo>>({})
   const [search, setSearch] = useState('')
+  // Falha ao buscar a vitrine: mostra o motivo em vez de "nenhum campeonato".
+  const [erroLista, setErroLista] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -175,7 +177,12 @@ export function Landing() {
           (map) => active && setChampions(map),
         )
       })
-      .catch(() => active && setOngoing([]))
+      .catch((e) => {
+        if (!active) return
+        setOngoing([])
+        const msg = e instanceof Error ? e.message : (e as { message?: string })?.message
+        setErroLista(msg || 'erro desconhecido')
+      })
     return () => {
       active = false
     }
@@ -449,9 +456,11 @@ export function Landing() {
         </div>
         {nada ? (
           <p className="muted">
-            {search
-              ? `Nenhum campeonato encontrado para “${search}”.`
-              : 'Nenhum campeonato em andamento no momento.'}
+            {erroLista
+              ? `Não foi possível carregar os campeonatos: ${erroLista}`
+              : search
+                ? `Nenhum campeonato encontrado para “${search}”.`
+                : 'Nenhum campeonato em andamento no momento.'}
           </p>
         ) : (
           <>
