@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createTeam,
   deleteTeam,
+  deleteTeamManager,
   ensureChampCategoryToken,
   ensureChampTeamToken,
   ensureTeamToken,
@@ -17,6 +18,7 @@ import { fileToDataUrl } from '../lib/image'
 import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
 import { competicaoDaCategoria, elencoDeTimes } from '../lib/categorias'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
+import { useAuth } from '../context/AuthContext'
 
 export function TeamsPanel({
   championship,
@@ -280,6 +282,7 @@ export function TeamsPanel({
 /* Gestores do time (senhas) — visão do administrador                          */
 /* -------------------------------------------------------------------------- */
 function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
+  const { isMaster } = useAuth()
   const [managers, setManagers] = useState<TeamManager[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -312,6 +315,21 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
     }
   }
 
+  /** Exclusão do gestor: só o master — quem valida é o banco. */
+  async function remove(m: TeamManager) {
+    if (!confirm(`Excluir o gestor "${m.username}" do time ${team.name}?\n\nEle perde o acesso ao time. Para voltar, precisará criar a conta de novo pelo link de inscrição.`)) return
+    setBusy(m.username)
+    setError(null)
+    try {
+      await deleteTeamManager(team.id, m.username)
+      await load()
+    } catch {
+      setError('Não foi possível excluir o gestor agora.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <Modal title={`Gestores — ${team.name}`} onClose={onClose}>
       <p className="muted">
@@ -330,9 +348,16 @@ function ManagersModal({ team, onClose }: { team: Team; onClose: () => void }) {
           {managers.map((m) => (
             <li key={m.username} className="manager-list__item" style={{ justifyContent: 'space-between' }}>
               <span>👤 {m.username} {m.reset && <span className="muted small">· senha zerada</span>}</span>
-              <Button variant="soft" type="button" disabled={busy === m.username || m.reset} onClick={() => void reset(m)}>
-                {busy === m.username ? 'Zerando…' : m.reset ? 'Aguardando nova senha' : '🔑 Zerar senha'}
-              </Button>
+              <span style={{ display: 'flex', gap: 8 }}>
+                <Button variant="soft" type="button" disabled={busy === m.username || m.reset} onClick={() => void reset(m)}>
+                  {busy === m.username ? 'Zerando…' : m.reset ? 'Aguardando nova senha' : '🔑 Zerar senha'}
+                </Button>
+                {isMaster && (
+                  <Button variant="danger" type="button" disabled={busy === m.username} onClick={() => void remove(m)}>
+                    🗑️ Excluir
+                  </Button>
+                )}
+              </span>
             </li>
           ))}
         </ul>
