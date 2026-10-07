@@ -408,6 +408,34 @@ export async function resetTeamManagerPassword(teamId: string, username: string)
   })
 }
 
+/**
+ * Administrador master EXCLUI um gestor do time: o e-mail perde o acesso. Se
+ * sair o 1º gestor, o 2º passa a ocupar o lugar dele.
+ */
+export async function deleteTeamManager(teamId: string, username: string): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('delete_team_manager', {
+      p_team: teamId,
+      p_username: username,
+    })
+    if (error) throw error
+    return
+  }
+  mutate((d) => {
+    const t = d.teams.find((x) => x.id === teamId)
+    if (!t) return
+    if (t.username === username) {
+      t.username = t.username2
+      t.passwordHash = t.passwordHash2
+      t.username2 = undefined
+      t.passwordHash2 = undefined
+    } else if (t.username2 === username) {
+      t.username2 = undefined
+      t.passwordHash2 = undefined
+    }
+  })
+}
+
 export async function deleteTeam(id: string): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.from('teams').delete().eq('id', id)
