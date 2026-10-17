@@ -34,7 +34,16 @@ import {
 
 type Tab = 'overview' | 'matches' | 'calendar' | 'stats'
 
-export function PublicChampionship({ championshipId, onHome }: { championshipId: string; onHome: () => void }) {
+export function PublicChampionship({
+  championshipId,
+  initialCategory,
+  onHome,
+}: {
+  championshipId: string
+  /** Categoria a abrir de início (deep link `#/c/<id>?cat=<categoria>`). */
+  initialCategory?: string
+  onHome: () => void
+}) {
   const [champ, setChamp] = useState<Championship | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
@@ -42,7 +51,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
   const [events, setEvents] = useState<MatchEvent[]>([])
   const [tab, setTab] = useState<Tab>('overview')
   /** Categoria escolhida nas abas (cada categoria é uma competição à parte). */
-  const [catId, setCatId] = useState<string | undefined>(undefined)
+  const [catId, setCatId] = useState<string | undefined>(initialCategory)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
