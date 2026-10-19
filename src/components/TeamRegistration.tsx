@@ -4,11 +4,9 @@ import {
   addRegPlayer,
   createTeamAccount,
   loadRegistration,
-  removeRegPlayer,
   saveTeamInfo,
   setTeamPassword,
   teamLogin,
-  updateRegPlayer,
   type PlayerInput,
   type RegistrationData,
 } from '../services/registration'
@@ -499,7 +497,6 @@ function RosterCard({
   data: RegistrationData
   onChanged: () => Promise<void>
 }) {
-  const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
@@ -529,12 +526,6 @@ function RosterCard({
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name
 
-  async function remove(p: Player) {
-    if (!confirm(`Remover ${p.name} do elenco?`)) return
-    await removeRegPlayer(teamId, token, p.id)
-    await onChanged()
-  }
-
   return (
     <section className="panel reg__panel">
       <div className="panel__head">
@@ -545,6 +536,8 @@ function RosterCard({
           <p className="muted">
             Inscreva os atletas com nome completo, CPF e data de nascimento.
             {varias && ' Cada categoria tem o seu elenco.'}
+            {' '}Confira os dados antes de salvar: depois de inscrito, só o organizador
+            do campeonato pode corrigir ou remover o atleta.
           </p>
         </div>
         <div className="panel__head-actions">
@@ -625,7 +618,6 @@ function RosterCard({
                 <th>Atleta</th>
                 <th>Nasc.</th>
                 {!varias && data.categories.length > 1 && <th>Categoria</th>}
-                <th className="col-actions"></th>
               </tr>
             </thead>
             <tbody>
@@ -652,10 +644,6 @@ function RosterCard({
                   {!varias && data.categories.length > 1 && (
                     <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
                   )}
-                  <td className="col-actions">
-                    <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
-                    <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -663,7 +651,7 @@ function RosterCard({
         </div>
       )}
 
-      {(adding || editing) && (
+      {adding && (
         <AthleteDialog
           teamId={teamId}
           token={token}
@@ -673,15 +661,9 @@ function RosterCard({
           categories={varias ? minhas.filter((c) => c.id === catAtual) : minhas}
           audience={data.audience}
           elenco={data.players}
-          initial={editing ?? undefined}
-          identidadeTravada={lock.locked && !!editing}
-          onClose={() => {
-            setAdding(false)
-            setEditing(null)
-          }}
+          onClose={() => setAdding(false)}
           onSaved={async () => {
             setAdding(false)
-            setEditing(null)
             await onChanged()
           }}
         />
@@ -717,8 +699,6 @@ export function AthleteDialog({
   categories,
   audience,
   elenco,
-  initial,
-  identidadeTravada = false,
   onClose,
   onSaved,
 }: {
@@ -729,25 +709,22 @@ export function AthleteDialog({
   audience?: 'infantil' | 'adulto'
   /** Elenco atual, para saber quantas vagas de federado restam. */
   elenco?: Player[]
-  initial?: Player
-  /** Inscrições encerradas: nome, CPF, nascimento, categoria e tipo não mudam. */
-  identidadeTravada?: boolean
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
-  const trava = identidadeTravada
-  const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
-  const [name, setName] = useState(initial?.name ?? '')
-  const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
-  const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
-  const [number, setNumber] = useState(initial?.number != null ? String(initial.number) : '')
+  // O time só inscreve: editar e remover atleta é com o organizador.
+  const [role, setRole] = useState<'atleta' | 'comissao'>('atleta')
+  const [name, setName] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [birthdate, setBirthdate] = useState('')
+  const [number, setNumber] = useState('')
   const [position, setPosition] = useState<Position>(
-    initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
+    POSICAO_PADRAO.atleta,
   )
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
-  const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
-  const [federated, setFederated] = useState(Boolean(initial?.federated))
-  const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>(initial?.federatedIn ?? 'campo')
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '')
+  const [photo, setPhoto] = useState<string | undefined>(undefined)
+  const [federated, setFederated] = useState(false)
+  const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>('campo')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -762,9 +739,7 @@ export function AthleteDialog({
   const outOfRule = Boolean(category?.birthYear && birthdate && !withinAgeRule(category, birthYearOf(birthdate)))
 
   // A permissão é DA CATEGORIA escolhida — trocar de categoria muda a regra.
-  // Vagas desconsiderando o próprio atleta: reeditar um federado que já existe
-  // não pode esbarrar no limite por causa dele mesmo.
-  const vagasFed = vagasFederados(category, elenco, initial?.id)
+  const vagasFed = vagasFederados(category, elenco)
   const mostraFederado = isAthlete && regraVale({ audience }) && permiteFederados(category)
   const semVaga = !federated && vagasFed <= 0
 
@@ -809,8 +784,7 @@ export function AthleteDialog({
         categoryId: categoryId || undefined,
         role,
       }
-      if (initial) await updateRegPlayer(teamId, token, initial.id, payload)
-      else await addRegPlayer(teamId, token, payload)
+      await addRegPlayer(teamId, token, payload)
       await onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível inscrever o atleta.')
@@ -820,7 +794,7 @@ export function AthleteDialog({
   }
 
   return (
-    <Modal title={initial ? 'Editar atleta' : 'Inscrever atleta'} onClose={onClose}>
+    <Modal title="Inscrever atleta" onClose={onClose}>
       <form onSubmit={submit} className="form-grid">
         <div className="athlete-photo-field">
           <span className="athlete-photo athlete-photo--lg">{photo ? <img src={photo} alt="" /> : '👤'}</span>
@@ -831,36 +805,29 @@ export function AthleteDialog({
           </div>
         </div>
 
-        {trava && (
-          <div className="lock-banner">
-            🔒 Inscrições encerradas: dá para mudar número, posição e foto, mas não nome, CPF,
-            data de nascimento, categoria ou tipo do atleta.
-          </div>
-        )}
-
         <Field label="Tipo de inscrição">
           <div className="segmented">
-            <button type="button" disabled={trava} className={`segmented__item ${isAthlete ? 'is-active' : ''}`} onClick={() => setRole('atleta')}>🏃 Atleta</button>
-            <button type="button" disabled={trava} className={`segmented__item ${!isAthlete ? 'is-active' : ''}`} onClick={() => setRole('comissao')}>📋 Comissão técnica</button>
+            <button type="button" className={`segmented__item ${isAthlete ? 'is-active' : ''}`} onClick={() => setRole('atleta')}>🏃 Atleta</button>
+            <button type="button" className={`segmented__item ${!isAthlete ? 'is-active' : ''}`} onClick={() => setRole('comissao')}>📋 Comissão técnica</button>
           </div>
         </Field>
 
         <Field label="Nome completo">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required disabled={trava} />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required />
         </Field>
 
         <div className="form-row">
           <Field label={isAthlete ? 'CPF' : 'CPF (opcional)'}>
-            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} disabled={trava} />
+            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} />
           </Field>
           <Field label={isAthlete ? 'Data de nascimento' : 'Data de nascimento (opcional)'}>
-            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} disabled={trava} />
+            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} />
           </Field>
         </div>
 
         {categories.length > 1 && (
           <Field label="Categoria">
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={trava}>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

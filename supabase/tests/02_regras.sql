@@ -1209,21 +1209,6 @@ select pg_temp.checa('sem prazo e sem jogo começado: aberto', not public.regist
 update public.matches set status = 'live' where id = 'ab000000-0000-0000-0000-0000000000e1';
 select pg_temp.checa('  e fecha quando o 1º jogo começa', public.registration_closed(:'ci'));
 
--- Encerradas: o time edita número/posição/foto, mas não troca quem é o atleta.
-select id as pj from players where team_id = :'tc' and name = 'Atleta 1' \gset
-select public.reg_update_player(:'tc', 'tkc', :'pj', '  atleta   1 ', null, null, null, 10, 'ATA', 'u', 'atleta', false, null) as _;
-select pg_temp.checa('encerradas: número e posição continuam editáveis',
-  (select number from players where team_id = :'tc') = 10);
-select pg_temp.recusa('encerradas: não troca o nome (outra pessoa no lugar)',
-  format($q$select public.reg_update_player(%L, 'tkc', %L, 'Outra Pessoa', null, null, null, 10, 'ATA', 'u', 'atleta', false, null)$q$, :'tc', :'pj'),
-  'não é possível trocar');
-select pg_temp.recusa('encerradas: não troca o CPF',
-  format($q$select public.reg_update_player(%L, 'tkc', %L, 'Atleta 1', '12345678909', null, null, 10, 'ATA', 'u', 'atleta', false, null)$q$, :'tc', :'pj'),
-  'não é possível trocar');
-select pg_temp.recusa('encerradas: não troca a categoria',
-  format($q$select public.reg_update_player(%L, 'tkc', %L, 'Atleta 1', null, null, null, 10, 'ATA', 'outra', 'atleta', false, null)$q$, :'tc', :'pj'),
-  'não é possível trocar');
-
 -- ===========================================================================
 -- Encerradas valem para todos, inclusive o organizador (0044)
 -- ===========================================================================
@@ -1237,3 +1222,12 @@ update public.matches set status = 'scheduled' where id = 'ab000000-0000-0000-00
 insert into public.players (team_id, championship_id, name, category_id) values (:'ta', :'ci', 'Antes de fechar', 'u');
 select pg_temp.checa('  e com as inscrições abertas o organizador inscreve',
   (select count(*) from players where team_id = :'ta' and name = 'Antes de fechar') = 1);
+
+-- ===========================================================================
+-- O time só inscreve; editar e excluir é do organizador (0045)
+-- ===========================================================================
+select pg_temp.checa('link do time não tem mais como editar nem excluir atleta',
+  not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+               where n.nspname = 'public' and p.proname in ('reg_update_player', 'reg_delete_player')));
+select pg_temp.checa('  e continua podendo inscrever',
+  exists (select 1 from pg_proc where proname = 'reg_add_player'));

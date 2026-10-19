@@ -83,32 +83,3 @@ export function matchRegistrationClosed(
   if (Number.isNaN(at.getTime())) return false
   return now.getTime() >= at.getTime() - cutoffHours * 3600_000
 }
-
-/** Os dados que identificam o atleta — não mudam depois do encerramento. */
-export interface IdentidadeAtleta {
-  name?: string
-  cpf?: string
-  birthdate?: string
-  categoryId?: string
-  role?: 'atleta' | 'comissao'
-}
-
-const nomeNormal = (s?: string) => (s ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
-const soDigitos = (s?: string) => (s ?? '').replace(/\D/g, '')
-
-/**
- * A edição troca QUEM é o atleta? Com as inscrições encerradas, mudar nome,
- * CPF, nascimento, categoria ou tipo equivale a inscrever outra pessoa no
- * lugar — e isso é barrado. Número, posição e foto continuam livres.
- * Atleta antigo sem categoria aceita a que vier (é a que a tela mostra).
- * A mesma regra está no banco: `reg_update_player` (migration 0043).
- */
-export function mudaIdentidade(antes: IdentidadeAtleta, depois: IdentidadeAtleta): boolean {
-  return (
-    nomeNormal(antes.name) !== nomeNormal(depois.name) ||
-    soDigitos(antes.cpf) !== soDigitos(depois.cpf) ||
-    (antes.birthdate ?? '') !== (depois.birthdate ?? '') ||
-    (antes.categoryId ? antes.categoryId !== depois.categoryId : false) ||
-    (antes.role ?? 'atleta') !== (depois.role ?? 'atleta')
-  )
-}

@@ -22,7 +22,7 @@ import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
 import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
-import { mudaIdentidade, registrationLock, REGISTRATION_CLOSED_MSG } from '../lib/matchWindow'
+import { registrationLock, REGISTRATION_CLOSED_MSG } from '../lib/matchWindow'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -534,25 +534,21 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 // ---------------------------------------------------------------------------
 
 export { REGISTRATION_CLOSED_MSG }
-/** Mesma frase que o banco devolve (`reg_update_player`, 0043). */
-export const IDENTITY_LOCKED_MSG =
-  'As inscrições deste campeonato estão encerradas: não é possível trocar nome, CPF, data de nascimento, categoria ou tipo do atleta.'
 
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
-function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
+function validateDemo(teamId: string, input: PlayerInput): void {
   const role = input.role ?? 'atleta'
-  const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames, atual } = query((d) => {
+  const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
     const existing = d.players.filter(
-      (p) => p.teamId === teamId && p.categoryId === input.categoryId && p.id !== excludePlayerId,
+      (p) => p.teamId === teamId && p.categoryId === input.categoryId,
     )
     const matches = d.matches.filter((m) => m.championshipId === team?.championshipId)
     return {
       category,
       existing,
-      atual: excludePlayerId ? d.players.find((p) => p.id === excludePlayerId) : undefined,
       cutoff: champ?.registrationCutoffHours ?? 0,
       closedRounds: champ?.closedRounds ?? [],
       matches,
@@ -570,16 +566,11 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
     categoryId: input.categoryId,
     players: champPlayers,
     teamName: (id) => teamNames.get(id),
-    ignorePlayerId: excludePlayerId,
   })
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
-  // Encerradas: nada de inscrever, e na edição nada de trocar quem é o atleta.
   const lock = registrationLock(matches, cutoff, closedRounds)
-  if (lock.locked) {
-    if (!atual) throw new Error(REGISTRATION_CLOSED_MSG)
-    if (mudaIdentidade(atual, input)) throw new Error(IDENTITY_LOCKED_MSG)
-  }
+  if (lock.locked) throw new Error(REGISTRATION_CLOSED_MSG)
 
   if (role === 'atleta') {
     const elig = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })
@@ -593,7 +584,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   // no modo demo não há servidor, então a regra vale aqui.
   if (input.federated) {
     const doTime = query((d) => d.players.filter((p) => p.teamId === teamId))
-    const v = podeMarcarFederado(category, doTime, excludePlayerId)
+    const v = podeMarcarFederado(category, doTime)
     if (!v.ok) throw new Error(v.motivo ?? 'Atleta federado não permitido.')
   }
 }
@@ -648,76 +639,5 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
       federatedIn: input.federated ? input.federatedIn : undefined,
       createdAt: new Date().toISOString(),
     })
-  })
-}
-
-export async function updateRegPlayer(
-  teamId: string,
-  token: string,
-  playerId: string,
-  input: PlayerInput,
-): Promise<void> {
-  if (authMode === 'supabase' && supabase) {
-    const base = {
-      p_team: teamId,
-      p_token: token,
-      p_player: playerId,
-      p_name: input.name,
-      p_cpf: input.cpf ?? null,
-      p_birthdate: input.birthdate ?? null,
-      p_photo: input.photo ?? null,
-      p_number: input.number ?? null,
-      p_position: input.position ?? null,
-      p_category: input.categoryId ?? null,
-      p_role: input.role ?? 'atleta',
-    }
-    const { error } = await supabase.rpc('reg_update_player', {
-      ...base,
-      p_federated: input.federated ?? false,
-      p_federated_in: input.federatedIn ?? null,
-    })
-    if (error && semMigration0025(error)) {
-      const { error: e2 } = await supabase.rpc('reg_update_player', base)
-      if (e2) throw e2
-      return
-    }
-    if (error) throw error
-    return
-  }
-  assertTokenDemo(teamId, token)
-  validateDemo(teamId, input, playerId)
-  mutate((d) => {
-    const i = d.players.findIndex((p) => p.id === playerId && p.teamId === teamId)
-    if (i >= 0) {
-      d.players[i] = {
-        ...d.players[i],
-        name: input.name,
-        cpf: input.cpf,
-        birthdate: input.birthdate,
-        photo: input.photo,
-        number: input.number,
-        position: input.position,
-        categoryId: input.categoryId,
-        role: input.role ?? 'atleta',
-        federated: input.federated ?? false,
-        federatedIn: input.federated ? input.federatedIn : undefined,
-      }
-    }
-  })
-}
-
-export async function removeRegPlayer(teamId: string, token: string, playerId: string): Promise<void> {
-  if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.rpc('reg_delete_player', {
-      p_team: teamId,
-      p_token: token,
-      p_player: playerId,
-    })
-    if (error) throw error
-    return
-  }
-  assertTokenDemo(teamId, token)
-  mutate((d) => {
-    d.players = d.players.filter((p) => !(p.id === playerId && p.teamId === teamId))
   })
 }
