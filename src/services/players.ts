@@ -6,6 +6,7 @@ import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkCpfConflict } from '../lib/duplicates'
 import type { Player } from '../types'
+import { ordenarPorNome } from '../lib/ordem'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -53,13 +54,12 @@ export async function listPlayers(championshipId: string): Promise<Player[]> {
         .from('players')
         .select('*')
         .eq('championship_id', championshipId)
-        .order('number', { nullsFirst: false })
         .order('id')
         .range(de, ate),
     )
-    return data.map(fromRow)
+    return ordenarPorNome(data.map(fromRow))
   }
-  return query((d) => d.players.filter((p) => p.championshipId === championshipId))
+  return query((d) => ordenarPorNome(d.players.filter((p) => p.championshipId === championshipId)))
 }
 
 export type NewPlayer = Omit<Player, 'id' | 'createdAt'>

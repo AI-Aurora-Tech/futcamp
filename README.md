@@ -16,7 +16,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 
 - 🏆 **Campeonatos** em três formatos: **pontos corridos**, **grupos + mata-mata** e **mata-mata**.
 - 🛡️ **Times** com escudo (imagem ou cor), responsável e telefone, além de busca por nome/responsável/grupo.
-- 👥 **Elencos** com número, posição e jogadores por time.
+- 👥 **Elencos** com número, posição e jogadores por time — sempre em **ordem alfabética**, no sistema e na súmula.
 - 📅 **Geração automática de rodadas** (todos contra todos) com turno e returno opcional.
 - ⚽ **Registro de resultados** com eventos por jogador (gols, gols contra, assistências, cartões).
 - 📊 **Classificação automática** com critérios de desempate (pontos, saldo, gols pró, vitórias).

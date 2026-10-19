@@ -23,6 +23,7 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { porNome } from '../lib/ordem'
 
 export function PlayersPanel({
   championship,
@@ -85,7 +86,7 @@ export function PlayersPanel({
   }, [teams, search])
 
   const teamPlayers = useMemo(
-    () => players.filter((p) => p.teamId === selectedTeam).sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+    () => players.filter((p) => p.teamId === selectedTeam).sort(porNome),
     [players, selectedTeam],
   )
   const team = teams.find((t) => t.id === selectedTeam)

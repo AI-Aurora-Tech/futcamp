@@ -24,6 +24,7 @@ import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
 import { registrationLock, REGISTRATION_CLOSED_MSG } from '../lib/matchWindow'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
+import { ordenarPorNome, porNome } from '../lib/ordem'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -208,7 +209,7 @@ export async function loadRegistration(
       audience: data.audience ?? 'adulto',
       categories: Array.isArray(data.categories) ? data.categories : [],
       teamCategories: Array.isArray(data.team_categories) ? (data.team_categories as string[]) : [],
-      players: Array.isArray(data.players) ? data.players.map(playerFromRow) : [],
+      players: Array.isArray(data.players) ? ordenarPorNome(data.players.map(playerFromRow)) : [],
       hasAccount: Boolean(data.has_account),
       managers: Array.isArray(data.managers) ? (data.managers as string[]) : [],
       registrationCutoffHours: data.registration_cutoff_hours ?? 0,
@@ -240,7 +241,7 @@ export async function loadRegistration(
       teamCategories: team.categoryIds ?? [],
       players: d.players
         .filter((p) => p.teamId === teamId)
-        .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+        .sort(porNome),
       hasAccount: Boolean(team.username && team.passwordHash),
       managers: [team.username, team.username2].filter((u): u is string => Boolean(u)),
       registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
