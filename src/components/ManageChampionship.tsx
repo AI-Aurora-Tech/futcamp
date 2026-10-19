@@ -28,6 +28,7 @@ import { ChampionTag } from './ChampionBanner'
 import { computePodium } from '../lib/champion'
 import { TeamsPanel } from './TeamsPanel'
 import { PlayersPanel } from './PlayersPanel'
+import { registrationLock } from '../lib/matchWindow'
 import { MatchesPanel } from './MatchesPanel'
 import { StatsPanel } from './StatsPanel'
 import { OfficialsPanel } from './OfficialsPanel'
@@ -324,6 +325,10 @@ export function ManageChampionship({
             players={atletasCat}
             categoryId={varias ? catAtual : undefined}
             onCategoryChange={varias ? setCatId : undefined}
+            // Encerradas para o campeonato inteiro: todas as partidas, não só as da aba.
+            inscricoesEncerradas={
+              registrationLock(matches, champ.registrationCutoffHours ?? 0, champ.closedRounds ?? []).locked
+            }
             onChange={reload}
           />
         )}

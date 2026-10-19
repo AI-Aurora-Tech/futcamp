@@ -1,6 +1,7 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { todasAsPaginas } from '../lib/paginar'
+import { registrationLock, REGISTRATION_CLOSED_MSG } from '../lib/matchWindow'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkCpfConflict } from '../lib/duplicates'
@@ -107,6 +108,16 @@ async function listTeamNames(championshipId: string): Promise<Map<string, string
 
 export async function createPlayer(input: NewPlayer): Promise<Player> {
   await assertCpfAvailable(input.championshipId, input)
+  // No Supabase quem barra é o gatilho `players_block_closed_registration` (0044);
+  // no modo demo não há servidor, então a regra vale aqui.
+  if (authMode !== 'supabase') {
+    const fechado = query((d) => {
+      const champ = d.championships.find((c) => c.id === input.championshipId)
+      const matches = d.matches.filter((m) => m.championshipId === input.championshipId)
+      return registrationLock(matches, champ?.registrationCutoffHours ?? 0, champ?.closedRounds ?? []).locked
+    })
+    if (fechado) throw new Error(REGISTRATION_CLOSED_MSG)
+  }
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.from('players').insert(toRow(input)).select('*').single()
     if (error) throw error

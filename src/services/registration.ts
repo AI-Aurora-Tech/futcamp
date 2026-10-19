@@ -22,7 +22,7 @@ import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
 import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
-import { mudaIdentidade, registrationLock } from '../lib/matchWindow'
+import { mudaIdentidade, registrationLock, REGISTRATION_CLOSED_MSG } from '../lib/matchWindow'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -533,8 +533,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 // Atletas (com validação de categoria / ano de nascimento)
 // ---------------------------------------------------------------------------
 
-/** Mesma frase que o banco devolve (`assert_registration_open`, 0043). */
-export const REGISTRATION_CLOSED_MSG = 'As inscrições deste campeonato estão encerradas.'
+export { REGISTRATION_CLOSED_MSG }
 /** Mesma frase que o banco devolve (`reg_update_player`, 0043). */
 export const IDENTITY_LOCKED_MSG =
   'As inscrições deste campeonato estão encerradas: não é possível trocar nome, CPF, data de nascimento, categoria ou tipo do atleta.'

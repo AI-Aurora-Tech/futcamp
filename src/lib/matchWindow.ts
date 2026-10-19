@@ -1,5 +1,8 @@
 import type { Match } from '../types'
 
+/** Mesma frase que o banco devolve (`assert_registration_open` 0043, gatilho 0044). */
+export const REGISTRATION_CLOSED_MSG = 'As inscrições deste campeonato estão encerradas.'
+
 export interface RegistrationLock {
   locked: boolean
   /**

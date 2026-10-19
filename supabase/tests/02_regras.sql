@@ -1223,3 +1223,17 @@ select pg_temp.recusa('encerradas: não troca o CPF',
 select pg_temp.recusa('encerradas: não troca a categoria',
   format($q$select public.reg_update_player(%L, 'tkc', %L, 'Atleta 1', null, null, null, 10, 'ATA', 'outra', 'atleta', false, null)$q$, :'tc', :'pj'),
   'não é possível trocar');
+
+-- ===========================================================================
+-- Encerradas valem para todos, inclusive o organizador (0044)
+-- ===========================================================================
+select pg_temp.recusa('encerradas: organizador não insere direto na tabela',
+  format($q$insert into public.players (team_id, championship_id, name, category_id) values (%L, %L, 'Pelo painel', 'u')$q$, :'ta', :'ci'),
+  'encerradas');
+select pg_temp.recusa('  nem sem informar o campeonato (vem do time)',
+  format($q$insert into public.players (team_id, name, category_id) values (%L, 'Pelo painel', 'u')$q$, :'ta'),
+  'encerradas');
+update public.matches set status = 'scheduled' where id = 'ab000000-0000-0000-0000-0000000000e1';
+insert into public.players (team_id, championship_id, name, category_id) values (:'ta', :'ci', 'Antes de fechar', 'u');
+select pg_temp.checa('  e com as inscrições abertas o organizador inscreve',
+  (select count(*) from players where team_id = :'ta' and name = 'Antes de fechar') = 1);

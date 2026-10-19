@@ -30,6 +30,7 @@ export function PlayersPanel({
   players,
   categoryId,
   onCategoryChange,
+  inscricoesEncerradas = false,
   onChange,
 }: {
   championship: Championship
@@ -47,6 +48,8 @@ export function PlayersPanel({
    * sobre qual categoria está aberta acabariam discordando.
    */
   onCategoryChange?: (id: string) => void
+  /** Inscrições do campeonato encerradas: ninguém inscreve, nem o organizador. */
+  inscricoesEncerradas?: boolean
   onChange: () => void
 }) {
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.id ?? '')
@@ -135,10 +138,17 @@ export function PlayersPanel({
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
-          <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam || inscricoesEncerradas}>📊 Importar planilha</Button>
+          <Button onClick={() => setAdding(true)} disabled={!selectedTeam || inscricoesEncerradas}>＋ Adicionar atleta</Button>
         </div>
       </div>
+
+      {inscricoesEncerradas && (
+        <div className="lock-banner">
+          🔒 As inscrições deste campeonato estão <b>encerradas</b>. Ninguém inscreve novos atletas —
+          nem os times, nem o organizador. Ainda dá para corrigir os dados de quem já está inscrito.
+        </div>
+      )}
 
       <SearchField
         value={search}
