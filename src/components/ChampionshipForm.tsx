@@ -1456,7 +1456,7 @@ export function ChampionshipForm({
           />
         </Field>
 
-        <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições de um time encerram este tempo antes da partida e reabrem após o jogo ser finalizado. Use 0 para não limitar.">
+        <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições do campeonato inteiro encerram este tempo antes do primeiro jogo e não reabrem mais. Com 0, encerram quando o primeiro jogo começa.">
           <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />
         </Field>
 

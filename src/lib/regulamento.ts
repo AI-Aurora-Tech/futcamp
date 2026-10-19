@@ -124,11 +124,9 @@ export function descreverFormato(c: Championship): string {
 /** Prazo de inscrição em texto. */
 export function descreverPrazo(c: Championship): string {
   const h = c.registrationCutoffHours ?? 0
-  if (!h) return 'As inscrições ficam abertas durante todo o campeonato.'
-  return (
-    `As inscrições de cada equipe se encerram ${h} hora(s) antes da sua próxima partida ` +
-    'e reabrem automaticamente depois que o jogo é finalizado.'
-  )
+  const fim = 'Encerradas, não reabrem: nenhuma equipe inscreve novos atletas, em nenhuma rodada.'
+  if (!h) return `As inscrições se encerram quando a primeira partida do campeonato começa. ${fim}`
+  return `As inscrições se encerram ${h} hora(s) antes da primeira partida do campeonato. ${fim}`
 }
 
 /**

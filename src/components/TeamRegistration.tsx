@@ -25,7 +25,7 @@ import {
 } from '../lib/federated'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
-import { registrationLockForTeam } from '../lib/matchWindow'
+import { registrationLock } from '../lib/matchWindow'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import {
   POSICAO_PADRAO,
@@ -503,7 +503,7 @@ function RosterCard({
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
-  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
+  const lock = registrationLock(data.matches, data.registrationCutoffHours, data.closedRounds)
 
   /* ---------------------------------------------------------------------- */
   /* Abas de categoria                                                       */
@@ -580,15 +580,13 @@ function RosterCard({
 
       {lock.locked && (
         <div className="lock-banner">
-          {lock.reason === 'manual' ? (
-            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
-          ) : (
-            <>
-              🔒 Inscrições <b>encerradas</b> para a próxima partida
-              {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
-              Reabrem automaticamente após o jogo ser finalizado.
-            </>
-          )}
+          🔒 As inscrições deste campeonato estão <b>encerradas</b>
+          {lock.reason === 'manual'
+            ? ' pelo organizador'
+            : lock.matchAt
+              ? ` (primeiro jogo: ${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})`
+              : ''}
+          . Não é possível inscrever novos atletas em nenhuma rodada.
         </div>
       )}
 

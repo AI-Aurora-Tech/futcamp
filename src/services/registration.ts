@@ -22,7 +22,7 @@ import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
 import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
-import { registrationLockForTeam } from '../lib/matchWindow'
+import { registrationLock } from '../lib/matchWindow'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -47,7 +47,7 @@ export interface RegistrationData {
   registrationCutoffHours: number
   /** Rodadas com inscrições encerradas manualmente pelo organizador. */
   closedRounds: number[]
-  /** Partidas do time (para calcular a trava de inscrição). */
+  /** Partidas do campeonato inteiro (para calcular a trava de inscrição). */
   matches: Match[]
   /** Regras do campeonato, para o time baixar o regulamento. */
   championship?: Championship
@@ -245,7 +245,7 @@ export async function loadRegistration(
       managers: [team.username, team.username2].filter((u): u is string => Boolean(u)),
       registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
       closedRounds: champ?.closedRounds ?? [],
-      matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
+      matches: d.matches.filter((m) => m.championshipId === team.championshipId),
     }
   })
 }
@@ -533,6 +533,9 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 // Atletas (com validação de categoria / ano de nascimento)
 // ---------------------------------------------------------------------------
 
+/** Mesma frase que o banco devolve (`assert_registration_open`, 0043). */
+export const REGISTRATION_CLOSED_MSG = 'As inscrições deste campeonato estão encerradas.'
+
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
@@ -543,7 +546,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
     const existing = d.players.filter(
       (p) => p.teamId === teamId && p.categoryId === input.categoryId && p.id !== excludePlayerId,
     )
-    const matches = d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId)
+    const matches = d.matches.filter((m) => m.championshipId === team?.championshipId)
     return {
       category,
       existing,
@@ -568,14 +571,8 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   })
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
-  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
-  if (lock.locked) {
-    throw new Error(
-      lock.reason === 'manual'
-        ? 'As inscrições da próxima rodada foram encerradas pelo organizador.'
-        : 'As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.',
-    )
-  }
+  const lock = registrationLock(matches, cutoff, closedRounds)
+  if (lock.locked) throw new Error(REGISTRATION_CLOSED_MSG)
 
   if (role === 'atleta') {
     const elig = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })

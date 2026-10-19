@@ -1145,3 +1145,66 @@ select pg_temp.checa('  e apagar a negociação volta ao plano de tabela',
   (select amount_cents from championships where id = :'cs2') = 20000
   and (select negotiated_kind from championships where id = :'cs2') = 'mensal'
   and (select negotiated_months from championships where id = :'cs2') = 12);
+
+-- ===========================================================================
+-- Inscrições encerradas não reabrem (0043)
+--
+-- Fecham para o campeonato inteiro no primeiro jogo que entra no prazo, começa
+-- ou termina — ou quando o organizador encerra uma rodada — e não reabrem
+-- depois do jogo, nem para outro time, nem em outra rodada.
+-- ===========================================================================
+reset request.jwt.claim.role;
+reset request.jwt.claim.sub;
+\set ci 'ab000000-0000-0000-0000-000000000001'
+\set ta 'ab000000-0000-0000-0000-00000000000a'
+\set tb 'ab000000-0000-0000-0000-00000000000b'
+\set tc 'ab000000-0000-0000-0000-00000000000c'
+insert into public.championships (id, owner_id, name, sport, format, season, categories, registration_cutoff_hours)
+values (:'ci', '11111111-1111-1111-1111-111111111111', 'Copa Prazo', 'futebol', 'league', '2026',
+        '[{"id":"u","name":"Única"}]'::jsonb, 3);
+insert into public.teams (id, championship_id, name) values
+  (:'ta', :'ci', 'A'), (:'tb', :'ci', 'B'), (:'tc', :'ci', 'C');
+insert into public.team_invites (team_id, championship_id, token) values
+  (:'ta', :'ci', 'tka'), (:'tb', :'ci', 'tkb'), (:'tc', :'ci', 'tkc');
+
+-- Rodada 1 (A x B) daqui a 2 dias; rodada 2 (C x A) daqui a 9 dias.
+insert into public.matches (id, championship_id, round, home_team_id, away_team_id, scheduled_at) values
+  ('ab000000-0000-0000-0000-0000000000e1', :'ci', 1, :'ta', :'tb', now() + interval '2 days'),
+  ('ab000000-0000-0000-0000-0000000000e2', :'ci', 2, :'tc', :'ta', now() + interval '9 days');
+
+select pg_temp.checa('inscrições abertas longe dos jogos', not public.registration_closed(:'ci'));
+select public.reg_add_player(:'tc', 'tkc', 'Atleta 1', null, null, null, null, null, 'u', 'atleta', false, null) as _;
+select pg_temp.checa('  e o time inscreve',
+  (select count(*) from players where team_id = :'tc') = 1);
+
+-- O organizador encerra a rodada 2 e depois desfaz.
+update public.championships set closed_rounds = '[2]'::jsonb where id = :'ci';
+select pg_temp.recusa('encerramento manual fecha o campeonato inteiro',
+  format($q$select public.reg_add_player(%L, 'tkb', 'X', null, null, null, null, null, 'u', 'atleta', false, null)$q$, :'tb'),
+  'encerradas');
+update public.championships set closed_rounds = '[]'::jsonb where id = :'ci';
+select pg_temp.checa('  e o organizador consegue reabrir', not public.registration_closed(:'ci'));
+
+-- O 1º jogo entra no prazo de 3 h.
+update public.matches set scheduled_at = now() + interval '2 hours'
+ where id = 'ab000000-0000-0000-0000-0000000000e1';
+select pg_temp.recusa('prazo do 1º jogo fecha para quem não joga nele',
+  format($q$select public.reg_add_player(%L, 'tkc', 'X', null, null, null, null, null, 'u', 'atleta', false, null)$q$, :'tc'),
+  'encerradas');
+
+-- O 1º jogo termina: antes reabria, agora continua fechado.
+update public.matches set status = 'finished', scheduled_at = now() - interval '1 day'
+ where id = 'ab000000-0000-0000-0000-0000000000e1';
+select pg_temp.recusa('jogo encerrado não reabre as inscrições',
+  format($q$select public.reg_add_player(%L, 'tka', 'X', null, null, null, null, null, 'u', 'atleta', false, null)$q$, :'ta'),
+  'encerradas');
+select pg_temp.checa('portal do time recebe as partidas do campeonato e o estado',
+  jsonb_array_length(public.team_registration(:'tb', 'tkb') -> 'matches') = 2
+  and (public.team_registration(:'tb', 'tkb') ->> 'registration_closed')::boolean);
+
+-- Sem prazo configurado: fecha quando o 1º jogo começa.
+update public.championships set registration_cutoff_hours = 0 where id = :'ci';
+update public.matches set status = 'scheduled' where id = 'ab000000-0000-0000-0000-0000000000e1';
+select pg_temp.checa('sem prazo e sem jogo começado: aberto', not public.registration_closed(:'ci'));
+update public.matches set status = 'live' where id = 'ab000000-0000-0000-0000-0000000000e1';
+select pg_temp.checa('  e fecha quando o 1º jogo começa', public.registration_closed(:'ci'));

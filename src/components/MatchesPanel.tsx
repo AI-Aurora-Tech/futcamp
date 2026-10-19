@@ -276,7 +276,11 @@ export function MatchesPanel({
                       type="button"
                       className="round__toggle"
                       onClick={() => void toggleRound(roundNo)}
-                      title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
+                      title={
+                        isClosed
+                          ? 'Desfazer o encerramento manual (só reabre se nenhum jogo entrou no prazo)'
+                          : 'Encerrar as inscrições do campeonato inteiro — vale para todas as rodadas'
+                      }
                     >
                       {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
                     </button>
