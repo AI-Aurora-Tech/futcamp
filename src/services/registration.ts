@@ -22,7 +22,7 @@ import { checkEligibility, checkRosterLimit } from '../lib/eligibility'
 import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
-import { registrationLock } from '../lib/matchWindow'
+import { mudaIdentidade, registrationLock } from '../lib/matchWindow'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -535,11 +535,14 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 
 /** Mesma frase que o banco devolve (`assert_registration_open`, 0043). */
 export const REGISTRATION_CLOSED_MSG = 'As inscrições deste campeonato estão encerradas.'
+/** Mesma frase que o banco devolve (`reg_update_player`, 0043). */
+export const IDENTITY_LOCKED_MSG =
+  'As inscrições deste campeonato estão encerradas: não é possível trocar nome, CPF, data de nascimento, categoria ou tipo do atleta.'
 
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
-  const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames } = query((d) => {
+  const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames, atual } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
@@ -550,6 +553,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
     return {
       category,
       existing,
+      atual: excludePlayerId ? d.players.find((p) => p.id === excludePlayerId) : undefined,
       cutoff: champ?.registrationCutoffHours ?? 0,
       closedRounds: champ?.closedRounds ?? [],
       matches,
@@ -571,8 +575,12 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   })
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
+  // Encerradas: nada de inscrever, e na edição nada de trocar quem é o atleta.
   const lock = registrationLock(matches, cutoff, closedRounds)
-  if (lock.locked) throw new Error(REGISTRATION_CLOSED_MSG)
+  if (lock.locked) {
+    if (!atual) throw new Error(REGISTRATION_CLOSED_MSG)
+    if (mudaIdentidade(atual, input)) throw new Error(IDENTITY_LOCKED_MSG)
+  }
 
   if (role === 'atleta') {
     const elig = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })

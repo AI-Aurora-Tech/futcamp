@@ -236,8 +236,15 @@ export function ManageChampionship({
   const nomeCatAtual = champ.categories.find((c) => c.id === catAtual)?.name ?? 'categoria'
   const timesCat = elencoDeTimes(teams, varias ? catAtual : undefined)
   const partidasCat = partidasDaCategoria(matches, varias ? catAtual : undefined, padraoCat)
+  // Atleta com categoria que não existe mais (apagada ou recriada) aparece na
+  // primeira, em vez de sumir de todas as abas — assim dá para corrigi-lo.
+  const idsCategorias = new Set(champ.categories.map((c) => c.id))
   const atletasCat = players.filter((p) =>
-    atletaDaCategoria(p.categoryId, varias ? catAtual : undefined, padraoCat),
+    atletaDaCategoria(
+      p.categoryId && idsCategorias.has(p.categoryId) ? p.categoryId : undefined,
+      varias ? catAtual : undefined,
+      padraoCat,
+    ),
   )
   // Eventos seguem as partidas: cartão do Sub-11 não entra na artilharia do
   // Sub-15, porque o jogo não é daquela competição.

@@ -520,9 +520,11 @@ function RosterCard({
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
 
-  const doElenco = varias
-    ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
-    : data.players
+  // Atleta numa categoria que não é (mais) do clube aparece na primeira aba,
+  // em vez de sumir do elenco.
+  const abaDoAtleta = (p: Player) =>
+    p.categoryId && minhas.some((c) => c.id === p.categoryId) ? p.categoryId : minhas[0]?.id
+  const doElenco = varias ? data.players.filter((p) => abaDoAtleta(p) === catAtual) : data.players
   const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name
@@ -555,7 +557,7 @@ function RosterCard({
         <nav className="cat-tabs cat-tabs--claro" aria-label="Categorias do time">
           {minhas.map((c) => {
             const quantos = data.players.filter(
-              (p) => (p.categoryId || minhas[0]?.id) === c.id && (p.role ?? 'atleta') === 'atleta',
+              (p) => abaDoAtleta(p) === c.id && (p.role ?? 'atleta') === 'atleta',
             ).length
             return (
               <button
@@ -672,6 +674,7 @@ function RosterCard({
           audience={data.audience}
           elenco={data.players}
           initial={editing ?? undefined}
+          identidadeTravada={lock.locked && !!editing}
           onClose={() => {
             setAdding(false)
             setEditing(null)
@@ -715,6 +718,7 @@ export function AthleteDialog({
   audience,
   elenco,
   initial,
+  identidadeTravada = false,
   onClose,
   onSaved,
 }: {
@@ -726,9 +730,12 @@ export function AthleteDialog({
   /** Elenco atual, para saber quantas vagas de federado restam. */
   elenco?: Player[]
   initial?: Player
+  /** Inscrições encerradas: nome, CPF, nascimento, categoria e tipo não mudam. */
+  identidadeTravada?: boolean
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
+  const trava = identidadeTravada
   const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
   const [name, setName] = useState(initial?.name ?? '')
   const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
@@ -824,29 +831,36 @@ export function AthleteDialog({
           </div>
         </div>
 
+        {trava && (
+          <div className="lock-banner">
+            🔒 Inscrições encerradas: dá para mudar número, posição e foto, mas não nome, CPF,
+            data de nascimento, categoria ou tipo do atleta.
+          </div>
+        )}
+
         <Field label="Tipo de inscrição">
           <div className="segmented">
-            <button type="button" className={`segmented__item ${isAthlete ? 'is-active' : ''}`} onClick={() => setRole('atleta')}>🏃 Atleta</button>
-            <button type="button" className={`segmented__item ${!isAthlete ? 'is-active' : ''}`} onClick={() => setRole('comissao')}>📋 Comissão técnica</button>
+            <button type="button" disabled={trava} className={`segmented__item ${isAthlete ? 'is-active' : ''}`} onClick={() => setRole('atleta')}>🏃 Atleta</button>
+            <button type="button" disabled={trava} className={`segmented__item ${!isAthlete ? 'is-active' : ''}`} onClick={() => setRole('comissao')}>📋 Comissão técnica</button>
           </div>
         </Field>
 
         <Field label="Nome completo">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required disabled={trava} />
         </Field>
 
         <div className="form-row">
           <Field label={isAthlete ? 'CPF' : 'CPF (opcional)'}>
-            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} />
+            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} disabled={trava} />
           </Field>
           <Field label={isAthlete ? 'Data de nascimento' : 'Data de nascimento (opcional)'}>
-            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} />
+            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} disabled={trava} />
           </Field>
         </div>
 
         {categories.length > 1 && (
           <Field label="Categoria">
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={trava}>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

@@ -1,5 +1,6 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
+import { todasAsPaginas } from '../lib/paginar'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkCpfConflict } from '../lib/duplicates'
@@ -45,13 +46,17 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
 
 export async function listPlayers(championshipId: string): Promise<Player[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('number', { nullsFirst: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const sb = supabase
+    const data = await todasAsPaginas((de, ate) =>
+      sb
+        .from('players')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('number', { nullsFirst: false })
+        .order('id')
+        .range(de, ate),
+    )
+    return data.map(fromRow)
   }
   return query((d) => d.players.filter((p) => p.championshipId === championshipId))
 }

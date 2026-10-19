@@ -12,6 +12,9 @@
 -- Só o organizador desfaz um encerramento manual, e só enquanto nenhum jogo
 -- entrou no prazo. O painel do organizador continua podendo inscrever.
 --
+-- Encerradas, o time também não troca nome, CPF, nascimento, categoria ou
+-- tipo de um atleta já inscrito (seria inscrever outra pessoa no lugar).
+--
 -- A mesma regra está no app (src/lib/matchWindow.ts → registrationLock).
 --
 -- Também corrige o portal do time: desde a 0033 `team_registration` não
@@ -97,6 +100,61 @@ begin
      coalesce(p_role, 'atleta'),
      coalesce(p_federated, false),
      case when coalesce(p_federated, false) then p_federated_in else null end);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Edição pelo link do time: depois do encerramento, trocar nome, CPF,
+-- nascimento, categoria ou tipo equivale a inscrever outra pessoa no lugar —
+-- é recusado. Número, posição, foto e federado continuam editáveis.
+-- Igual à 0026, com a checagem no começo. Assinatura não muda.
+-- Mesma regra no app: mudaIdentidade (src/lib/matchWindow.ts).
+-- ---------------------------------------------------------------------------
+create or replace function public.reg_update_player(
+  p_team uuid, p_token text, p_player uuid,
+  p_name text, p_cpf text, p_birthdate date, p_photo text,
+  p_number int, p_position text, p_category text, p_role text,
+  p_federated boolean default false, p_federated_in text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_champ uuid;
+begin
+  if not public.invite_valid(p_team, p_token) then
+    raise exception 'Link inválido';
+  end if;
+
+  select championship_id into v_champ from public.teams where id = p_team;
+  if public.registration_closed(v_champ) and exists (
+    select 1 from public.players p
+     where p.id = p_player and p.team_id = p_team
+       and (
+         lower(regexp_replace(trim(coalesce(p.name, '')), '\s+', ' ', 'g'))
+           is distinct from lower(regexp_replace(trim(coalesce(p_name, '')), '\s+', ' ', 'g'))
+         or regexp_replace(coalesce(p.cpf, ''), '\D', '', 'g')
+           is distinct from regexp_replace(coalesce(p_cpf, ''), '\D', '', 'g')
+         or p.birthdate is distinct from p_birthdate
+         -- Atleta antigo sem categoria aceita a que vier (é a que a tela mostra).
+         or (p.category_id is not null and p.category_id is distinct from p_category)
+         or coalesce(p.role, 'atleta') is distinct from coalesce(p_role, 'atleta')
+       )
+  ) then
+    -- Mesma frase do app (IDENTITY_LOCKED_MSG).
+    raise exception 'As inscrições deste campeonato estão encerradas: não é possível trocar nome, CPF, data de nascimento, categoria ou tipo do atleta.';
+  end if;
+
+  perform public.assert_federated_allowed(p_team, p_federated, p_category, p_player);
+
+  update public.players set
+    name = p_name, cpf = p_cpf, birthdate = p_birthdate, photo = p_photo,
+    number = p_number, position = p_position, category_id = p_category,
+    role = coalesce(p_role, 'atleta'),
+    federated = coalesce(p_federated, false),
+    federated_in = case when coalesce(p_federated, false) then p_federated_in else null end
+  where id = p_player and team_id = p_team;
 end;
 $$;
 
