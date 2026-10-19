@@ -16,16 +16,16 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 
 - 🏆 **Campeonatos** em três formatos: **pontos corridos**, **grupos + mata-mata** e **mata-mata**.
 - 🛡️ **Times** com escudo (imagem ou cor), responsável e telefone, além de busca por nome/responsável/grupo.
-- 👥 **Elencos** com número, posição e jogadores por time.
+- 👥 **Elencos** com número, posição e jogadores por time — sempre em **ordem alfabética**, no sistema e na súmula.
 - 📅 **Geração automática de rodadas** (todos contra todos) com turno e returno opcional.
 - ⚽ **Registro de resultados** com eventos por jogador (gols, gols contra, assistências, cartões).
 - 📊 **Classificação automática** com critérios de desempate (pontos, saldo, gols pró, vitórias).
 - 🏅 **Rankings**: artilharia, assistências e cartões.
 - 🔗 **Página pública** por campeonato (`#/c/<id>`), somente leitura, para compartilhar com torcedores.
-- 📨 **Link de inscrição por time** (`#/t/<id>?k=<token>`): o organizador envia o link, o responsável **cria usuário/senha** e inscreve os atletas (nome completo, CPF, data de nascimento e foto).
+- 📨 **Link de inscrição por time** (`#/t/<id>?k=<token>`): o organizador envia o link, o responsável **cria usuário/senha** e inscreve os atletas (nome completo, CPF, data de nascimento e foto). O time **só inscreve**: depois de inscrito, editar ou excluir o atleta é com o organizador (migration `0045`).
 - 🧒🧑 **Infantil ou Adulto** com **categorias** e regra de **ano de nascimento** (+ exceções por time no adulto) — o sistema barra atletas fora da faixa.
 - 🛂 **API de validação do atleta** (Edge Function `validate-athlete`): valida o **CPF** e confere **CPF × data de nascimento** (via provedor configurável), com fallback local.
-- ⏱️ **Prazo de inscrição por partida**: as inscrições de um time encerram X horas antes do jogo e **reabrem** após a partida ser finalizada.
+- ⏱️ **Inscrições encerradas não reabrem**: as inscrições do campeonato inteiro fecham X horas antes do primeiro jogo (ou quando ele começa, sem prazo, ou quando o organizador encerra uma rodada) e **não reabrem** — nenhum time inscreve atletas novos em nenhuma rodada depois disso. O organizador só pode desfazer o encerramento manual antes de qualquer jogo entrar no prazo. Encerradas, **ninguém** inscreve — nem o time, nem o organizador, nem o master; o organizador ainda corrige dados de quem já está inscrito. A regra vale no app e no banco (migrations `0043` e `0044`).
 - 🔢 **Limites por categoria**: máximo de **atletas** e de **comissão técnica** por time.
 - 🪪 **Um CPF, um time**: inscrito por uma equipe, o atleta **não** pode ser inscrito por outra do mesmo campeonato — em nenhuma categoria. Pela **mesma** equipe ele pode entrar em outra categoria, desde que se enquadre nela. A regra vale no painel, no link de inscrição e na importação, e é garantida também no banco (índice + gatilho).
 - 📄 **Súmula**: gere e exporte (imprimir/PDF ou HTML) a súmula do jogo quando as inscrições encerram.

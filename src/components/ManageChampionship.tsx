@@ -28,6 +28,7 @@ import { ChampionTag } from './ChampionBanner'
 import { computePodium } from '../lib/champion'
 import { TeamsPanel } from './TeamsPanel'
 import { PlayersPanel } from './PlayersPanel'
+import { registrationLock } from '../lib/matchWindow'
 import { MatchesPanel } from './MatchesPanel'
 import { StatsPanel } from './StatsPanel'
 import { OfficialsPanel } from './OfficialsPanel'
@@ -236,8 +237,15 @@ export function ManageChampionship({
   const nomeCatAtual = champ.categories.find((c) => c.id === catAtual)?.name ?? 'categoria'
   const timesCat = elencoDeTimes(teams, varias ? catAtual : undefined)
   const partidasCat = partidasDaCategoria(matches, varias ? catAtual : undefined, padraoCat)
+  // Atleta com categoria que não existe mais (apagada ou recriada) aparece na
+  // primeira, em vez de sumir de todas as abas — assim dá para corrigi-lo.
+  const idsCategorias = new Set(champ.categories.map((c) => c.id))
   const atletasCat = players.filter((p) =>
-    atletaDaCategoria(p.categoryId, varias ? catAtual : undefined, padraoCat),
+    atletaDaCategoria(
+      p.categoryId && idsCategorias.has(p.categoryId) ? p.categoryId : undefined,
+      varias ? catAtual : undefined,
+      padraoCat,
+    ),
   )
   // Eventos seguem as partidas: cartão do Sub-11 não entra na artilharia do
   // Sub-15, porque o jogo não é daquela competição.
@@ -317,6 +325,10 @@ export function ManageChampionship({
             players={atletasCat}
             categoryId={varias ? catAtual : undefined}
             onCategoryChange={varias ? setCatId : undefined}
+            // Encerradas para o campeonato inteiro: todas as partidas, não só as da aba.
+            inscricoesEncerradas={
+              registrationLock(matches, champ.registrationCutoffHours ?? 0, champ.closedRounds ?? []).locked
+            }
             onChange={reload}
           />
         )}

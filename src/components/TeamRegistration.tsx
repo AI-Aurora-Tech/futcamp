@@ -4,11 +4,9 @@ import {
   addRegPlayer,
   createTeamAccount,
   loadRegistration,
-  removeRegPlayer,
   saveTeamInfo,
   setTeamPassword,
   teamLogin,
-  updateRegPlayer,
   type PlayerInput,
   type RegistrationData,
 } from '../services/registration'
@@ -25,7 +23,7 @@ import {
 } from '../lib/federated'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
-import { registrationLockForTeam } from '../lib/matchWindow'
+import { registrationLock } from '../lib/matchWindow'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import {
   POSICAO_PADRAO,
@@ -499,11 +497,10 @@ function RosterCard({
   data: RegistrationData
   onChanged: () => Promise<void>
 }) {
-  const [editing, setEditing] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
-  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
+  const lock = registrationLock(data.matches, data.registrationCutoffHours, data.closedRounds)
 
   /* ---------------------------------------------------------------------- */
   /* Abas de categoria                                                       */
@@ -520,18 +517,14 @@ function RosterCard({
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
 
-  const doElenco = varias
-    ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
-    : data.players
+  // Atleta numa categoria que não é (mais) do clube aparece na primeira aba,
+  // em vez de sumir do elenco.
+  const abaDoAtleta = (p: Player) =>
+    p.categoryId && minhas.some((c) => c.id === p.categoryId) ? p.categoryId : minhas[0]?.id
+  const doElenco = varias ? data.players.filter((p) => abaDoAtleta(p) === catAtual) : data.players
   const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name
-
-  async function remove(p: Player) {
-    if (!confirm(`Remover ${p.name} do elenco?`)) return
-    await removeRegPlayer(teamId, token, p.id)
-    await onChanged()
-  }
 
   return (
     <section className="panel reg__panel">
@@ -543,6 +536,8 @@ function RosterCard({
           <p className="muted">
             Inscreva os atletas com nome completo, CPF e data de nascimento.
             {varias && ' Cada categoria tem o seu elenco.'}
+            {' '}Confira os dados antes de salvar: depois de inscrito, só o organizador
+            do campeonato pode corrigir ou remover o atleta.
           </p>
         </div>
         <div className="panel__head-actions">
@@ -555,7 +550,7 @@ function RosterCard({
         <nav className="cat-tabs cat-tabs--claro" aria-label="Categorias do time">
           {minhas.map((c) => {
             const quantos = data.players.filter(
-              (p) => (p.categoryId || minhas[0]?.id) === c.id && (p.role ?? 'atleta') === 'atleta',
+              (p) => abaDoAtleta(p) === c.id && (p.role ?? 'atleta') === 'atleta',
             ).length
             return (
               <button
@@ -580,15 +575,13 @@ function RosterCard({
 
       {lock.locked && (
         <div className="lock-banner">
-          {lock.reason === 'manual' ? (
-            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
-          ) : (
-            <>
-              🔒 Inscrições <b>encerradas</b> para a próxima partida
-              {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
-              Reabrem automaticamente após o jogo ser finalizado.
-            </>
-          )}
+          🔒 As inscrições deste campeonato estão <b>encerradas</b>
+          {lock.reason === 'manual'
+            ? ' pelo organizador'
+            : lock.matchAt
+              ? ` (primeiro jogo: ${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})`
+              : ''}
+          . Não é possível inscrever novos atletas em nenhuma rodada.
         </div>
       )}
 
@@ -625,7 +618,6 @@ function RosterCard({
                 <th>Atleta</th>
                 <th>Nasc.</th>
                 {!varias && data.categories.length > 1 && <th>Categoria</th>}
-                <th className="col-actions"></th>
               </tr>
             </thead>
             <tbody>
@@ -652,10 +644,6 @@ function RosterCard({
                   {!varias && data.categories.length > 1 && (
                     <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
                   )}
-                  <td className="col-actions">
-                    <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
-                    <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -663,7 +651,7 @@ function RosterCard({
         </div>
       )}
 
-      {(adding || editing) && (
+      {adding && (
         <AthleteDialog
           teamId={teamId}
           token={token}
@@ -673,14 +661,9 @@ function RosterCard({
           categories={varias ? minhas.filter((c) => c.id === catAtual) : minhas}
           audience={data.audience}
           elenco={data.players}
-          initial={editing ?? undefined}
-          onClose={() => {
-            setAdding(false)
-            setEditing(null)
-          }}
+          onClose={() => setAdding(false)}
           onSaved={async () => {
             setAdding(false)
-            setEditing(null)
             await onChanged()
           }}
         />
@@ -716,7 +699,6 @@ export function AthleteDialog({
   categories,
   audience,
   elenco,
-  initial,
   onClose,
   onSaved,
 }: {
@@ -727,22 +709,22 @@ export function AthleteDialog({
   audience?: 'infantil' | 'adulto'
   /** Elenco atual, para saber quantas vagas de federado restam. */
   elenco?: Player[]
-  initial?: Player
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
-  const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
-  const [name, setName] = useState(initial?.name ?? '')
-  const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
-  const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
-  const [number, setNumber] = useState(initial?.number != null ? String(initial.number) : '')
+  // O time só inscreve: editar e remover atleta é com o organizador.
+  const [role, setRole] = useState<'atleta' | 'comissao'>('atleta')
+  const [name, setName] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [birthdate, setBirthdate] = useState('')
+  const [number, setNumber] = useState('')
   const [position, setPosition] = useState<Position>(
-    initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
+    POSICAO_PADRAO.atleta,
   )
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
-  const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
-  const [federated, setFederated] = useState(Boolean(initial?.federated))
-  const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>(initial?.federatedIn ?? 'campo')
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '')
+  const [photo, setPhoto] = useState<string | undefined>(undefined)
+  const [federated, setFederated] = useState(false)
+  const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>('campo')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -757,9 +739,7 @@ export function AthleteDialog({
   const outOfRule = Boolean(category?.birthYear && birthdate && !withinAgeRule(category, birthYearOf(birthdate)))
 
   // A permissão é DA CATEGORIA escolhida — trocar de categoria muda a regra.
-  // Vagas desconsiderando o próprio atleta: reeditar um federado que já existe
-  // não pode esbarrar no limite por causa dele mesmo.
-  const vagasFed = vagasFederados(category, elenco, initial?.id)
+  const vagasFed = vagasFederados(category, elenco)
   const mostraFederado = isAthlete && regraVale({ audience }) && permiteFederados(category)
   const semVaga = !federated && vagasFed <= 0
 
@@ -804,8 +784,7 @@ export function AthleteDialog({
         categoryId: categoryId || undefined,
         role,
       }
-      if (initial) await updateRegPlayer(teamId, token, initial.id, payload)
-      else await addRegPlayer(teamId, token, payload)
+      await addRegPlayer(teamId, token, payload)
       await onSaved()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível inscrever o atleta.')
@@ -815,7 +794,7 @@ export function AthleteDialog({
   }
 
   return (
-    <Modal title={initial ? 'Editar atleta' : 'Inscrever atleta'} onClose={onClose}>
+    <Modal title="Inscrever atleta" onClose={onClose}>
       <form onSubmit={submit} className="form-grid">
         <div className="athlete-photo-field">
           <span className="athlete-photo athlete-photo--lg">{photo ? <img src={photo} alt="" /> : '👤'}</span>
