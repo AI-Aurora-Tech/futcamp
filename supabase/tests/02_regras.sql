@@ -1150,6 +1150,10 @@ select pg_temp.checa('  e apagar a negociação volta ao plano de tabela',
 -- Inscrições encerradas (0043): o portal do time não mexe no elenco; o
 -- organizador, sim.
 -- ===========================================================================
+-- O portal do time chega sem sessão de organizador.
+reset request.jwt.claim.sub;
+reset request.jwt.claim.email;
+reset request.jwt.claims;
 \set ich '43000000-0000-0000-0000-000000000001'
 \set ita '43000000-0000-0000-0000-000000000002'
 \set itb '43000000-0000-0000-0000-000000000003'
@@ -1199,3 +1203,16 @@ update public.matches set status = 'finished' where championship_id = :'ich';
 select public.reg_add_player(:'ita','tokprazo','Enzo','52998224725','2000-01-01',null,null,null,'p1','atleta', false, null);
 select pg_temp.checa('jogo finalizado: o time volta a inscrever',
   (select count(*) from public.players where team_id = :'ita') = 3);
+
+-- O organizador logado usa o link do time (0044): inscreve mesmo encerrado.
+insert into public.matches (championship_id, round, home_team_id, away_team_id, scheduled_at)
+values (:'ich', 2, :'ita', :'itb', now() + interval '2 days');
+update public.championships set closed_rounds = '[2]'::jsonb where id = :'ich';
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select public.reg_add_player(:'ita','tokprazo','Fábio','39053344705','2000-01-01',null,null,null,'p1','comissao', false, null);
+select pg_temp.checa('rodada fechada: o organizador inscreve pelo link do time',
+  (select count(*) from public.players where team_id = :'ita' and name = 'Fábio') = 1);
+reset request.jwt.claim.sub;
+select pg_temp.recusa('  e o time, sem login de organizador, continua barrado',
+  $q$ select public.reg_add_player('43000000-0000-0000-0000-000000000002','tokprazo','Gil','11144477735','2000-01-01',null,null,null,'p1','atleta', false, null) $q$,
+  'encerradas pelo organizador');
