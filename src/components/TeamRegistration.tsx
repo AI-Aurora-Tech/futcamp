@@ -41,6 +41,9 @@ import { ImportAthletesModal } from './ImportAthletesModal'
 import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
 import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
+import { mensagemDoErro } from '../lib/erro'
+import { useAuth } from '../context/AuthContext'
+import { getChampionship } from '../services/championships'
 
 
 export function TeamRegistration({
@@ -339,7 +342,7 @@ function TeamCard({
       await onSaved()
       setMsg('Dados do time salvos! ✅')
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'Erro ao salvar.')
+      setMsg(mensagemDoErro(err, 'Erro ao salvar.'))
     } finally {
       setBusy(false)
     }
@@ -487,6 +490,27 @@ function ManagersCard({
 
 /* -------------------------------------------------------------------------- */
 /* Elenco / atletas                                                            */
+/**
+ * Quem está com o portal do time aberto é o organizador deste campeonato (ou
+ * o master)? Acontece quando o organizador usa o link do time no próprio
+ * navegador para inscrever atletas — e aí a trava de inscrição não vale.
+ */
+function useSouOrganizador(championshipId: string): boolean {
+  const { organizer, isMaster } = useAuth()
+  const [donoId, setDonoId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!organizer) return
+    let vivo = true
+    getChampionship(championshipId)
+      .then((c) => vivo && setDonoId(c?.ownerId ?? null))
+      .catch(() => {})
+    return () => {
+      vivo = false
+    }
+  }, [organizer, championshipId])
+  return Boolean(organizer && (isMaster || (donoId && donoId === organizer.id)))
+}
+
 /* -------------------------------------------------------------------------- */
 function RosterCard({
   teamId,
@@ -504,6 +528,9 @@ function RosterCard({
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
   const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
+  const souOrganizador = useSouOrganizador(data.championshipId)
+  // Inscrições encerradas travam o time, não o organizador que abriu o link.
+  const travado = lock.locked && !souOrganizador
 
   /* ---------------------------------------------------------------------- */
   /* Abas de categoria                                                       */
@@ -529,7 +556,12 @@ function RosterCard({
 
   async function remove(p: Player) {
     if (!confirm(`Remover ${p.name} do elenco?`)) return
-    await removeRegPlayer(teamId, token, p.id)
+    try {
+      await removeRegPlayer(teamId, token, p.id, { organizador: souOrganizador })
+    } catch (err) {
+      alert(mensagemDoErro(err, 'Não foi possível remover o atleta.'))
+      return
+    }
     await onChanged()
   }
 
@@ -546,8 +578,8 @@ function RosterCard({
           </p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={lock.locked}>📊 Importar planilha</Button>
-          <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={travado}>📊 Importar planilha</Button>
+          <Button onClick={() => setAdding(true)} disabled={travado}>＋ Inscrever atleta</Button>
         </div>
       </div>
 
@@ -578,15 +610,23 @@ function RosterCard({
         disable={() => disablePush(data.championshipId)}
       />
 
-      {lock.locked && (
+      {lock.locked && souOrganizador && (
+        <div className="lock-banner">
+          🔒 Inscrições <b>encerradas</b> para o time. Você está logado como <b>organizador</b> e pode
+          inscrever, editar e remover atletas normalmente.
+        </div>
+      )}
+
+      {travado && (
         <div className="lock-banner">
           {lock.reason === 'manual' ? (
-            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
+            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.
+              {' '}Até lá, <b>só o organizador</b> pode inscrever atletas.</>
           ) : (
             <>
               🔒 Inscrições <b>encerradas</b> para a próxima partida
               {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
-              Reabrem automaticamente após o jogo ser finalizado.
+              Reabrem automaticamente após o jogo ser finalizado. Até lá, <b>só o organizador</b> pode inscrever atletas.
             </>
           )}
         </div>
@@ -653,8 +693,18 @@ function RosterCard({
                     <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
                   )}
                   <td className="col-actions">
-                    <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
-                    <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
+                    <button
+                      className="icon-btn"
+                      title={travado ? 'Inscrições encerradas — só o organizador altera o elenco' : 'Editar'}
+                      onClick={() => setEditing(p)}
+                      disabled={travado}
+                    >✎</button>
+                    <button
+                      className="icon-btn icon-btn--danger"
+                      title={travado ? 'Inscrições encerradas — só o organizador altera o elenco' : 'Remover'}
+                      onClick={() => void remove(p)}
+                      disabled={travado}
+                    >🗑</button>
                   </td>
                 </tr>
               ))}
@@ -674,6 +724,7 @@ function RosterCard({
           audience={data.audience}
           elenco={data.players}
           initial={editing ?? undefined}
+          organizador={souOrganizador}
           onClose={() => {
             setAdding(false)
             setEditing(null)
@@ -692,15 +743,20 @@ function RosterCard({
           existing={data.players}
           teamId={teamId}
           onAdd={async (i) => {
-            await addRegPlayer(teamId, token, {
-              name: i.name,
-              cpf: i.cpf,
-              birthdate: i.birthdate,
-              categoryId: i.categoryId,
-              role: i.role,
-              federated: i.federated,
-              federatedIn: i.federatedIn,
-            })
+            await addRegPlayer(
+              teamId,
+              token,
+              {
+                name: i.name,
+                cpf: i.cpf,
+                birthdate: i.birthdate,
+                categoryId: i.categoryId,
+                role: i.role,
+                federated: i.federated,
+                federatedIn: i.federatedIn,
+              },
+              { organizador: souOrganizador },
+            )
           }}
           onClose={() => setImporting(false)}
           onDone={onChanged}
@@ -717,6 +773,7 @@ export function AthleteDialog({
   audience,
   elenco,
   initial,
+  organizador = false,
   onClose,
   onSaved,
 }: {
@@ -728,6 +785,8 @@ export function AthleteDialog({
   /** Elenco atual, para saber quantas vagas de federado restam. */
   elenco?: Player[]
   initial?: Player
+  /** Quem salva é o organizador (vale mesmo com as inscrições encerradas). */
+  organizador?: boolean
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
@@ -804,11 +863,11 @@ export function AthleteDialog({
         categoryId: categoryId || undefined,
         role,
       }
-      if (initial) await updateRegPlayer(teamId, token, initial.id, payload)
-      else await addRegPlayer(teamId, token, payload)
+      if (initial) await updateRegPlayer(teamId, token, initial.id, payload, { organizador })
+      else await addRegPlayer(teamId, token, payload, { organizador })
       await onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível inscrever o atleta.')
+      setError(mensagemDoErro(err, 'Não foi possível inscrever o atleta.'))
     } finally {
       setBusy(false)
     }

@@ -62,6 +62,15 @@ export interface TeamInfoPatch {
   phone?: string
 }
 
+/**
+ * Quem está salvando. `organizador`: o dono do campeonato usando o portal do
+ * time — inscreve mesmo com as inscrições encerradas. No Supabase quem decide
+ * é o banco, pela sessão logada (0044); isto só vale no modo demo.
+ */
+export interface QuemSalva {
+  organizador?: boolean
+}
+
 export interface PlayerInput {
   name: string
   cpf?: string
@@ -533,8 +542,33 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 // Atletas (com validação de categoria / ano de nascimento)
 // ---------------------------------------------------------------------------
 
+/**
+ * Inscrições encerradas: o portal do time não inscreve, não edita e não remove
+ * atletas — só o organizador, pelo painel dele. No Supabase quem barra é a
+ * `assert_registration_open` (migration 0043); no modo demo, esta função.
+ */
+function assertRegistrationOpenDemo(
+  teamId: string,
+  matches: Match[],
+  cutoff: number,
+  closedRounds: number[],
+): void {
+  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
+  if (!lock.locked) return
+  throw new Error(
+    lock.reason === 'manual'
+      ? 'As inscrições da próxima rodada foram encerradas pelo organizador. Só o organizador pode inscrever atletas agora.'
+      : 'As inscrições deste time estão encerradas para a próxima partida. Só o organizador pode inscrever atletas agora.',
+  )
+}
+
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
-function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
+function validateDemo(
+  teamId: string,
+  input: PlayerInput,
+  excludePlayerId?: string,
+  quem: QuemSalva = {},
+): void {
   const role = input.role ?? 'atleta'
   const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
@@ -568,14 +602,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   })
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
-  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
-  if (lock.locked) {
-    throw new Error(
-      lock.reason === 'manual'
-        ? 'As inscrições da próxima rodada foram encerradas pelo organizador.'
-        : 'As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.',
-    )
-  }
+  if (!quem.organizador) assertRegistrationOpenDemo(teamId, matches, cutoff, closedRounds)
 
   if (role === 'atleta') {
     const elig = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })
@@ -594,7 +621,12 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   }
 }
 
-export async function addRegPlayer(teamId: string, token: string, input: PlayerInput): Promise<void> {
+export async function addRegPlayer(
+  teamId: string,
+  token: string,
+  input: PlayerInput,
+  quem: QuemSalva = {},
+): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const base = {
       p_team: teamId,
@@ -624,7 +656,7 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
     return
   }
   assertTokenDemo(teamId, token)
-  validateDemo(teamId, input)
+  validateDemo(teamId, input, undefined, quem)
   mutate((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     if (!team) return
@@ -652,6 +684,7 @@ export async function updateRegPlayer(
   token: string,
   playerId: string,
   input: PlayerInput,
+  quem: QuemSalva = {},
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const base = {
@@ -681,7 +714,7 @@ export async function updateRegPlayer(
     return
   }
   assertTokenDemo(teamId, token)
-  validateDemo(teamId, input, playerId)
+  validateDemo(teamId, input, playerId, quem)
   mutate((d) => {
     const i = d.players.findIndex((p) => p.id === playerId && p.teamId === teamId)
     if (i >= 0) {
@@ -702,7 +735,12 @@ export async function updateRegPlayer(
   })
 }
 
-export async function removeRegPlayer(teamId: string, token: string, playerId: string): Promise<void> {
+export async function removeRegPlayer(
+  teamId: string,
+  token: string,
+  playerId: string,
+  quem: QuemSalva = {},
+): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     const { error } = await supabase.rpc('reg_delete_player', {
       p_team: teamId,
@@ -713,6 +751,16 @@ export async function removeRegPlayer(teamId: string, token: string, playerId: s
     return
   }
   assertTokenDemo(teamId, token)
+  const { matches, cutoff, closedRounds } = query((d) => {
+    const team = d.teams.find((t) => t.id === teamId)
+    const champ = d.championships.find((c) => c.id === team?.championshipId)
+    return {
+      matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
+      cutoff: champ?.registrationCutoffHours ?? 0,
+      closedRounds: champ?.closedRounds ?? [],
+    }
+  })
+  if (!quem.organizador) assertRegistrationOpenDemo(teamId, matches, cutoff, closedRounds)
   mutate((d) => {
     d.players = d.players.filter((p) => !(p.id === playerId && p.teamId === teamId))
   })

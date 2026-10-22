@@ -38,6 +38,7 @@ import {
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
+import { mensagemDoErro } from '../lib/erro'
 
 export function MatchesPanel({
   championship,
@@ -159,7 +160,7 @@ export function MatchesPanel({
       onChange()
       setScheduling(true) // abre o agendador para informar data/hora jogo a jogo
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível gerar a tabela.')
+      alert(mensagemDoErro(e, 'Não foi possível gerar a tabela.'))
     } finally {
       setGenerating(false)
     }
@@ -404,7 +405,7 @@ function AddMatchModal({
       }
       onSaved()
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Não foi possível criar o jogo.')
+      setErro(mensagemDoErro(err, 'Não foi possível criar o jogo.'))
     } finally {
       setBusy(false)
     }

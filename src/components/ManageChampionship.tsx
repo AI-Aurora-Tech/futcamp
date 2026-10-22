@@ -51,6 +51,7 @@ import {
   temVariasCategorias,
 } from '../lib/categorias'
 import { setCategoryStatus } from '../services/championships'
+import { mensagemDoErro } from '../lib/erro'
 
 type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
 
@@ -315,6 +316,7 @@ export function ManageChampionship({
             championship={comp}
             teams={timesCat}
             players={atletasCat}
+            matches={partidasCat}
             categoryId={varias ? catAtual : undefined}
             onCategoryChange={varias ? setCatId : undefined}
             onChange={reload}
@@ -515,7 +517,7 @@ function WhatsappBlock({
       setMsg('Salvo.')
       onSaved()
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'Não foi possível salvar.')
+      setMsg(mensagemDoErro(e, 'Não foi possível salvar.'))
     } finally {
       setBusy(false)
     }

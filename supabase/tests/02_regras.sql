@@ -1145,3 +1145,74 @@ select pg_temp.checa('  e apagar a negociação volta ao plano de tabela',
   (select amount_cents from championships where id = :'cs2') = 20000
   and (select negotiated_kind from championships where id = :'cs2') = 'mensal'
   and (select negotiated_months from championships where id = :'cs2') = 12);
+
+-- ===========================================================================
+-- Inscrições encerradas (0043): o portal do time não mexe no elenco; o
+-- organizador, sim.
+-- ===========================================================================
+-- O portal do time chega sem sessão de organizador.
+reset request.jwt.claim.sub;
+reset request.jwt.claim.email;
+reset request.jwt.claims;
+\set ich '43000000-0000-0000-0000-000000000001'
+\set ita '43000000-0000-0000-0000-000000000002'
+\set itb '43000000-0000-0000-0000-000000000003'
+insert into public.championships (id, owner_id, name, sport, format, season, categories, registration_cutoff_hours)
+values (:'ich', '11111111-1111-1111-1111-111111111111', 'Copa Prazo', 'futebol', 'league', '2026',
+        '[{"id":"p1","name":"Livre"}]'::jsonb, 3);
+insert into public.teams (id, championship_id, name) values
+  (:'ita', :'ich', 'Prazo A'), (:'itb', :'ich', 'Prazo B');
+insert into public.team_invites (team_id, championship_id, token) values (:'ita', :'ich', 'tokprazo');
+
+-- Jogo daqui a 2 dias: inscrição aberta.
+insert into public.matches (championship_id, round, home_team_id, away_team_id, scheduled_at)
+values (:'ich', 1, :'ita', :'itb', now() + interval '2 days');
+select public.reg_add_player(:'ita','tokprazo','Caio','86288366757','2000-01-01',null,null,null,'p1','atleta', false, null);
+select pg_temp.checa('inscrição aberta: o time inscreve',
+  (select count(*) from public.players where team_id = :'ita') = 1);
+
+-- Organizador fecha a rodada 1: o time não inscreve, não edita, não remove.
+update public.championships set closed_rounds = '[1]'::jsonb where id = :'ich';
+select pg_temp.recusa('rodada fechada: o time não inscreve',
+  $q$ select public.reg_add_player('43000000-0000-0000-0000-000000000002','tokprazo','Davi','71428793860','2000-01-01',null,null,null,'p1','atleta', false, null) $q$,
+  'encerradas pelo organizador');
+select pg_temp.recusa('rodada fechada: o time não edita',
+  format($q$ select public.reg_update_player('43000000-0000-0000-0000-000000000002','tokprazo',%L,'Outro','86288366757','2000-01-01',null,null,null,'p1','atleta', false, null) $q$,
+         (select id from public.players where team_id = :'ita' limit 1)),
+  'encerradas');
+select pg_temp.recusa('rodada fechada: o time não remove',
+  format($q$ select public.reg_delete_player('43000000-0000-0000-0000-000000000002','tokprazo',%L) $q$,
+         (select id from public.players where team_id = :'ita' limit 1)),
+  'encerradas');
+
+-- O organizador grava direto na tabela e continua inscrevendo.
+insert into public.players (team_id, championship_id, name, cpf, category_id)
+values (:'ita', :'ich', 'Davi', '71428793860', 'p1');
+select pg_temp.checa('rodada fechada: o organizador inscreve',
+  (select count(*) from public.players where team_id = :'ita') = 2);
+
+-- Reaberta a rodada, mas o jogo começa em 1h (prazo de 3h): segue travado.
+update public.championships set closed_rounds = '[]'::jsonb where id = :'ich';
+update public.matches set scheduled_at = now() + interval '1 hour' where championship_id = :'ich';
+select pg_temp.recusa('dentro do prazo antes do jogo: o time não inscreve',
+  $q$ select public.reg_add_player('43000000-0000-0000-0000-000000000002','tokprazo','Enzo','52998224725','2000-01-01',null,null,null,'p1','atleta', false, null) $q$,
+  'Só o organizador');
+
+-- Jogo finalizado: reabre.
+update public.matches set status = 'finished' where championship_id = :'ich';
+select public.reg_add_player(:'ita','tokprazo','Enzo','52998224725','2000-01-01',null,null,null,'p1','atleta', false, null);
+select pg_temp.checa('jogo finalizado: o time volta a inscrever',
+  (select count(*) from public.players where team_id = :'ita') = 3);
+
+-- O organizador logado usa o link do time (0044): inscreve mesmo encerrado.
+insert into public.matches (championship_id, round, home_team_id, away_team_id, scheduled_at)
+values (:'ich', 2, :'ita', :'itb', now() + interval '2 days');
+update public.championships set closed_rounds = '[2]'::jsonb where id = :'ich';
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+select public.reg_add_player(:'ita','tokprazo','Fábio','39053344705','2000-01-01',null,null,null,'p1','comissao', false, null);
+select pg_temp.checa('rodada fechada: o organizador inscreve pelo link do time',
+  (select count(*) from public.players where team_id = :'ita' and name = 'Fábio') = 1);
+reset request.jwt.claim.sub;
+select pg_temp.recusa('  e o time, sem login de organizador, continua barrado',
+  $q$ select public.reg_add_player('43000000-0000-0000-0000-000000000002','tokprazo','Gil','11144477735','2000-01-01',null,null,null,'p1','atleta', false, null) $q$,
+  'encerradas pelo organizador');

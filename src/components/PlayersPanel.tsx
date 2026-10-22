@@ -17,17 +17,21 @@ import {
   opcoesDePosicao,
   posicaoValePara,
   type Championship,
+  type Match,
   type Player,
   type Position,
   type Team,
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { registrationLockForTeam } from '../lib/matchWindow'
+import { mensagemDoErro } from '../lib/erro'
 
 export function PlayersPanel({
   championship,
   teams,
   players,
+  matches = [],
   categoryId,
   onCategoryChange,
   onChange,
@@ -35,6 +39,8 @@ export function PlayersPanel({
   championship: Championship
   teams: Team[]
   players: Player[]
+  /** Partidas da categoria, para avisar quando o elenco do time está travado. */
+  matches?: Match[]
   /**
    * Categoria em foco. Novos atletas nascem nela — o organizador está na aba
    * do Sub-13, e cadastrar ali um atleta do Sub-15 seria um erro silencioso.
@@ -86,6 +92,10 @@ export function PlayersPanel({
     [players, selectedTeam],
   )
   const team = teams.find((t) => t.id === selectedTeam)
+  // Inscrições encerradas travam o portal do time, não o organizador.
+  const lock = selectedTeam
+    ? registrationLockForTeam(selectedTeam, matches, championship.registrationCutoffHours ?? 0, championship.closedRounds ?? [])
+    : { locked: false }
   const catById = new Map(championship.categories.map((c) => [c.id, c] as const))
   const nomeCat = championship.categories.length > 1
     ? championship.categories.find((c) => c.id === categoryId)?.name
@@ -168,6 +178,14 @@ export function PlayersPanel({
               <span className="chip__count">{players.filter((p) => p.teamId === t.id).length}</span>
             </button>
           ))}
+        </div>
+      )}
+
+      {lock.locked && (
+        <div className="lock-banner">
+          🔒 Inscrições <b>encerradas</b> para {team?.name ?? 'este time'}
+          {lock.reason === 'manual' ? ' (rodada fechada por você)' : ' (prazo antes do jogo)'}.
+          O time não consegue mais alterar o elenco — <b>só você</b>, como organizador, pode inscrever atletas.
         </div>
       )}
 
@@ -412,7 +430,7 @@ function PlayerForm({
       else await createPlayer(payload)
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar.')
+      setError(mensagemDoErro(err, 'Erro ao salvar.'))
     } finally {
       setBusy(false)
     }

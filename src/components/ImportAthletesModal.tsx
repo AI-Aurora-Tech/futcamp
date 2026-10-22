@@ -6,6 +6,7 @@ import { checkCpfConflict } from '../lib/duplicates'
 import { limiteFederados, permiteFederados, podeMarcarFederado } from '../lib/federated'
 import type { Category, Player } from '../types'
 import { Button, Field, Modal } from './ui'
+import { mensagemDoErro } from '../lib/erro'
 
 /** Modelo de planilha para o organizador preencher (CSV que o Excel abre). */
 function downloadTemplate() {
@@ -186,7 +187,7 @@ export function ImportAthletesModal({
       } catch (err) {
         failed++
         // O motivo da recusa (ex.: CPF já inscrito por outro time) vem do serviço.
-        if (!firstError) firstError = `${r.name}: ${err instanceof Error ? err.message : 'erro ao salvar'}`
+        if (!firstError) firstError = `${r.name}: ${mensagemDoErro(err, 'erro ao salvar')}`
       }
     }
     setImporting(false)

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
-import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { buildSumulaHtml, openSumula } from '../lib/sumula'
+import { baixarSumulaPdf } from '../lib/sumulaPdf'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -17,6 +18,7 @@ import {
   type Team,
 } from '../types'
 import { Button, Modal, TeamBadge } from './ui'
+import { mensagemDoErro } from '../lib/erro'
 
 const EVENT_ICONS: Record<EventType, string> = {
   goal: '⚽',
@@ -205,9 +207,15 @@ export function MatchResultModal({
     onSaved()
   }
 
-  function generateSumula(action: 'print' | 'download') {
-    const category = championship.categories.length === 1 ? championship.categories[0] : undefined
-    const html = buildSumulaHtml({
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+
+  async function generateSumula(action: 'print' | 'download') {
+    // A súmula é da categoria DA PARTIDA: com várias categorias, os elencos
+    // das outras não podem entrar.
+    const category =
+      championship.categories.find((c) => c.id === match.categoryId) ??
+      (championship.categories.length === 1 ? championship.categories[0] : undefined)
+    const dados = {
       championship,
       match: {
         ...match,
@@ -220,9 +228,19 @@ export function MatchResultModal({
       players,
       events,
       category,
-    })
-    if (action === 'print') openSumula(html)
-    else downloadSumula(`sumula-${home?.shortName || 'mandante'}-x-${away?.shortName || 'visitante'}.html`, html)
+    }
+    if (action === 'print') {
+      openSumula(buildSumulaHtml(dados))
+      return
+    }
+    setGerandoPdf(true)
+    try {
+      await baixarSumulaPdf(dados)
+    } catch (err) {
+      alert(mensagemDoErro(err, 'Não foi possível gerar a súmula em PDF.'))
+    } finally {
+      setGerandoPdf(false)
+    }
   }
 
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
@@ -492,8 +510,10 @@ export function MatchResultModal({
       <div className="sumula-row">
         <span className="muted small">Súmula {sumulaHint}</span>
         <div className="sumula-row__actions">
-          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('print')}>🖨️ Imprimir</Button>
-          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => generateSumula('download')}>⬇ Baixar súmula</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula} onClick={() => void generateSumula('print')}>🖨️ Imprimir</Button>
+          <Button variant="ghost" type="button" disabled={!canSumula || gerandoPdf} onClick={() => void generateSumula('download')}>
+            {gerandoPdf ? 'Gerando PDF…' : '⬇ Baixar súmula (PDF)'}
+          </Button>
         </div>
       </div>
 
@@ -514,7 +534,7 @@ export function MatchResultModal({
                 await deleteMatch(match.id)
                 onSaved()
               } catch (e) {
-                alert(e instanceof Error ? e.message : 'Não foi possível excluir o jogo.')
+                alert(mensagemDoErro(e, 'Não foi possível excluir o jogo.'))
               } finally {
                 setBusy(false)
               }
