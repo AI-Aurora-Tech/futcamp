@@ -2,6 +2,7 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
+import { todasAsLinhas } from '../lib/paginar'
 import { generateGroupFixtures, generateRoundRobin } from '../lib/fixtures'
 import {
   hasKnockoutStage,
@@ -591,12 +592,11 @@ function eventToRow(e: Partial<MatchEvent>): Record<string, unknown> {
 
 export async function listEvents(championshipId: string): Promise<MatchEvent[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('match_events')
-      .select('*')
-      .eq('championship_id', championshipId)
-    if (error) throw error
-    return (data ?? []).map(eventFromRow)
+    const sb = supabase
+    const linhas = await todasAsLinhas<any>((de, ate) =>
+      sb.from('match_events').select('*').eq('championship_id', championshipId).order('id').range(de, ate),
+    )
+    return linhas.map(eventFromRow)
   }
   return query((d) => d.events.filter((e) => e.championshipId === championshipId))
 }
