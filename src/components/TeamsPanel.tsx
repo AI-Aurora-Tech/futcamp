@@ -17,6 +17,7 @@ import { fileToDataUrl } from '../lib/image'
 import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
 import { competicaoDaCategoria, elencoDeTimes } from '../lib/categorias'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
+import { mensagemDoErro } from '../lib/erro'
 
 export function TeamsPanel({
   championship,
@@ -490,7 +491,7 @@ function TeamForm({
       }
       onSaved()
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Não foi possível salvar o time.')
+      setErro(mensagemDoErro(err, 'Não foi possível salvar o time.'))
     } finally {
       setBusy(false)
     }

@@ -41,6 +41,7 @@ import { ImportAthletesModal } from './ImportAthletesModal'
 import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
 import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
+import { mensagemDoErro } from '../lib/erro'
 
 
 export function TeamRegistration({
@@ -339,7 +340,7 @@ function TeamCard({
       await onSaved()
       setMsg('Dados do time salvos! ✅')
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : 'Erro ao salvar.')
+      setMsg(mensagemDoErro(err, 'Erro ao salvar.'))
     } finally {
       setBusy(false)
     }
@@ -819,7 +820,7 @@ export function AthleteDialog({
       else await addRegPlayer(teamId, token, payload)
       await onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível inscrever o atleta.')
+      setError(mensagemDoErro(err, 'Não foi possível inscrever o atleta.'))
     } finally {
       setBusy(false)
     }

@@ -25,6 +25,7 @@ import {
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { registrationLockForTeam } from '../lib/matchWindow'
+import { mensagemDoErro } from '../lib/erro'
 
 export function PlayersPanel({
   championship,
@@ -429,7 +430,7 @@ function PlayerForm({
       else await createPlayer(payload)
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar.')
+      setError(mensagemDoErro(err, 'Erro ao salvar.'))
     } finally {
       setBusy(false)
     }

@@ -17,6 +17,7 @@ import {
   type Team,
 } from '../types'
 import { Button, Modal, TeamBadge } from './ui'
+import { mensagemDoErro } from '../lib/erro'
 
 const EVENT_ICONS: Record<EventType, string> = {
   goal: '⚽',
@@ -514,7 +515,7 @@ export function MatchResultModal({
                 await deleteMatch(match.id)
                 onSaved()
               } catch (e) {
-                alert(e instanceof Error ? e.message : 'Não foi possível excluir o jogo.')
+                alert(mensagemDoErro(e, 'Não foi possível excluir o jogo.'))
               } finally {
                 setBusy(false)
               }

@@ -11,6 +11,7 @@ import {
 import { Button, Field, Modal } from './ui'
 import { updateChampionship } from '../services/championships'
 import { stageGroupLetters } from '../lib/groupStages'
+import { mensagemDoErro } from '../lib/erro'
 
 /**
  * Editor da DISPUTA de UMA categoria — cada categoria é um campeonato dentro do
@@ -137,7 +138,7 @@ export function CategoryCompetitionForm({
       await updateChampionship(champ.id, { categories })
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível salvar a disputa desta categoria.')
+      setError(mensagemDoErro(err, 'Não foi possível salvar a disputa desta categoria.'))
     } finally {
       setBusy(false)
     }

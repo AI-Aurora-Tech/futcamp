@@ -40,6 +40,7 @@ import { PHASE_LABELS, SEND_OFF_LABELS, SUBSTITUTION_LABELS } from '../types'
 import type { SendOffPolicy, SubstitutionMode } from '../types'
 import { centavosDeTexto, textoDeCentavos } from '../lib/regras'
 import type { NewChampionship } from '../services/championships'
+import { mensagemDoErro } from '../lib/erro'
 
 const LOGO_CHOICES = ['🏆', '⚽', '🥇', '🔥', '⭐', '🦁', '🦅', '🐯', '🐺', '🛡️']
 
@@ -637,7 +638,7 @@ export function ChampionshipForm({
       })
     } catch (err) {
       // Sem isto, um erro no salvamento deixava o botão preso em "Salvando…".
-      setError(err instanceof Error ? err.message : 'Não foi possível salvar o campeonato.')
+      setError(mensagemDoErro(err, 'Não foi possível salvar o campeonato.'))
     } finally {
       setBusy(false)
     }
