@@ -581,12 +581,13 @@ function RosterCard({
       {lock.locked && (
         <div className="lock-banner">
           {lock.reason === 'manual' ? (
-            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
+            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.
+              {' '}Até lá, <b>só o organizador</b> pode inscrever atletas.</>
           ) : (
             <>
               🔒 Inscrições <b>encerradas</b> para a próxima partida
               {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
-              Reabrem automaticamente após o jogo ser finalizado.
+              Reabrem automaticamente após o jogo ser finalizado. Até lá, <b>só o organizador</b> pode inscrever atletas.
             </>
           )}
         </div>
@@ -653,8 +654,18 @@ function RosterCard({
                     <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
                   )}
                   <td className="col-actions">
-                    <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
-                    <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
+                    <button
+                      className="icon-btn"
+                      title={lock.locked ? 'Inscrições encerradas — só o organizador altera o elenco' : 'Editar'}
+                      onClick={() => setEditing(p)}
+                      disabled={lock.locked}
+                    >✎</button>
+                    <button
+                      className="icon-btn icon-btn--danger"
+                      title={lock.locked ? 'Inscrições encerradas — só o organizador altera o elenco' : 'Remover'}
+                      onClick={() => void remove(p)}
+                      disabled={lock.locked}
+                    >🗑</button>
                   </td>
                 </tr>
               ))}

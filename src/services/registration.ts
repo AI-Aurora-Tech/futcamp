@@ -533,6 +533,26 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 // Atletas (com validação de categoria / ano de nascimento)
 // ---------------------------------------------------------------------------
 
+/**
+ * Inscrições encerradas: o portal do time não inscreve, não edita e não remove
+ * atletas — só o organizador, pelo painel dele. No Supabase quem barra é a
+ * `assert_registration_open` (migration 0043); no modo demo, esta função.
+ */
+function assertRegistrationOpenDemo(
+  teamId: string,
+  matches: Match[],
+  cutoff: number,
+  closedRounds: number[],
+): void {
+  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
+  if (!lock.locked) return
+  throw new Error(
+    lock.reason === 'manual'
+      ? 'As inscrições da próxima rodada foram encerradas pelo organizador. Só o organizador pode inscrever atletas agora.'
+      : 'As inscrições deste time estão encerradas para a próxima partida. Só o organizador pode inscrever atletas agora.',
+  )
+}
+
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
@@ -568,14 +588,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   })
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
-  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
-  if (lock.locked) {
-    throw new Error(
-      lock.reason === 'manual'
-        ? 'As inscrições da próxima rodada foram encerradas pelo organizador.'
-        : 'As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.',
-    )
-  }
+  assertRegistrationOpenDemo(teamId, matches, cutoff, closedRounds)
 
   if (role === 'atleta') {
     const elig = checkEligibility({ category, birthdate: input.birthdate, existingInCategory: existing })
@@ -713,6 +726,16 @@ export async function removeRegPlayer(teamId: string, token: string, playerId: s
     return
   }
   assertTokenDemo(teamId, token)
+  const { matches, cutoff, closedRounds } = query((d) => {
+    const team = d.teams.find((t) => t.id === teamId)
+    const champ = d.championships.find((c) => c.id === team?.championshipId)
+    return {
+      matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
+      cutoff: champ?.registrationCutoffHours ?? 0,
+      closedRounds: champ?.closedRounds ?? [],
+    }
+  })
+  assertRegistrationOpenDemo(teamId, matches, cutoff, closedRounds)
   mutate((d) => {
     d.players = d.players.filter((p) => !(p.id === playerId && p.teamId === teamId))
   })

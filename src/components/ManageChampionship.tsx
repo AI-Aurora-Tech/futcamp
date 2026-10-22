@@ -315,6 +315,7 @@ export function ManageChampionship({
             championship={comp}
             teams={timesCat}
             players={atletasCat}
+            matches={partidasCat}
             categoryId={varias ? catAtual : undefined}
             onCategoryChange={varias ? setCatId : undefined}
             onChange={reload}
