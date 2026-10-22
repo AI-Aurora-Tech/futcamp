@@ -8,6 +8,7 @@ import {
   type Player,
   type Team,
 } from '../types'
+import { atletaDaCategoria, categoriaPadrao } from './categorias'
 
 function esc(s: unknown): string {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
@@ -73,8 +74,10 @@ export function buildSumulaHtml(params: {
   const { championship, match, teams, players, events, category } = params
   const home = teams.find((t) => t.id === match.homeTeamId)
   const away = teams.find((t) => t.id === match.awayTeamId)
+  // Atleta antigo sem categoria conta para a primeira (mesma regra do app).
+  const padrao = categoriaPadrao(championship)
   const inCat = (teamId: string) =>
-    players.filter((p) => p.teamId === teamId && (!category || p.categoryId === category.id))
+    players.filter((p) => p.teamId === teamId && atletaDaCategoria(p.categoryId, category?.id, padrao))
   const homePlayers = home ? inCat(home.id) : []
   const awayPlayers = away ? inCat(away.id) : []
   const ev = events.filter((e) => e.matchId === match.id)
@@ -209,15 +212,3 @@ export function openSumula(html: string): void {
   w.document.close()
 }
 
-/** Baixa a súmula como arquivo .html. */
-export function downloadSumula(filename: string, html: string): void {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
