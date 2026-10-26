@@ -374,7 +374,9 @@ export function Landing() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                minLength={6}
+                // Mínimo de 6 só para CRIAR conta: ao entrar, a mesma caixa
+                // serve ao mesário, cuja senha pode ter 4 caracteres.
+                minLength={tab === 'up' ? 6 : undefined}
                 required
               />
             </Field>

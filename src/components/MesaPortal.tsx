@@ -158,6 +158,45 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
   const partidasCat = partidasDaCategoria(todasPartidas, catPartida, padraoCat)
   const atletasPartida = players.filter((p) => atletaDaCategoria(p.categoryId, catPartida, padraoCat))
 
+  // Jogos do mesário separados em "a jogar" e "encerrados", por dia e hora.
+  const quando = (m: Match) => {
+    const t = m.scheduledAt ? new Date(m.scheduledAt).getTime() : NaN
+    return Number.isNaN(t) ? null : t
+  }
+  const aJogar = matches
+    .filter((m) => m.status !== 'finished')
+    .sort((a, b) => {
+      if ((a.status === 'live') !== (b.status === 'live')) return a.status === 'live' ? -1 : 1
+      const ta = quando(a)
+      const tb = quando(b)
+      if (ta == null || tb == null) return ta == null ? (tb == null ? a.round - b.round : 1) : -1
+      return ta - tb
+    })
+  const encerrados = matches
+    .filter((m) => m.status === 'finished')
+    .sort((a, b) => (quando(b) ?? 0) - (quando(a) ?? 0) || b.round - a.round)
+  const cartao = (m: Match) => (
+    <div key={m.id} className="mesa-match">
+      <div className="mesa-match__meta">
+        <StatusPill status={m.status} />
+        {quando(m) != null && (
+          <span className="muted small">
+            {new Date(m.scheduledAt as string).toLocaleString('pt-BR', {
+              weekday: 'short',
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        )}
+        {quando(m) == null && <span className="muted small">sem data</span>}
+        {m.venue && <span className="muted small">· {m.venue}</span>}
+      </div>
+      <MatchRow match={m} teams={teams} onClick={() => setEditing(m)} />
+    </div>
+  )
+
   return (
     <div className="reg" style={{ '--accent': champ.primaryColor ?? '#16a34a' } as React.CSSProperties}>
       <header className="reg__hero">
@@ -191,18 +230,23 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
                 <p>O organizador ainda não atribuiu partidas a você.</p>
               </EmptyState>
             ) : (
-              <div className="mesa-matches">
-                {matches.map((m) => (
-                  <div key={m.id} className="mesa-match">
-                    <div className="mesa-match__meta">
-                      <StatusPill status={m.status} />
-                      {m.scheduledAt && <span className="muted small">{new Date(m.scheduledAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
-                      {m.venue && <span className="muted small">· {m.venue}</span>}
-                    </div>
-                    <MatchRow match={m} teams={teams} onClick={() => setEditing(m)} />
-                  </div>
-                ))}
-              </div>
+              <>
+                {/* A jogar: ao vivo primeiro, depois por dia e hora (o mais
+                    próximo no topo). Jogo sem data fica no fim. */}
+                <h3 className="mesa-sec">📅 A jogar ({aJogar.length})</h3>
+                {aJogar.length === 0 ? (
+                  <p className="muted small">Nenhum jogo pendente.</p>
+                ) : (
+                  <div className="mesa-matches">{aJogar.map(cartao)}</div>
+                )}
+                {/* Encerrados: por dia e hora, do mais recente para o mais antigo. */}
+                <h3 className="mesa-sec">✅ Encerrados ({encerrados.length})</h3>
+                {encerrados.length === 0 ? (
+                  <p className="muted small">Nenhum jogo encerrado ainda.</p>
+                ) : (
+                  <div className="mesa-matches mesa-matches--done">{encerrados.map(cartao)}</div>
+                )}
+              </>
             )}
           </section>
         )}
