@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   createKnockoutFromPairs,
   createMatch,
-  updateKnockoutPairs,
+  updateMatch,
   generateGroups,
   generateKnockout,
   generateLeague,
@@ -107,15 +107,12 @@ export function MatchesPanel({
   }
   // Montar o mata-mata à mão: liberado assim que há jogos da 1ª fase (a
   // sugestão usa a classificação do momento) e ainda não há mata-mata.
-  const canCreateKnockout =
-    !isKnockout &&
-    hasKnockoutStage(championship) &&
-    knockoutMatches.length === 0 &&
-    groupMatchesOnly.length > 0
+  // Vale para qualquer formato com 1ª fase (pontos corridos ou grupos), mesmo
+  // sem chaveamento configurado: o organizador monta o organograma na mão.
+  const canCreateKnockout = !isKnockout && knockoutMatches.length === 0 && groupMatchesOnly.length > 0
   const faseCompleta = allGroupStagesComplete(championship, matches)
-  // Editar os confrontos: enquanto nenhum jogo da 1ª fase do mata-mata começou.
-  const canEditKnockout =
-    primeiraFaseKo.length > 0 && primeiraFaseKo.every((m) => m.status === 'scheduled')
+  // Editar os confrontos: enquanto houver confronto do mata-mata não jogado.
+  const canEditKnockout = knockoutMatches.some((m) => m.status === 'scheduled')
   const pendingTies = matches.filter(isUnresolvedTie)
 
   async function generate() {
@@ -184,7 +181,9 @@ export function MatchesPanel({
   }
 
   // Agrupa por rodada (primeira fase) e por fase (mata-mata).
-  const sections = useMemo(() => matchSections(matches), [matches])
+  // O mata-mata aparece só no organograma (acima): listá-lo de novo aqui
+  // duplicava o chaveamento.
+  const sections = useMemo(() => matchSections(matches).filter((s) => !s.isKnockout), [matches])
 
   return (
     <section className="panel">
@@ -334,7 +333,7 @@ export function MatchesPanel({
           teams={teams}
           matches={matches}
           events={events}
-          firstPhase={primeiraFaseKo}
+          knockoutMatches={knockoutMatches}
           faseCompleta={faseCompleta}
           categoryId={categoryId}
           onClose={() => setKoSetup(null)}
@@ -363,13 +362,25 @@ export function MatchesPanel({
   )
 }
 
+/** Fases que podem abrir o mata-mata, com o nº de confrontos de cada uma. */
+const FASES_INICIAIS: { fase: MatchPhase; confrontos: number }[] = [
+  { fase: 'round_of_32', confrontos: 16 },
+  { fase: 'round_of_16', confrontos: 8 },
+  { fase: 'quarter', confrontos: 4 },
+  { fase: 'semi', confrontos: 2 },
+  { fase: 'final', confrontos: 1 },
+]
+
 /**
- * Monta (ou edita) os confrontos da PRIMEIRA fase do mata-mata.
+ * Cria (ou edita) o organograma do mata-mata.
  *
- * A sugestão vem da classificação e do chaveamento configurado ("1º A × 2º B"),
- * mas cada vaga é um seletor: o organizador coloca quem passou do jeito que
- * quiser. Criar gera o organograma inteiro (até a final, e o 3º lugar se
- * houver); as fases seguintes são preenchidas pelo avanço automático.
+ * Criar: o organizador escolhe a FASE INICIAL (oitavas, quartas…) e o app
+ * monta todas as fases até a final — e o 3º lugar, se configurado. As vagas
+ * da fase inicial podem vir sugeridas pela classificação ou em branco; as
+ * fases seguintes nascem sem times, e são preenchidas à mão (aqui, em
+ * "Editar confrontos") ou pelo avanço automático dos vencedores.
+ *
+ * Editar: todos os confrontos ainda não jogados, fase a fase.
  */
 function KnockoutSetupModal({
   mode,
@@ -377,7 +388,7 @@ function KnockoutSetupModal({
   teams,
   matches,
   events,
-  firstPhase,
+  knockoutMatches,
   faseCompleta,
   categoryId,
   onClose,
@@ -388,54 +399,86 @@ function KnockoutSetupModal({
   teams: Team[]
   matches: Match[]
   events: MatchEvent[]
-  firstPhase: Match[]
+  knockoutMatches: Match[]
   faseCompleta: boolean
   categoryId?: string
   onClose: () => void
   onSaved: () => void
 }) {
   type Par = { home: string; away: string }
-  const [pares, setPares] = useState<Par[]>(() => {
-    if (mode === 'edit') {
-      return [...firstPhase]
-        .sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0))
-        .map((m) => ({ home: m.homeTeamId ?? '', away: m.awayTeamId ?? '' }))
-    }
-    const sugestao = resolveBracketTeams(championship, teams, matches, events).map((p) => ({
-      home: p.home ?? '',
-      away: p.away ?? '',
-    }))
-    return sugestao.length ? sugestao : [{ home: '', away: '' }, { home: '', away: '' }]
-  })
+  // Sugestão pela classificação + chaveamento configurado (pode vir vazia).
+  const sugestao = useMemo(
+    () =>
+      mode === 'create'
+        ? resolveBracketTeams(championship, teams, matches, events).map((p) => ({
+            home: p.home ?? '',
+            away: p.away ?? '',
+          }))
+        : [],
+    [mode, championship, teams, matches, events],
+  )
+  const faseSugerida = sugestao.length ? phaseForPairs(sugestao.length) : 'quarter'
+  const [faseInicial, setFaseInicial] = useState<MatchPhase>(faseSugerida)
+  const [pares, setPares] = useState<Par[]>(() => ajustar(sugestao, confrontosDe(faseSugerida)))
+  // Edição: um rascunho por partida (id → times).
+  const [rascunho, setRascunho] = useState<Record<string, Par>>(() =>
+    Object.fromEntries(knockoutMatches.map((m) => [m.id, { home: m.homeTeamId ?? '', away: m.awayTeamId ?? '' }])),
+  )
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
-  const usados = new Map<string, number>()
-  for (const p of pares) for (const id of [p.home, p.away]) if (id) usados.set(id, (usados.get(id) ?? 0) + 1)
-  const repetidos = [...usados].filter(([, n]) => n > 1).map(([id]) => teams.find((t) => t.id === id)?.name ?? id)
-  // No mata-mata as fases andam em potência de 2: 3 confrontos viram quartas
-  // com uma vaga vazia (que passa direto).
-  const fase = phaseForPairs(Math.max(1, pares.length))
+  function confrontosDe(f: MatchPhase): number {
+    return FASES_INICIAIS.find((x) => x.fase === f)?.confrontos ?? 4
+  }
+  function ajustar(lista: Par[], n: number): Par[] {
+    const out = lista.slice(0, n)
+    while (out.length < n) out.push({ home: '', away: '' })
+    return out
+  }
 
-  function setVaga(i: number, lado: 'home' | 'away', id: string) {
-    setPares((prev) => prev.map((p, j) => (j === i ? { ...p, [lado]: id } : p)))
+  function trocarFase(f: MatchPhase) {
+    setFaseInicial(f)
+    setPares((prev) => ajustar(prev, confrontosDe(f)))
     setErro(null)
   }
 
+  /** Times repetidos dentro de uma mesma fase. */
+  function repetidosEm(lista: Par[]): string[] {
+    const n = new Map<string, number>()
+    for (const p of lista) for (const id of [p.home, p.away]) if (id) n.set(id, (n.get(id) ?? 0) + 1)
+    return [...n].filter(([, q]) => q > 1).map(([id]) => teams.find((t) => t.id === id)?.name ?? id)
+  }
+
+  const fasesEdicao = [...KNOCKOUT_ORDER, 'third_place' as MatchPhase].filter((f) =>
+    knockoutMatches.some((m) => m.phase === f),
+  )
+  const repetidos =
+    mode === 'create'
+      ? repetidosEm(pares)
+      : fasesEdicao.flatMap((f) =>
+          repetidosEm(knockoutMatches.filter((m) => m.phase === f).map((m) => rascunho[m.id])),
+        )
+
   async function salvar() {
-    if (repetidos.length) return setErro(`Time em mais de um confronto: ${repetidos.join(', ')}.`)
-    if (!pares.some((p) => p.home || p.away)) return setErro('Escolha pelo menos um time.')
-    const lista = pares.map((p) => ({ home: p.home || null, away: p.away || null }))
+    if (repetidos.length) return setErro(`Time repetido na mesma fase: ${repetidos.join(', ')}.`)
     setBusy(true)
     try {
       if (mode === 'create') {
+        const lista = pares.map((p) => ({ home: p.home || null, away: p.away || null }))
         const ok = await createKnockoutFromPairs(championship, lista, categoryId)
         if (!ok) {
           setErro('O mata-mata desta categoria já foi criado. Feche e recarregue a tela.')
           return
         }
       } else {
-        await updateKnockoutPairs(firstPhase, lista)
+        for (const m of knockoutMatches) {
+          const r = rascunho[m.id]
+          if (!r || m.status !== 'scheduled') continue
+          const home = r.home || null
+          const away = r.away || null
+          if (home === m.homeTeamId && away === m.awayTeamId) continue
+          await updateMatch(m.id, { homeTeamId: home, awayTeamId: away })
+        }
       }
       onSaved()
     } catch (e) {
@@ -445,66 +488,112 @@ function KnockoutSetupModal({
     }
   }
 
-  const seletor = (i: number, lado: 'home' | 'away', valor: string) => (
-    <select value={valor} onChange={(e) => setVaga(i, lado, e.target.value)} aria-label={`Confronto ${i + 1} — ${lado === 'home' ? 'mandante' : 'visitante'}`}>
-      <option value="">— a definir / folga —</option>
+  const seletor = (valor: string, onPick: (id: string) => void, label: string, disabled = false) => (
+    <select value={valor} onChange={(e) => onPick(e.target.value)} aria-label={label} disabled={disabled}>
+      <option value="">— a definir —</option>
       {teams.map((t) => (
         <option key={t.id} value={t.id}>{t.name}</option>
       ))}
     </select>
   )
 
+  // Fases que vão nascer em branco depois da inicial.
+  const idxInicial = KNOCKOUT_ORDER.indexOf(faseInicial)
+  const seguintes = KNOCKOUT_ORDER.slice(idxInicial + 1)
+
   return (
     <Modal title={mode === 'create' ? 'Criar mata-mata' : 'Editar confrontos do mata-mata'} onClose={onClose} wide dismissable={false}>
-      <p className="field__hint">
-        {mode === 'create'
-          ? 'Os confrontos já vêm sugeridos pela classificação e pelo chaveamento configurado. Troque qualquer vaga para colocar quem passou. Ao criar, o organograma inteiro é montado até a final — os vencedores avançam sozinhos.'
-          : 'Troque os times dos confrontos da primeira fase. Só dá para editar enquanto nenhum jogo do mata-mata começou.'}
-      </p>
-      {mode === 'create' && !faseCompleta && (
-        <p className="hint hint--warn">
-          ⚠️ A fase de classificação ainda não terminou — a sugestão usa a classificação de agora.
-        </p>
-      )}
-
-      <p className="small">
-        Primeira fase: <b>{PHASE_LABELS[fase]}</b> · {pares.length} confronto(s)
-      </p>
-      <ol className="ko-setup__list">
-        {pares.map((p, i) => (
-          <li key={i} className="ko-setup__pair">
-            <span className="ko-setup__n">{i + 1}</span>
-            {seletor(i, 'home', p.home)}
-            <span className="muted">×</span>
-            {seletor(i, 'away', p.away)}
-            {mode === 'create' && pares.length > 1 ? (
-              <button
-                type="button"
-                className="icon-btn icon-btn--danger"
-                title="Remover confronto"
-                onClick={() => setPares((prev) => prev.filter((_, j) => j !== i))}
-              >
-                ✕
+      {mode === 'create' ? (
+        <>
+          <p className="field__hint">
+            Escolha a fase em que o mata-mata começa. O organograma é criado com <b>todas as fases até a
+            final</b>{championship.thirdPlace ? ' (e a disputa de 3º lugar)' : ''}. As fases seguintes nascem
+            sem times — preencha depois em “Editar confrontos” ou deixe os vencedores avançarem sozinhos.
+          </p>
+          {!faseCompleta && (
+            <p className="hint hint--warn">
+              ⚠️ A fase de classificação ainda não terminou — a sugestão usa a classificação de agora.
+            </p>
+          )}
+          <div className="form-row">
+            <Field label="Fase inicial">
+              <select value={faseInicial} onChange={(e) => trocarFase(e.target.value as MatchPhase)}>
+                {FASES_INICIAIS.map((f) => (
+                  <option key={f.fase} value={f.fase}>
+                    {PHASE_LABELS[f.fase]} ({f.confrontos} confronto{f.confrontos > 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p className="small">
+            Organograma: <b>{[faseInicial, ...seguintes].map((f) => PHASE_LABELS[f]).join(' → ')}</b>
+            {championship.thirdPlace && seguintes.length > 0 ? ` + ${PHASE_LABELS.third_place}` : ''}
+          </p>
+          <div className="ko-setup__acoes">
+            <span className="small"><b>{PHASE_LABELS[faseInicial]}</b> — times (opcional):</span>
+            {sugestao.length > 0 && (
+              <button type="button" className="link-btn" onClick={() => setPares(ajustar(sugestao, confrontosDe(faseInicial)))}>
+                Usar classificados sugeridos
               </button>
-            ) : (
-              <span />
             )}
-          </li>
-        ))}
-      </ol>
-      {mode === 'create' && pares.length < 16 && (
-        <button type="button" className="link-btn link-btn--add" onClick={() => setPares((prev) => [...prev, { home: '', away: '' }])}>
-          ＋ adicionar confronto
-        </button>
+            <button type="button" className="link-btn" onClick={() => setPares(ajustar([], confrontosDe(faseInicial)))}>
+              Deixar tudo em branco
+            </button>
+          </div>
+          <ol className="ko-setup__list">
+            {pares.map((p, i) => (
+              <li key={i} className="ko-setup__pair">
+                <span className="ko-setup__n">{i + 1}</span>
+                {seletor(p.home, (id) => setPares((prev) => prev.map((x, j) => (j === i ? { ...x, home: id } : x))), `Confronto ${i + 1} — mandante`)}
+                <span className="muted">×</span>
+                {seletor(p.away, (id) => setPares((prev) => prev.map((x, j) => (j === i ? { ...x, away: id } : x))), `Confronto ${i + 1} — visitante`)}
+                <span />
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : (
+        <>
+          <p className="field__hint">
+            Coloque os times de cada confronto à mão. Confrontos já jogados (ou em andamento) não mudam.
+            Quando um jogo termina, o vencedor avança sozinho para a vaga dele na fase seguinte.
+          </p>
+          {fasesEdicao.map((f) => (
+            <div key={f} className="ko-setup__fase">
+              <h4 className="bracket__title">{PHASE_LABELS[f]}</h4>
+              <ol className="ko-setup__list">
+                {knockoutMatches
+                  .filter((m) => m.phase === f)
+                  .sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0))
+                  .map((m, i) => {
+                    const r = rascunho[m.id] ?? { home: '', away: '' }
+                    const travado = m.status !== 'scheduled'
+                    const set = (lado: 'home' | 'away') => (id: string) =>
+                      setRascunho((prev) => ({ ...prev, [m.id]: { ...r, [lado]: id } }))
+                    return (
+                      <li key={m.id} className="ko-setup__pair">
+                        <span className="ko-setup__n">{i + 1}</span>
+                        {seletor(r.home, set('home'), `${PHASE_LABELS[f]} ${i + 1} — mandante`, travado)}
+                        <span className="muted">×</span>
+                        {seletor(r.away, set('away'), `${PHASE_LABELS[f]} ${i + 1} — visitante`, travado)}
+                        <span className="muted small">{travado ? '🔒' : ''}</span>
+                      </li>
+                    )
+                  })}
+              </ol>
+            </div>
+          ))}
+        </>
       )}
 
-      {repetidos.length > 0 && <p className="auth-error">Time repetido: {repetidos.join(', ')}.</p>}
+      {repetidos.length > 0 && <p className="auth-error">Time repetido na mesma fase: {repetidos.join(', ')}.</p>}
       {erro && !repetidos.length && <p className="auth-error">{erro}</p>}
 
       <div className="form-actions">
         <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
         <Button type="button" onClick={() => void salvar()} disabled={busy || repetidos.length > 0}>
-          {busy ? 'Salvando…' : mode === 'create' ? '🏆 Criar mata-mata' : 'Salvar confrontos'}
+          {busy ? 'Salvando…' : mode === 'create' ? '🏆 Criar organograma' : 'Salvar confrontos'}
         </Button>
       </div>
     </Modal>

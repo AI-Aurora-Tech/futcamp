@@ -85,11 +85,21 @@ function BracketGame({
       </div>
     )
   }
+  // Data/local do jogo: com a lista de mata-mata fora da aba Partidas, é aqui
+  // que o organizador vê quando cada confronto acontece.
+  const quando = match.scheduledAt ? new Date(match.scheduledAt) : null
+  const agenda = [
+    quando && !Number.isNaN(quando.getTime())
+      ? quando.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : null,
+    match.venue,
+  ].filter(Boolean).join(' · ')
   const conteudo = (
     <>
       {aoVivo && <span className="live-dot live-dot--sm">ao vivo</span>}
       {linha(match.homeTeamId, match.homeScore, match.penaltyHome)}
       {linha(match.awayTeamId, match.awayScore, match.penaltyAway)}
+      {agenda && match.status !== 'finished' && <span className="bracket__when">📅 {agenda}</span>}
     </>
   )
   return onClick ? (
