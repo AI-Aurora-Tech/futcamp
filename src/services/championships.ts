@@ -26,11 +26,15 @@ function fromRow(r: any): Championship {
     pointsDraw: r.points_draw ?? 1,
     registrationCutoffHours: r.registration_cutoff_hours ?? 0,
     closedRounds: Array.isArray(r.closed_rounds) ? r.closed_rounds : [],
+    registrationsClosed: Boolean(r.registrations_closed),
     doubleRound: Boolean(r.double_round),
     numGroups: r.num_groups ?? undefined,
     teamsPerGroup: r.teams_per_group ?? undefined,
     advancePerGroup: r.advance_per_group ?? undefined,
     leagueQualifiers: r.league_qualifiers ?? undefined,
+    leagueMatchesPerTeam: r.league_matches_per_team ?? undefined,
+    leagueEntries: Array.isArray(r.league_entries) ? r.league_entries : undefined,
+    generalStanding: r.general_standing ?? undefined,
     advanceByGroup: r.advance_by_group ?? undefined,
     groupStages: Array.isArray(r.group_stages) ? r.group_stages : undefined,
     tiebreakers: Array.isArray(r.tiebreakers) ? r.tiebreakers : undefined,
@@ -83,11 +87,15 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   if (c.pointsDraw !== undefined) row.points_draw = c.pointsDraw
   if (c.registrationCutoffHours !== undefined) row.registration_cutoff_hours = c.registrationCutoffHours
   if (c.closedRounds !== undefined) row.closed_rounds = c.closedRounds
+  if (c.registrationsClosed !== undefined) row.registrations_closed = c.registrationsClosed
   if (c.doubleRound !== undefined) row.double_round = c.doubleRound
   if (c.numGroups !== undefined) row.num_groups = c.numGroups
   if (c.teamsPerGroup !== undefined) row.teams_per_group = c.teamsPerGroup
   if (c.advancePerGroup !== undefined) row.advance_per_group = c.advancePerGroup
   if (c.leagueQualifiers !== undefined) row.league_qualifiers = c.leagueQualifiers
+  if ('leagueMatchesPerTeam' in c) row.league_matches_per_team = c.leagueMatchesPerTeam ?? null
+  if ('leagueEntries' in c) row.league_entries = c.leagueEntries?.length ? c.leagueEntries : null
+  if ('generalStanding' in c) row.general_standing = c.generalStanding ?? null
   if (c.advanceByGroup !== undefined) row.advance_by_group = c.advanceByGroup
   if (c.groupStages !== undefined) row.group_stages = c.groupStages
   if (c.tiebreakers !== undefined) row.tiebreakers = c.tiebreakers
@@ -377,16 +385,46 @@ export async function setCategoryStatus(
 
 export type NewChampionship = Omit<Championship, 'id' | 'createdAt' | 'ownerId'>
 
+/** Colunas opcionais de migrations recentes (0039/0040). */
+const COLUNAS_RECENTES = ['league_matches_per_team', 'league_entries', 'general_standing']
+
+/** O banco recusou por coluna inexistente (migration ainda não aplicada)? */
+function colunaAusente(error: { message?: string; code?: string } | null): boolean {
+  return Boolean(error && (error.code === 'PGRST204' || /column .* does not exist|Could not find the '.*' column/i.test(error.message ?? '')))
+}
+
+/**
+ * Sem as migrations 0039/0040, gravar as colunas novas derruba o salvamento
+ * inteiro. Elas também moram dentro de cada categoria (jsonb), então gravar
+ * sem elas é melhor do que não gravar nada.
+ */
+function semColunasRecentes(row: Record<string, unknown>): Record<string, unknown> | null {
+  const limpo = { ...row }
+  let mudou = false
+  for (const k of COLUNAS_RECENTES) {
+    if (k in limpo) {
+      delete limpo[k]
+      mudou = true
+    }
+  }
+  return mudou ? limpo : null
+}
+
+const SEM_0043 =
+  'O fechamento de inscrições do campeonato ainda não foi liberado neste servidor ' +
+  '(aplique a migration 0043_inscricoes_do_campeonato.sql no Supabase).'
+
 export async function createChampionship(
   ownerId: string,
   input: NewChampionship,
 ): Promise<Championship> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('championships')
-      .insert(toRow({ ...input, ownerId }))
-      .select('*')
-      .single()
+    const row = toRow({ ...input, ownerId })
+    let { data, error } = await supabase.from('championships').insert(row).select('*').single()
+    const retry = colunaAusente(error) ? semColunasRecentes(row) : null
+    if (retry) {
+      ;({ data, error } = await supabase.from('championships').insert(retry).select('*').single())
+    }
     if (error) throw error
     return fromRow(data)
   }
@@ -425,11 +463,13 @@ export async function updateChampionship(
     // `.select()` para saber quantas linhas mudaram: quando a RLS recusa, o
     // Postgres não devolve erro — ele simplesmente não altera nada, e a tela
     // ficaria dizendo que salvou.
-    const { data, error } = await supabase
-      .from('championships')
-      .update(toRow(patch))
-      .eq('id', id)
-      .select('id')
+    const row = toRow(patch)
+    let { data, error } = await supabase.from('championships').update(row).eq('id', id).select('id')
+    if (colunaAusente(error)) {
+      if ('registrations_closed' in row) throw new Error(SEM_0043)
+      const retry = semColunasRecentes(row)
+      if (retry) ({ data, error } = await supabase.from('championships').update(retry).eq('id', id).select('id'))
+    }
     if (error) throw error
     if (!data?.length) throw new Error(RECUSADO('editar'))
     return

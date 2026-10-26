@@ -1,3 +1,4 @@
+import { herdarCadastros } from '../services/heranca'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -48,6 +49,9 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
   async function handleCreate(data: NewChampionship) {
     if (!organizer) return
     const champ = await createChampionship(organizer.id, data)
+    // O campeonato novo já nasce com os árbitros, campos e mesários que o
+    // organizador usou nos anteriores.
+    await herdarCadastros(champ.id, organizer.id)
     setCreating(false)
     setPlan(undefined)
     setItems((prev) => (prev ? [champ, ...prev] : [champ]))

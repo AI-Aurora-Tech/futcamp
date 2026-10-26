@@ -13,6 +13,7 @@ import { vitrine } from '../lib/vitrine'
 import { statusEfetivo } from '../lib/categorias'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
+import { abrirPortalMesa, mesaLoginByEmail, type MesaAccess } from '../services/officials'
 import { Button, ChampLogo, Field, SuporteLink, TeamBadge } from './ui'
 
 /** Campeão de cada campeonato encerrado, para a vitrine pública. */
@@ -145,6 +146,8 @@ export function Landing() {
   const [busy, setBusy] = useState(false)
   // Times que o e-mail/senha abriu, quando é mais de um: a pessoa escolhe.
   const [meusTimes, setMeusTimes] = useState<TeamAccess[] | null>(null)
+  // Campeonatos em que o e-mail/senha é mesário, quando é mais de um.
+  const [minhasMesas, setMinhasMesas] = useState<MesaAccess[] | null>(null)
   const [ongoing, setOngoing] = useState<Championship[]>([])
   const [champions, setChampions] = useState<Record<string, ChampionInfo>>({})
   const [search, setSearch] = useState('')
@@ -184,6 +187,27 @@ export function Landing() {
     return true
   }
 
+  /**
+   * Tenta entrar como MESÁRIO. Devolve `true` quando resolveu a tentativa
+   * (entrou, abriu a lista de campeonatos ou tem um erro para mostrar).
+   */
+  async function tentarComoMesa(): Promise<boolean> {
+    const { access, error: erro } = await mesaLoginByEmail(email, password)
+    if (access.length === 1) {
+      abrirPortalMesa(access[0], password)
+      return true
+    }
+    if (access.length > 1) {
+      setMinhasMesas(access)
+      return true
+    }
+    if (erro) {
+      setError(erro)
+      return true
+    }
+    return false
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -200,6 +224,7 @@ export function Landing() {
       // aceita qualquer e-mail (é conta de brinquedo) e engoliria o do time.
       if (mode === 'demo') {
         if (await tentarComoTime()) return
+        if (await tentarComoMesa()) return
         const err = await signIn(email, password)
         if (err) setError(err)
         return
@@ -207,8 +232,10 @@ export function Landing() {
 
       const err = await signIn(email, password)
       if (!err) return
-      // Organizador não é: pode ser gestor de time.
+      // Organizador não é: pode ser gestor de time…
       if (await tentarComoTime()) return
+      // …ou mesário.
+      if (await tentarComoMesa()) return
       setError(err)
     } finally {
       setBusy(false)
@@ -262,7 +289,31 @@ export function Landing() {
       </div>
 
       <div className="landing__panel">
-        {meusTimes ? (
+        {minhasMesas ? (
+          <div className="auth-card">
+            <h2 className="auth-card__title">Seus jogos como mesário</h2>
+            <p className="muted">
+              Você é mesário em {minhasMesas.length} campeonatos. Escolha qual quer abrir.
+            </p>
+            <ul className="team-pick">
+              {minhasMesas.map((m) => (
+                <li key={m.officialId}>
+                  <button type="button" className="team-pick__item" onClick={() => abrirPortalMesa(m, password)}>
+                    <span className="team-pick__logo"><ChampLogo logo={m.championshipLogo} /></span>
+                    <span className="team-pick__text">
+                      <strong>{m.championshipName}</strong>
+                      <span className="muted small">Mesário: {m.name}</span>
+                    </span>
+                    <span aria-hidden>→</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button className="link-btn" onClick={() => { setMinhasMesas(null); setPassword('') }}>
+              ← Entrar com outra conta
+            </button>
+          </div>
+        ) : meusTimes ? (
           <div className="auth-card">
             <h2 className="auth-card__title">Seus times</h2>
             <p className="muted">
@@ -323,7 +374,9 @@ export function Landing() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                minLength={6}
+                // Mínimo de 6 só para CRIAR conta: ao entrar, a mesma caixa
+                // serve ao mesário, cuja senha pode ter 4 caracteres.
+                minLength={tab === 'up' ? 6 : undefined}
                 required
               />
             </Field>
@@ -345,6 +398,11 @@ export function Landing() {
             🛡️ <b>Dono de time?</b> Entre aqui com o mesmo e-mail e senha que você criou
             pelo link do organizador. A conta do time nasce sempre daquele link — depois
             dela criada, esta página é a porta de entrada.
+          </p>
+
+          <p className="auth-note auth-note--time">
+            🧑‍⚖️ <b>Mesário?</b> Entre aqui com o e-mail e a senha que o organizador cadastrou
+            para você — você cai direto nos seus jogos.
           </p>
 
           <p className="auth-note">

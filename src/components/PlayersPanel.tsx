@@ -23,6 +23,9 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { porNome } from '../lib/sumula'
+import { useAuth } from '../context/AuthContext'
+import { updateChampionship } from '../services/championships'
 
 export function PlayersPanel({
   championship,
@@ -49,7 +52,33 @@ export function PlayersPanel({
   onCategoryChange?: (id: string) => void
   onChange: () => void
 }) {
+  const { isMaster } = useAuth()
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.id ?? '')
+  const [toggling, setToggling] = useState(false)
+  /**
+   * Inscrições do campeonato fechadas: só o administrador master inscreve.
+   * Nem o organizador, nem o time — é o que dá valor ao "fechado".
+   */
+  const fechadas = Boolean(championship.registrationsClosed)
+  const bloqueado = fechadas && !isMaster
+
+  async function alternarInscricoes() {
+    const fechar = !fechadas
+    const msg = fechar
+      ? 'Encerrar as inscrições do CAMPEONATO INTEIRO (todas as categorias e times)?\n\n' +
+        'Depois de encerradas, só o administrador master consegue inscrever atletas.'
+      : 'Reabrir as inscrições do campeonato inteiro? Os times voltam a poder inscrever atletas.'
+    if (!confirm(msg)) return
+    setToggling(true)
+    try {
+      await updateChampionship(championship.id, { registrationsClosed: fechar })
+      onChange()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível alterar as inscrições.')
+    } finally {
+      setToggling(false)
+    }
+  }
 
   /**
    * Trocar de categoria troca a lista de clubes.
@@ -82,7 +111,11 @@ export function PlayersPanel({
   }, [teams, search])
 
   const teamPlayers = useMemo(
-    () => players.filter((p) => p.teamId === selectedTeam).sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+    // Atletas em ordem alfabética (a comissão técnica vem depois deles).
+    () =>
+      players
+        .filter((p) => p.teamId === selectedTeam)
+        .sort((a, b) => Number(a.role === 'comissao') - Number(b.role === 'comissao') || porNome(a, b)),
     [players, selectedTeam],
   )
   const team = teams.find((t) => t.id === selectedTeam)
@@ -135,10 +168,22 @@ export function PlayersPanel({
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
-          <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
+          <Button variant="ghost" onClick={() => void alternarInscricoes()} disabled={toggling}>
+            {fechadas ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
+          </Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam || bloqueado}>📊 Importar planilha</Button>
+          <Button onClick={() => setAdding(true)} disabled={!selectedTeam || bloqueado}>＋ Adicionar atleta</Button>
         </div>
       </div>
+
+      {fechadas && (
+        <div className="lock-banner">
+          🔒 As inscrições do campeonato estão <b>encerradas</b> (todas as categorias).{' '}
+          {isMaster
+            ? 'Como administrador master, você ainda pode inscrever atletas.'
+            : 'Só o administrador master pode inscrever atletas agora. Reabra as inscrições para liberar os times.'}
+        </div>
+      )}
 
       <SearchField
         value={search}

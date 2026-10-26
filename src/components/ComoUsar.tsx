@@ -167,15 +167,15 @@ const TIME: Passo[] = [
   {
     titulo: 'Fique de olho no prazo',
     texto:
-      'O organizador define quantas horas antes do jogo as inscrições fecham. Passado o prazo, o elenco daquela rodada trava — inscreva antes.',
+      'O organizador define quantas horas antes do jogo as inscrições fecham. Passado o prazo, o elenco trava até o jogo acabar — inscreva antes. O organizador também pode encerrar as inscrições do campeonato inteiro; aí só o administrador inscreve.',
   },
 ]
 
 const MESARIO: Passo[] = [
   {
-    titulo: 'Receba o link da mesa e a sua senha',
+    titulo: 'Receba o seu e-mail e a sua senha',
     texto:
-      'O organizador cadastra você como mesário e envia um link do tipo tabelaco…/#/mesa/… junto com uma senha.',
+      'O organizador cadastra você como mesário. Entre pela página inicial do Tabelaço com o e-mail e a senha — ou pelo link da mesa (tabelaco…/#/mesa/…), se ele enviar.',
   },
   {
     titulo: 'Entre e veja só os seus jogos',

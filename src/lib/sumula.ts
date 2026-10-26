@@ -20,9 +20,15 @@ function fmtDate(iso?: string): string {
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+/** Ordem alfabética pelo nome (acentos e maiúsculas não mudam a ordem). */
+export const porNome = (a: Pick<Player, 'name'>, b: Pick<Player, 'name'>): number =>
+  (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR', { sensitivity: 'base' })
+
 function rosterRows(players: Player[]): string {
-  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
-  const staff = players.filter((p) => p.role === 'comissao')
+  // A súmula lista os atletas em ordem alfabética — é assim que o mesário e o
+  // árbitro conferem a chamada na beira do campo.
+  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort(porNome)
+  const staff = players.filter((p) => p.role === 'comissao').sort(porNome)
   const posLabel = (p: Player) => labelDaPosicao(p.position)
   const line = (p: Player) =>
     `<tr><td class="num">${esc(p.number ?? '')}</td><td>${esc(p.name)}</td><td>${esc(p.cpf ? p.cpf.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '')}</td><td>${esc(posLabel(p))}</td><td class="sign"></td></tr>`

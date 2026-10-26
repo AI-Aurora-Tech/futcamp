@@ -2,8 +2,11 @@ import type { Match } from '../types'
 
 export interface RegistrationLock {
   locked: boolean
-  /** Motivo: 'time' = prazo antes do jogo; 'manual' = rodada fechada pelo admin. */
-  reason?: 'time' | 'manual'
+  /**
+   * Motivo: 'closed' = inscrições do campeonato encerradas pelo organizador;
+   * 'time' = prazo antes do jogo.
+   */
+  reason?: 'closed' | 'time'
   /** Partida que motiva a trava (a mais próxima dentro da janela). */
   match?: Match
   /** Horário de início dessa partida (ISO), se houver. */
@@ -12,32 +15,26 @@ export interface RegistrationLock {
 
 /**
  * Determina se as inscrições de um time estão TRAVADAS, por:
- *  • encerramento MANUAL de uma rodada pelo organizador (closedRounds), ou
- *  • proximidade de jogo: `cutoffHours` antes de cada partida não finalizada.
- * Em ambos os casos, ao finalizar a partida/rodada as inscrições reabrem.
+ *  • encerramento MANUAL das inscrições do campeonato inteiro pelo
+ *    organizador (`registrationsClosed`) — só reabre quando ele reabrir; ou
+ *  • proximidade de jogo: `cutoffHours` antes de cada partida não finalizada
+ *    (reabre sozinho quando a partida é encerrada).
  */
 export function registrationLockForTeam(
   teamId: string,
   matches: Match[],
   cutoffHours: number,
-  closedRounds: number[] = [],
+  registrationsClosed = false,
   now: Date = new Date(),
 ): RegistrationLock {
-  const mine = matches.filter(
-    (m) => (m.homeTeamId === teamId || m.awayTeamId === teamId) && m.status !== 'finished',
-  )
-
-  // 1) Rodada fechada manualmente (partida ainda não finalizada nessa rodada).
-  if (closedRounds.length) {
-    const closed = new Set(closedRounds)
-    const m = mine.find((x) => closed.has(x.round))
-    if (m) return { locked: true, reason: 'manual', match: m, matchAt: m.scheduledAt }
-  }
+  // 1) Inscrições do campeonato fechadas pelo organizador.
+  if (registrationsClosed) return { locked: true, reason: 'closed' }
 
   // 2) Prazo por proximidade do jogo.
   if (cutoffHours && cutoffHours > 0) {
     const ms = cutoffHours * 3600_000
-    const candidates = mine
+    const candidates = matches
+      .filter((m) => (m.homeTeamId === teamId || m.awayTeamId === teamId) && m.status !== 'finished')
       .filter((m) => !!m.scheduledAt)
       .map((m) => ({ m, at: new Date(m.scheduledAt as string) }))
       .filter(({ at }) => !Number.isNaN(at.getTime()))
@@ -54,17 +51,17 @@ export function registrationLockForTeam(
 
 /**
  * As inscrições para ESTA partida já encerraram? (base para liberar a súmula)
- * Considera: jogo ao vivo/encerrado, rodada fechada manualmente pelo organizador
- * (closedRounds) ou o prazo por proximidade do jogo.
+ * Considera: jogo ao vivo/encerrado, inscrições do campeonato fechadas pelo
+ * organizador ou o prazo por proximidade do jogo.
  */
 export function matchRegistrationClosed(
   match: Match,
   cutoffHours: number,
-  closedRounds: number[] = [],
+  registrationsClosed = false,
   now: Date = new Date(),
 ): boolean {
   if (match.status === 'live' || match.status === 'finished') return true
-  if (closedRounds.includes(match.round)) return true
+  if (registrationsClosed) return true
   if (!cutoffHours || cutoffHours <= 0 || !match.scheduledAt) return false
   const at = new Date(match.scheduledAt)
   if (Number.isNaN(at.getTime())) return false

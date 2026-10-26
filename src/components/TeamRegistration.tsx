@@ -38,7 +38,8 @@ import {
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
-import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
+import { porNome } from '../lib/sumula'
+import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
 import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
 
@@ -92,6 +93,13 @@ export function TeamRegistration({
     void reload()
   }
 
+  /** Sai do portal neste navegador (celular emprestado, computador do clube). */
+  function sair() {
+    fecharSessaoTime(teamId)
+    setAuthed(false)
+    onHome()
+  }
+
   if (loading) return <div className="container pad-lg"><Spinner /></div>
   if (invalid || !data) {
     return (
@@ -122,6 +130,9 @@ export function TeamRegistration({
               <div className="reg__doc">
                 <RegulamentoButton champ={data.championship} variant="soft" />
               </div>
+            )}
+            {authed && (
+              <button className="btn btn--ghost btn--sm mesa-logout" onClick={sair}>Sair</button>
             )}
           </div>
         </div>
@@ -503,7 +514,7 @@ function RosterCard({
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
-  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
+  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.registrationsClosed)
 
   /* ---------------------------------------------------------------------- */
   /* Abas de categoria                                                       */
@@ -520,9 +531,11 @@ function RosterCard({
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
 
-  const doElenco = varias
+  // Elenco em ordem alfabética (a comissão técnica vem depois dos atletas).
+  const doElenco = (varias
     ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
-    : data.players
+    : [...data.players]
+  ).sort((a, b) => Number(a.role === 'comissao') - Number(b.role === 'comissao') || porNome(a, b))
   const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name
@@ -580,8 +593,8 @@ function RosterCard({
 
       {lock.locked && (
         <div className="lock-banner">
-          {lock.reason === 'manual' ? (
-            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
+          {lock.reason === 'closed' ? (
+            <>🔒 As inscrições do campeonato foram <b>encerradas pelo organizador</b>. Para inscrever um atleta agora, fale com o organizador.</>
           ) : (
             <>
               🔒 Inscrições <b>encerradas</b> para a próxima partida

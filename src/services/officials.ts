@@ -152,6 +152,100 @@ export async function mesaLogin(
   })
 }
 
+/** Um acesso de mesário aberto pelo login da página inicial. */
+export interface MesaAccess {
+  championshipId: string
+  championshipName: string
+  championshipLogo?: string
+  officialId: string
+  name: string
+  username: string
+}
+
+/**
+ * Login do mesário pela PÁGINA INICIAL: só e-mail e senha, sem o link da
+ * mesa. Devolve os campeonatos em que esse e-mail/senha é mesário (o mesmo
+ * e-mail pode apitar em mais de um campeonato).
+ */
+export async function mesaLoginByEmail(
+  email: string,
+  password: string,
+): Promise<{ access: MesaAccess[]; error?: string }> {
+  const mail = email.trim().toLowerCase()
+  if (!mail || !password) return { access: [] }
+
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('mesa_login_email', {
+      p_email: mail,
+      p_password: password,
+    })
+    if (error) {
+      // RPC ausente = migration 0043 pendente: não é senha errada.
+      if (/does not exist|PGRST202|Could not find the function/i.test(error.message)) {
+        return {
+          access: [],
+          error:
+            'O acesso de mesário pela página inicial ainda não foi liberado neste servidor (migration 0043). ' +
+            'Use o link da mesa enviado pelo organizador.',
+        }
+      }
+      return { access: [], error: error.message }
+    }
+    const linhas = (Array.isArray(data) ? data : []) as any[]
+    return {
+      access: linhas.map((r) => ({
+        championshipId: r.championship_id,
+        championshipName: r.championship_name ?? 'Campeonato',
+        championshipLogo: r.championship_logo ?? undefined,
+        officialId: r.official_id,
+        name: r.name,
+        username: r.username,
+      })),
+    }
+  }
+
+  return query((d) => ({
+    access: d.officials
+      .filter((o) => o.username.trim().toLowerCase() === mail && o.passwordHash && o.passwordHash === hash(password))
+      .map((o) => {
+        const c = d.championships.find((x) => x.id === o.championshipId)
+        return {
+          championshipId: o.championshipId,
+          championshipName: c?.name ?? 'Campeonato',
+          championshipLogo: c?.logo,
+          officialId: o.id,
+          name: o.name,
+          username: o.username,
+        }
+      }),
+  }))
+}
+
+/** Chave da sessão do portal do mesário (por campeonato). */
+export const mesaSessionKey = (championshipId: string) => `futcamp:mesa:${championshipId}`
+
+/**
+ * Abre o portal do mesário já autenticado — o e-mail e a senha acabaram de ser
+ * conferidos na página inicial.
+ */
+export function abrirPortalMesa(a: MesaAccess, password: string): void {
+  try {
+    sessionStorage.setItem(
+      mesaSessionKey(a.championshipId),
+      JSON.stringify({
+        championshipId: a.championshipId,
+        officialId: a.officialId,
+        name: a.name,
+        username: a.username,
+        password,
+      }),
+    )
+  } catch {
+    /* sem sessionStorage: o portal pede o login de novo */
+  }
+  window.location.hash = `#/mesa/${a.championshipId}`
+}
+
 /**
  * Define uma nova senha do mesário quando a conta está com a senha zerada
  * (recuperação iniciada pelo administrador). Não exige a senha antiga.

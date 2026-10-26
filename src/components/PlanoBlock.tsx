@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { changePlan, revertPlan } from '../services/championships'
-import { PLANS, breakdown, formatBRL, limiteDeTimes, planOf } from '../lib/pricing'
+import { PLANS, breakdown, formatBRL, limiteDeTimes, planOf, precoDeTabela } from '../lib/pricing'
 import type { Championship, PlanKey } from '../types'
 import { Button } from './ui'
 
@@ -122,7 +122,7 @@ export function PlanoBlock({
           {PLANS.filter((p) => p.key !== champ.plan).map((p) => (
             <option key={p.key} value={p.key}>
               {p.tier} — {p.maxTeams == null ? 'equipes ilimitadas' : `até ${p.maxTeams} equipes`}
-              {p.consult ? ' (sob consulta)' : ` — ${formatBRL(breakdown(p.key, cats).totalCents)}`}
+              {p.consult ? ` — ${precoDeTabela(p)}` : ` — ${formatBRL(breakdown(p.key, cats).totalCents)}`}
             </option>
           ))}
         </select>
@@ -135,8 +135,9 @@ export function PlanoBlock({
         <p className={`plano-troca__previsao ${sobe ? 'is-cobra' : ''}`}>
           {planOf(escolhido as PlanKey).consult ? (
             <>
-              O plano Diamante é negociado com um consultor. Escolher aqui não gera cobrança —
-              fale com a gente pela página de planos.
+              O plano Diamante é uma assinatura mensal ({precoDeTabela(planOf('diamante'))}, valor
+              de tabela) fechada com um consultor. Escolher aqui não gera cobrança — fale com a
+              gente pela página de planos.
             </>
           ) : sobe ? (
             <>
