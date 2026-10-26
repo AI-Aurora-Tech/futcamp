@@ -6,6 +6,7 @@ import { listEvents, listMatches, requestKnockoutSync } from '../services/matche
 import {
   listAssignedMatches,
   mesaLogin,
+  mesaSessionKey,
   mesaWriter,
   setOfficialPassword,
   type MesaContext,
@@ -23,7 +24,7 @@ import { Button, ChampLogo, EmptyState, Field, Spinner, StatusPill } from './ui'
 import { MatchRow } from './MatchesPanel'
 import { MatchResultModal } from './MatchResultModal'
 
-const sessKey = (champ: string) => `futcamp:mesa:${champ}`
+const sessKey = mesaSessionKey
 
 interface Session extends MesaContext {
   name: string
@@ -79,11 +80,26 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
    * fase, o mata-mata é criado na hora (e os vencedores avançam) — sem
    * depender do administrador abrir o campeonato.
    */
-  const afterSave = useCallback(async () => {
+  const afterSave = useCallback(async (saved?: Match) => {
     try {
       if (champ) {
-        const [all, evs] = await Promise.all([listMatches(championshipId), listEvents(championshipId)])
-        await requestKnockoutSync(champ, await listTeams(championshipId), all, evs)
+        const [all, evs, ts] = await Promise.all([
+          listMatches(championshipId),
+          listEvents(championshipId),
+          listTeams(championshipId),
+        ])
+        // Cada categoria é uma competição: só a do jogo salvo avança de fase.
+        const varias = temVariasCategorias(champ)
+        const cat = varias ? saved?.categoryId ?? categoriaPadrao(champ) : undefined
+        const partidas = partidasDaCategoria(all, cat, categoriaPadrao(champ))
+        const ids = new Set(partidas.map((m) => m.id))
+        await requestKnockoutSync(
+          competicaoDaCategoria(champ, cat),
+          elencoDeTimes(ts, cat),
+          partidas,
+          evs.filter((e) => ids.has(e.matchId)),
+          cat,
+        )
       }
     } catch {
       /* sem permissão de escrita: o administrador conclui ao abrir o campeonato */
@@ -203,8 +219,9 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
           readOnlySchedule
           onClose={() => setEditing(null)}
           onSaved={() => {
+            const salvo = editing
             setEditing(null)
-            void afterSave()
+            void afterSave(salvo)
           }}
         />
       )}

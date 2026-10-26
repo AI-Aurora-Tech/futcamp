@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
-import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { buildSumulaHtml, downloadSumula, openSumula, porNome } from '../lib/sumula'
+import { categoriaPorId } from '../lib/categorias'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -68,8 +69,18 @@ export function MatchResultModal({
   onSaved: () => void
 }) {
   const w = writer ?? defaultMatchWriter
-  const home = teams.find((t) => t.id === match.homeTeamId)
-  const away = teams.find((t) => t.id === match.awayTeamId)
+  /**
+   * Os times da partida podem ser trocados pelo organizador (jogo lançado com
+   * o adversário errado, mando invertido). O mesário não troca: ele só lança
+   * o que acontece em campo.
+   */
+  const canEditTeams = !writer && !readOnlySchedule
+  const [homeTeamId, setHomeTeamId] = useState<string>(match.homeTeamId ?? '')
+  const [awayTeamId, setAwayTeamId] = useState<string>(match.awayTeamId ?? '')
+  const home = teams.find((t) => t.id === homeTeamId)
+  const away = teams.find((t) => t.id === awayTeamId)
+  const teamsChanged =
+    homeTeamId !== (match.homeTeamId ?? '') || awayTeamId !== (match.awayTeamId ?? '')
   const [homeScore, setHomeScore] = useState<string>(match.homeScore != null ? String(match.homeScore) : '')
   const [awayScore, setAwayScore] = useState<string>(match.awayScore != null ? String(match.awayScore) : '')
   const [status, setStatus] = useState<MatchStatus>(match.status)
@@ -90,6 +101,10 @@ export function MatchResultModal({
 
   // Formulário de novo evento
   const [evTeam, setEvTeam] = useState<string>(match.homeTeamId ?? '')
+  // Trocou os times: o formulário de evento acompanha o novo mandante.
+  useEffect(() => {
+    if (evTeam !== homeTeamId && evTeam !== awayTeamId) setEvTeam(homeTeamId)
+  }, [homeTeamId, awayTeamId, evTeam])
   const [evType, setEvType] = useState<EventType>('goal')
   const [evPlayer, setEvPlayer] = useState<string>('')
   const [evPlayerIn, setEvPlayerIn] = useState<string>('')
@@ -108,21 +123,22 @@ export function MatchResultModal({
   const suspensos = useMemo(
     () =>
       suspensosNaPartida({
-        match,
+        // Com os times trocados na tela, a conta já olha os times novos.
+        match: { ...match, homeTeamId: homeTeamId || null, awayTeamId: awayTeamId || null },
         matches: allMatches.length ? allMatches : [match],
         events: todosEventos,
         players,
         categories: championship.categories,
       }),
-    [match, allMatches, todosEventos, players, championship.categories],
+    [match, homeTeamId, awayTeamId, allMatches, todosEventos, players, championship.categories],
   )
 
   // Só atletas PRESENTES (na escalação salva) podem receber eventos.
   const presentIds = new Set(lineup.map((l) => l.playerId))
   const lineupNumber = new Map(lineup.map((l) => [l.playerId, l.number] as const))
-  const teamPlayers = players.filter(
-    (p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id),
-  )
+  const teamPlayers = players
+    .filter((p) => p.teamId === evTeam && (p.role ?? 'atleta') === 'atleta' && presentIds.has(p.id))
+    .sort(porNome)
   /** Nº da camisa desta partida (cai para o nº de inscrição se não definido). */
   const shirtOf = (p: Player) => lineupNumber.get(p.id) ?? p.number
   const playerOption = (p: Player) => `${shirtOf(p) ? `${shirtOf(p)} · ` : ''}${p.name}`
@@ -130,11 +146,11 @@ export function MatchResultModal({
   function bumpScore(teamId: string, type: EventType) {
     // Placar automático ao vivo: gol soma para o time; gol contra soma ao adversário.
     const forHome =
-      (type === 'goal' && teamId === match.homeTeamId) ||
-      (type === 'own_goal' && teamId === match.awayTeamId)
+      (type === 'goal' && teamId === homeTeamId) ||
+      (type === 'own_goal' && teamId === awayTeamId)
     const forAway =
-      (type === 'goal' && teamId === match.awayTeamId) ||
-      (type === 'own_goal' && teamId === match.homeTeamId)
+      (type === 'goal' && teamId === awayTeamId) ||
+      (type === 'own_goal' && teamId === homeTeamId)
     if (forHome) setHomeScore((s) => String((Number(s) || 0) + 1))
     if (forAway) setAwayScore((s) => String((Number(s) || 0) + 1))
   }
@@ -170,6 +186,27 @@ export function MatchResultModal({
   }
 
   async function save(newStatus: MatchStatus) {
+    // Troca de times: confere antes de gravar qualquer coisa.
+    if (teamsChanged) {
+      if (!homeTeamId || !awayTeamId) {
+        alert('Escolha o time mandante e o visitante.')
+        return
+      }
+      if (homeTeamId === awayTeamId) {
+        alert('O mandante e o visitante devem ser times diferentes.')
+        return
+      }
+      // Gol ou cartão lançado para um time que sai do jogo ficaria órfão — e
+      // continuaria contando na artilharia e na suspensão.
+      const fora = events.filter((e) => e.teamId !== homeTeamId && e.teamId !== awayTeamId)
+      if (fora.length > 0) {
+        alert(
+          `Há ${fora.length} evento(s) (gols, cartões, substituições) lançados para o time que sai ` +
+            'desta partida. Remova esses eventos antes de trocar os times.',
+        )
+        return
+      }
+    }
     // Ao vivo/encerrada, placar em branco vira 0 (entra na classificação);
     // agendada mantém null (ainda sem placar).
     const norm = (v: string) => (v === '' ? (newStatus === 'scheduled' ? null : 0) : Number(v))
@@ -187,14 +224,32 @@ export function MatchResultModal({
       if (match.phase === 'group') patch.round = Math.max(1, Number(round) || match.round)
     }
     if (officials) patch.officialId = officialId || undefined
+    if (canEditTeams && teamsChanged) {
+      patch.homeTeamId = homeTeamId
+      patch.awayTeamId = awayTeamId
+      // A escalação é dos times: quem não joga mais a partida sai dela.
+      const daPartida = new Set(
+        players.filter((p) => p.teamId === homeTeamId || p.teamId === awayTeamId).map((p) => p.id),
+      )
+      const novaEscalacao = lineup.filter((l) => daPartida.has(l.playerId))
+      if (novaEscalacao.length !== lineup.length) patch.lineup = novaEscalacao
+    }
     if (isKnockoutMatch) {
-      patch.winnerTeamId = winnerTeamId || undefined
+      // O classificado escolhido à mão precisa ser um dos dois times do jogo.
+      const vencedorValido = winnerTeamId === homeTeamId || winnerTeamId === awayTeamId
+      patch.winnerTeamId = vencedorValido ? winnerTeamId : undefined
       patch.penaltyHome = penHome === '' ? null : Number(penHome)
       patch.penaltyAway = penAway === '' ? null : Number(penAway)
     }
     patch.incidents = incidents.trim() || undefined
     setBusy(true)
-    await w.updateMatch(match.id, patch)
+    try {
+      await w.updateMatch(match.id, patch)
+    } catch (e) {
+      setBusy(false)
+      alert(e instanceof Error ? e.message : 'Não foi possível salvar a partida.')
+      return
+    }
     // Encerrar a partida enfileira, de uma vez, o resultado, o resumo de cada
     // equipe, as suspensões e — se a rodada fechou — a classificação.
     if (newStatus === 'finished') void flushPush(match.championshipId)
@@ -206,11 +261,15 @@ export function MatchResultModal({
   }
 
   function generateSumula(action: 'print' | 'download') {
-    const category = championship.categories.length === 1 ? championship.categories[0] : undefined
+    const category =
+      categoriaPorId(championship, match.categoryId) ??
+      (championship.categories.length === 1 ? championship.categories[0] : undefined)
     const html = buildSumulaHtml({
       championship,
       match: {
         ...match,
+        homeTeamId: homeTeamId || match.homeTeamId,
+        awayTeamId: awayTeamId || match.awayTeamId,
         homeScore: homeScore === '' ? null : Number(homeScore),
         awayScore: awayScore === '' ? null : Number(awayScore),
         status,
@@ -318,6 +377,48 @@ export function MatchResultModal({
         </label>
       )}
 
+      {canEditTeams && (
+        <div className="match-teams-edit">
+          <div className="form-row">
+            <label className="field">
+              <span className="field__label">Time mandante</span>
+              <select value={homeTeamId} onChange={(e) => setHomeTeamId(e.target.value)}>
+                <option value="">— a definir —</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id} disabled={t.id === awayTeamId}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm match-teams-edit__swap"
+              title="Inverter mando de campo"
+              onClick={() => {
+                setHomeTeamId(awayTeamId)
+                setAwayTeamId(homeTeamId)
+              }}
+            >
+              ⇄ Inverter
+            </button>
+            <label className="field">
+              <span className="field__label">Time visitante</span>
+              <select value={awayTeamId} onChange={(e) => setAwayTeamId(e.target.value)}>
+                <option value="">— a definir —</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id} disabled={t.id === homeTeamId}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {teamsChanged && (
+            <p className="field__hint">
+              🔁 Times alterados — a troca vale ao salvar a partida. A escalação dos times que
+              saem do jogo é descartada.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="scoreboard">
         <div className="scoreboard__team">
           <TeamBadge team={home} size={48} />
@@ -334,7 +435,7 @@ export function MatchResultModal({
         </div>
       </div>
 
-      {isKnockoutMatch && match.homeTeamId && match.awayTeamId && (
+      {isKnockoutMatch && homeTeamId && awayTeamId && (
         <div className={`penalties ${isTied ? 'penalties--needed' : ''}`}>
           <div className="penalties__head">
             <strong>🥅 Disputa por pênaltis</strong>
@@ -373,13 +474,13 @@ export function MatchResultModal({
         </div>
       )}
 
-      {isKnockoutMatch && !readOnlySchedule && match.homeTeamId && match.awayTeamId && (
+      {isKnockoutMatch && !readOnlySchedule && homeTeamId && awayTeamId && (
         <label className={`field ko-winner ${isTied && !winnerTeamId ? 'ko-winner--warn' : ''}`}>
           <span className="field__label">🏆 Classificado para a fase seguinte</span>
           <select value={winnerTeamId} onChange={(e) => setWinnerTeamId(e.target.value)}>
             <option value="">— pelo placar —</option>
-            <option value={match.homeTeamId}>{home?.name}</option>
-            <option value={match.awayTeamId}>{away?.name}</option>
+            <option value={homeTeamId}>{home?.name}</option>
+            <option value={awayTeamId}>{away?.name}</option>
           </select>
           <span className="field__hint">
             {penWinner
@@ -391,7 +492,7 @@ export function MatchResultModal({
         </label>
       )}
 
-      {match.homeTeamId && match.awayTeamId && (
+      {homeTeamId && awayTeamId && (
         <PresencePanel
           home={home}
           away={away}
@@ -405,7 +506,7 @@ export function MatchResultModal({
         />
       )}
 
-      {match.homeTeamId && match.awayTeamId && (
+      {homeTeamId && awayTeamId && (
         <div className="events-box">
           <h4>Eventos da partida {status === 'live' && <span className="live-dot">ao vivo</span>}</h4>
           {teamPlayers.length === 0 && (
@@ -413,8 +514,8 @@ export function MatchResultModal({
           )}
           <div className="event-form">
             <select value={evTeam} onChange={(e) => { setEvTeam(e.target.value); setEvPlayer(''); setEvPlayerIn('') }}>
-              {match.homeTeamId && <option value={match.homeTeamId}>{home?.name}</option>}
-              {match.awayTeamId && <option value={match.awayTeamId}>{away?.name}</option>}
+              {homeTeamId && <option value={homeTeamId}>{home?.name}</option>}
+              {awayTeamId && <option value={awayTeamId}>{away?.name}</option>}
             </select>
             <select value={evType} onChange={(e) => setEvType(e.target.value as EventType)}>
               {(Object.keys(EVENT_LABELS) as EventType[]).map((t) => (
@@ -560,7 +661,7 @@ function PresencePanel({
   suspensos: Map<string, Suspensao>
   onSave: (entries: LineupEntry[]) => Promise<void>
 }) {
-  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta')
+  const athletes = players.filter((p) => (p.role ?? 'atleta') === 'atleta').sort(porNome)
 
   const build = (): Record<string, PresenceRow> => {
     const present = new Set(lineup.map((l) => l.playerId))

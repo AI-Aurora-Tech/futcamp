@@ -6,7 +6,6 @@ import {
   generateKnockout,
   generateLeague,
 } from '../services/matches'
-import { updateChampionship } from '../services/championships'
 import { flushWhatsapp } from '../services/whatsapp'
 import { flushPush } from '../services/push'
 import { useAuth } from '../context/AuthContext'
@@ -98,7 +97,7 @@ export function MatchesPanel({
   async function createKnockout() {
     setGenerating(true)
     try {
-      const ok = await createKnockoutStage(championship, teams, matches, events)
+      const ok = await createKnockoutStage(championship, teams, matches, events, categoryId)
       if (!ok) {
         alert('Não foi possível montar o mata-mata: confira o chaveamento e a classificação em Ajustes.')
       }
@@ -140,12 +139,20 @@ export function MatchesPanel({
       if (isKnockout) {
         await generateKnockout(championship.id, teams.map((t) => t.id), championship.thirdPlace, force, categoryId)
       } else if (isGroups) {
-        const groups: Record<string, string[]> = {}
-        for (const t of teams) {
-          const g = t.group || 'A'
-          ;(groups[g] ??= []).push(t.id)
+        const primeira = groupStagesOf(championship)[0]
+        const groups = montarGrupos(teams, primeira?.numGroups ?? championship.numGroups ?? 1)
+        const validos = Object.values(groups).filter((ids) => ids.length >= 2).length
+        if (validos === 0) {
+          alert('Nenhum grupo tem 2 times ou mais. Confira os grupos dos times na aba Times.')
+          return
         }
-        await generateGroups(championship.id, groups, championship.doubleRound, force, categoryId)
+        await generateGroups(
+          championship.id,
+          groups,
+          primeira?.doubleRound ?? championship.doubleRound,
+          force,
+          categoryId,
+        )
       } else {
         await generateLeague(
           championship.id,
@@ -167,15 +174,6 @@ export function MatchesPanel({
 
   // Agrupa por rodada (primeira fase) e por fase (mata-mata).
   const sections = useMemo(() => matchSections(matches), [matches])
-  const closedRounds = new Set(championship.closedRounds ?? [])
-
-  async function toggleRound(round: number) {
-    const set = new Set(championship.closedRounds ?? [])
-    if (set.has(round)) set.delete(round)
-    else set.add(round)
-    await updateChampionship(championship.id, { closedRounds: [...set].sort((a, b) => a - b) })
-    onChange()
-  }
 
   return (
     <section className="panel">
@@ -248,6 +246,9 @@ export function MatchesPanel({
 
       {scheduling && matches.length > 0 ? (
         <MatchScheduler
+          // Regerar troca todas as partidas (ids novos): o agendador recomeça
+          // com elas, em vez de guardar rascunhos dos jogos apagados.
+          key={matches.map((m) => m.id).join(',')}
           teams={teams}
           matches={matches}
           isKnockout={isKnockout}
@@ -265,22 +266,12 @@ export function MatchesPanel({
       ) : (
         <div className="rounds">
           {sections.map((sec) => {
-            const roundNo = sec.matches[0]?.round
-            const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
+            // As inscrições abrem e fecham para o campeonato inteiro (aba
+            // Elencos ou Ajustes) — não mais rodada a rodada.
             return (
-              <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
+              <div key={sec.key} className="round">
                 <div className="round__head">
-                  <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
-                  {!sec.isKnockout && roundNo != null && (
-                    <button
-                      type="button"
-                      className="round__toggle"
-                      onClick={() => void toggleRound(roundNo)}
-                      title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
-                    >
-                      {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
-                    </button>
-                  )}
+                  <h3 className="round__title">{sec.title}</h3>
                 </div>
                 <div className="round__matches">
                   {sec.matches.map((m) => (
@@ -325,6 +316,37 @@ export function MatchesPanel({
       )}
     </section>
   )
+}
+
+/**
+ * Os grupos da 1ª fase para gerar a tabela.
+ *
+ * Usa o grupo de cada time na categoria. Quando NENHUM time tem grupo ainda,
+ * distribui sozinho (A, B, C…, um a um) — antes todos caíam no grupo A e a
+ * tabela saía como um pontos corridos gigante. Time sem grupo, no meio de
+ * outros que já têm, vai para o grupo com menos times.
+ */
+export function montarGrupos(teams: Team[], numGroups: number): Record<string, string[]> {
+  const letras = Array.from({ length: Math.max(1, numGroups || 1) }, (_, i) => String.fromCharCode(65 + i))
+  const groups: Record<string, string[]> = {}
+  const algumComGrupo = teams.some((t) => t.group)
+  if (!algumComGrupo) {
+    teams.forEach((t, i) => {
+      ;(groups[letras[i % letras.length]] ??= []).push(t.id)
+    })
+    return groups
+  }
+  const semGrupo: Team[] = []
+  for (const t of teams) {
+    if (t.group) (groups[t.group] ??= []).push(t.id)
+    else semGrupo.push(t)
+  }
+  for (const t of semGrupo) {
+    const alvo = letras.reduce((menor, g) =>
+      (groups[g]?.length ?? 0) < (groups[menor]?.length ?? 0) ? g : menor, letras[0])
+    ;(groups[alvo] ??= []).push(t.id)
+  }
+  return groups
 }
 
 /**

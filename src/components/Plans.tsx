@@ -1,4 +1,4 @@
-import { PLANS, formatBRL, type PlanInfo } from '../lib/pricing'
+import { PLANS, formatBRL, planOf, precoDeTabela, type PlanInfo } from '../lib/pricing'
 import { rememberPlan } from '../lib/planChoice'
 import { LINK_DIAMANTE } from '../lib/whatsapp'
 import { ChampLogo, SuporteLink } from './ui'
@@ -128,7 +128,7 @@ export function Plans({ onHome }: { onHome: () => void }) {
       </div>
 
       <footer className="public__footer">
-        <span className="logo-word">Tabela<b>ço</b></span> · Preços por campeonato · Diamante é anual, sob consulta
+        <span className="logo-word">Tabela<b>ço</b></span> · Preços por campeonato · Diamante: assinatura mensal ({precoDeTabela(planOf('diamante'))})
         {' · '}<SuporteLink>Suporte</SuporteLink>
       </footer>
     </div>

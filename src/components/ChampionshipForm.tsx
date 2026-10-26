@@ -22,7 +22,7 @@ import {
 import { Button, ChampLogo, Field, Modal } from './ui'
 import { uid } from '../lib/id'
 import { fileToDataUrl } from '../lib/image'
-import { PLANS, breakdown, formatBRL, planOf } from '../lib/pricing'
+import { PLANS, breakdown, formatBRL, planOf, precoDeTabela } from '../lib/pricing'
 import {
   KNOCKOUT_ORDER,
   phaseForPairs,
@@ -663,7 +663,7 @@ export function ChampionshipForm({
                 >
                   <span className="plan-pick__tier">{p.gem} {p.tier}</span>
                   <span className="plan-pick__price">
-                    {p.consult ? 'sob consulta' : p.priceCents === 0 ? 'grátis' : formatBRL(p.priceCents)}
+                    {precoDeTabela(p)}
                   </span>
                   <span className="plan-pick__lim">
                     {p.maxTeams == null ? 'equipes ilimitadas' : `até ${p.maxTeams} equipes`}
@@ -1508,7 +1508,7 @@ export function ChampionshipForm({
               </span>
               <strong className="plan-total__val">
                 {price.plan.consult
-                  ? 'sob consulta'
+                  ? precoDeTabela(price.plan)
                   : price.totalCents === 0
                     ? 'grátis'
                     : formatBRL(price.totalCents)}

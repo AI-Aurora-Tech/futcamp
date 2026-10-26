@@ -8,7 +8,7 @@ import {
 } from '../services/championships'
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
-import { listEvents, listMatches, syncKnockout } from '../services/matches'
+import { listEvents, listMatches, syncAllCategories } from '../services/matches'
 import { listOfficials } from '../services/officials'
 import { useAuth } from '../context/AuthContext'
 import { disablePush, enablePush, pushAvailable } from '../services/push'
@@ -34,7 +34,7 @@ import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
 import { CategoryCompetitionForm } from './CategoryCompetitionForm'
-import { PaymentPanel } from './PaymentPanel'
+import { DiamanteNegociacao, PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
 import { PlanoBlock } from './PlanoBlock'
@@ -107,7 +107,7 @@ export function ManageChampionship({
     // Fase de grupos encerrada? Cria o mata-mata com os classificados e leva os
     // vencedores para a fase seguinte. Só recarrega se algo mudou de fato.
     if (c) {
-      const changed = await syncKnockout(c, t, m, e).catch(() => false)
+      const changed = await syncAllCategories(c, t, m, e).catch(() => false)
       if (changed) [c, t, p, m, e, o] = await fetchAll()
     }
 
@@ -410,6 +410,19 @@ export function ManageChampionship({
               </div>
             )}
 
+            <InscricoesBlock champ={champ} isMaster={isMaster} onChanged={reload} />
+
+            {/* Valor negociado do Diamante: só o master (consultor) define. */}
+            {isMaster && champ.plan === 'diamante' && (
+              <DiamanteNegociacao
+                champ={champ}
+                onChanged={(c) => {
+                  setChamp(c)
+                  void reload()
+                }}
+              />
+            )}
+
             <PlanoBlock champ={champ} totalTimes={teams.length} onChanged={reload} />
 
             <div className="settings-block">
@@ -534,6 +547,64 @@ function WhatsappBlock({
         {busy ? 'Salvando…' : 'Salvar número'}
       </Button>
       {msg && <span className="muted small">{msg}</span>}
+    </div>
+  )
+}
+
+/**
+ * Abrir / encerrar as inscrições do CAMPEONATO INTEIRO (todas as categorias e
+ * todos os times). Encerradas, só o administrador master inscreve atletas.
+ */
+function InscricoesBlock({
+  champ,
+  isMaster,
+  onChanged,
+}: {
+  champ: Championship
+  isMaster: boolean
+  onChanged: () => Promise<void> | void
+}) {
+  const [busy, setBusy] = useState(false)
+  const fechadas = Boolean(champ.registrationsClosed)
+
+  async function alternar() {
+    const fechar = !fechadas
+    const msg = fechar
+      ? 'Encerrar as inscrições do CAMPEONATO INTEIRO (todas as categorias e times)?\n\n' +
+        'Depois de encerradas, só o administrador master consegue inscrever atletas.'
+      : 'Reabrir as inscrições do campeonato inteiro? Os times voltam a poder inscrever atletas.'
+    if (!confirm(msg)) return
+    setBusy(true)
+    try {
+      await updateChampionship(champ.id, { registrationsClosed: fechar })
+      await onChanged()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Não foi possível alterar as inscrições.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="settings-block">
+      <h3>Inscrições de atletas</h3>
+      <p className="muted small">
+        Vale para o <b>campeonato inteiro</b> — todas as categorias e todos os times. Com as
+        inscrições encerradas, <b>somente o administrador master</b> inscreve atletas; o
+        organizador e os times ficam bloqueados até reabrir.
+        {champ.registrationCutoffHours > 0 &&
+          ` O prazo automático (${champ.registrationCutoffHours}h antes de cada jogo) continua valendo para os times.`}
+      </p>
+      <p className="small">
+        Situação:{' '}
+        <span className={`pill ${fechadas ? 'pill--draft' : 'pill--active'}`}>
+          {fechadas ? '🔒 encerradas' : '🔓 abertas'}
+        </span>
+        {fechadas && isMaster && <span className="muted small"> — como master, você ainda pode inscrever.</span>}
+      </p>
+      <Button variant="soft" onClick={() => void alternar()} disabled={busy}>
+        {busy ? 'Salvando…' : fechadas ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
+      </Button>
     </div>
   )
 }

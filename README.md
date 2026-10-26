@@ -26,6 +26,8 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🧒🧑 **Infantil ou Adulto** com **categorias** e regra de **ano de nascimento** (+ exceções por time no adulto) — o sistema barra atletas fora da faixa.
 - 🛂 **API de validação do atleta** (Edge Function `validate-athlete`): valida o **CPF** e confere **CPF × data de nascimento** (via provedor configurável), com fallback local.
 - ⏱️ **Prazo de inscrição por partida**: as inscrições de um time encerram X horas antes do jogo e **reabrem** após a partida ser finalizada.
+- 🔒 **Encerrar inscrições do campeonato**: o organizador fecha (e reabre) as inscrições do **campeonato inteiro** — todas as categorias e times — na aba Elencos ou em Ajustes. Fechadas, **só o administrador master** inscreve atletas (garantido no banco pela migration 0043).
+- 🧑‍⚖️ **Login do mesário pela página inicial**: o mesário entra com e-mail e senha na mesma caixa de login do organizador e do time, sem precisar do link `#/mesa/…`.
 - 🔢 **Limites por categoria**: máximo de **atletas** e de **comissão técnica** por time.
 - 🪪 **Um CPF, um time**: inscrito por uma equipe, o atleta **não** pode ser inscrito por outra do mesmo campeonato — em nenhuma categoria. Pela **mesma** equipe ele pode entrar em outra categoria, desde que se enquadre nela. A regra vale no painel, no link de inscrição e na importação, e é garantida também no banco (índice + gatilho).
 - 📄 **Súmula**: gere e exporte (imprimir/PDF ou HTML) a súmula do jogo quando as inscrições encerram.
