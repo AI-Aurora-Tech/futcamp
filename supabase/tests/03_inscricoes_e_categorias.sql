@@ -71,3 +71,19 @@ select public.advance_bracket('c4300000-0000-0000-0000-000000000043');
 select pg_temp.ok((select home_team_id from public.matches where championship_id='c4300000-0000-0000-0000-000000000043' and phase='final' and category_id='s11') = 'c4300000-0000-0000-0000-000000000101', 'vencedor do Sub-11 vai à final do Sub-11');
 select pg_temp.ok((select home_team_id from public.matches where championship_id='c4300000-0000-0000-0000-000000000043' and phase='final' and category_id='s15') is null, 'e NÃO à final do Sub-15');
 select pg_temp.ok(public.advance_bracket('c4300000-0000-0000-0000-000000000043', 's15') = 0, 'advance por categoria responde');
+
+-- ---------------------------------------------------------------------------
+-- 0045: campeonato novo herda os mesários do organizador
+-- ---------------------------------------------------------------------------
+\i :raiz/supabase/migrations/0045_cadastros_do_organizador.sql
+set request.jwt.claims = '{"role":"authenticated","email":"org43@teste.com"}';
+set request.jwt.claim.sub = 'c4300000-0000-0000-0000-000000000099';
+insert into public.championships (id, owner_id, name, sport, format, season, categories)
+values ('c4300000-0000-0000-0000-000000000045', 'c4300000-0000-0000-0000-000000000099',
+        'Copa Nova', 'futebol', 'league', '2027', '[{"id":"x","name":"Livre"}]'::jsonb);
+select pg_temp.ok(public.copiar_mesarios_do_organizador('c4300000-0000-0000-0000-000000000045') = 1, 'campeonato novo recebe o mesário do organizador');
+select pg_temp.ok(public.copiar_mesarios_do_organizador('c4300000-0000-0000-0000-000000000045') = 0, 'copiar de novo não duplica');
+select pg_temp.ok(jsonb_array_length(public.mesa_login_email('mesa@teste.com','senha1')) = 2, 'mesmo e-mail e senha valem no campeonato novo');
+set request.jwt.claims = '{"role":"authenticated","email":"outro@teste.com"}';
+set request.jwt.claim.sub = '00000000-0000-0000-0000-0000000000ff';
+select pg_temp.ok(pg_temp.falha($q$select public.copiar_mesarios_do_organizador('c4300000-0000-0000-0000-000000000045')$q$), 'quem não é dono não copia');

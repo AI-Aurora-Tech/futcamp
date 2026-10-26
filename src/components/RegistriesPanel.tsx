@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { updateChampionship } from '../services/championships'
+import { herdarCadastros } from '../services/heranca'
 import { fileToDataUrl } from '../lib/image'
 import { uid } from '../lib/id'
 import type { Championship, Referee, Sponsor, Venue } from '../types'
@@ -33,12 +34,37 @@ export function RegistriesPanel({
     }
   }
 
+  /** Traz árbitros, campos e mesários dos outros campeonatos do organizador. */
+  async function trazerDosOutros() {
+    setBusy(true)
+    try {
+      const r = await herdarCadastros(championship.id, championship.ownerId)
+      const total = r.arbitros + r.campos + r.mesarios
+      alert(
+        total
+          ? `Trazidos dos seus outros campeonatos: ${r.arbitros} árbitro(s), ${r.campos} campo(s) e ${r.mesarios} mesário(s).`
+          : 'Nada novo para trazer: os árbitros, campos e mesários dos seus outros campeonatos já estão aqui.',
+      )
+      onChange()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <section className="panel">
       <div className="panel__head">
         <div>
           <h2>Cadastros</h2>
-          <p className="muted">Árbitros, campos e patrocinadores/parceiros do campeonato.</p>
+          <p className="muted">
+            Árbitros, campos e patrocinadores/parceiros do campeonato. Campeonato novo já nasce com os
+            árbitros, campos e mesários dos seus outros campeonatos.
+          </p>
+        </div>
+        <div className="panel__head-actions">
+          <Button variant="soft" onClick={() => void trazerDosOutros()} disabled={busy}>
+            ↧ Trazer dos meus outros campeonatos
+          </Button>
         </div>
       </div>
 
