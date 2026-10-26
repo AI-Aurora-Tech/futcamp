@@ -159,6 +159,11 @@ $$;
 -- sem dizer se o e-mail existe ou se a senha errou. Devolve o `username` como
 -- está gravado — é ele que as RPCs do portal (`mesa_*`) conferem.
 -- ---------------------------------------------------------------------------
+-- Alguns bancos já têm uma `mesa_login_email(p_username, p_password)` criada
+-- fora do repositório. O Postgres não deixa renomear parâmetro (nem trocar o
+-- tipo de retorno) com `create or replace`, então a versão antiga sai antes.
+drop function if exists public.mesa_login_email(text, text);
+
 create or replace function public.mesa_login_email(p_email text, p_password text)
 returns jsonb
 language plpgsql
