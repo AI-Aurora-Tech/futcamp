@@ -23,6 +23,7 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { porNome } from '../lib/sumula'
 import { useAuth } from '../context/AuthContext'
 import { updateChampionship } from '../services/championships'
 
@@ -110,7 +111,11 @@ export function PlayersPanel({
   }, [teams, search])
 
   const teamPlayers = useMemo(
-    () => players.filter((p) => p.teamId === selectedTeam).sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+    // Atletas em ordem alfabética (a comissão técnica vem depois deles).
+    () =>
+      players
+        .filter((p) => p.teamId === selectedTeam)
+        .sort((a, b) => Number(a.role === 'comissao') - Number(b.role === 'comissao') || porNome(a, b)),
     [players, selectedTeam],
   )
   const team = teams.find((t) => t.id === selectedTeam)

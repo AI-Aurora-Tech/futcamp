@@ -1663,3 +1663,45 @@ html, body { max-width: 100%; overflow-x: hidden; }
 @media (max-width: 560px) {
   .match-teams-edit .form-row { grid-template-columns: 1fr; }
 }
+
+/* ---------- Organograma do mata-mata ---------- */
+.bracket {
+  display: flex; gap: 1.25rem; overflow-x: auto; padding: 0.25rem 0.1rem 0.75rem;
+  scroll-snap-type: x proximity;
+}
+.bracket__col { display: flex; flex-direction: column; min-width: 190px; flex: 1 0 190px; scroll-snap-align: start; }
+.bracket__title {
+  margin: 0 0 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); text-align: center;
+}
+.bracket__games { display: flex; flex-direction: column; justify-content: space-around; gap: 0.75rem; flex: 1; }
+.bracket__game {
+  display: flex; flex-direction: column; gap: 0.15rem; width: 100%; text-align: left;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+  padding: 0.4rem 0.5rem; font: inherit; color: inherit; position: relative;
+}
+button.bracket__game { cursor: pointer; transition: border-color 0.15s; }
+button.bracket__game:hover { border-color: var(--brand); }
+.bracket__game.is-live { border-color: #fecaca; background: #fef2f2; }
+.bracket__team { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; min-width: 0; }
+.bracket__team.is-winner { font-weight: 700; }
+.bracket__team.is-out { opacity: 0.55; }
+.bracket__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bracket__score { font-variant-numeric: tabular-nums; font-weight: 700; }
+.bracket__score small { font-weight: 500; color: var(--muted); }
+.bracket__third { margin-top: 1rem; }
+.bracket-block { margin-top: 1.5rem; }
+.bracket-block__head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+
+/* Montagem manual dos confrontos */
+.ko-setup__list { list-style: none; margin: 0.5rem 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.ko-setup__pair { display: grid; grid-template-columns: auto 1fr auto 1fr auto; gap: 0.5rem; align-items: center; }
+.ko-setup__pair select {
+  border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0.45rem 0.55rem;
+  background: var(--surface); color: var(--ink); width: 100%; min-width: 0;
+}
+.ko-setup__n { font-weight: 700; color: var(--muted); font-size: 0.8rem; }
+@media (max-width: 560px) {
+  .ko-setup__pair { grid-template-columns: 1fr; }
+  .ko-setup__n { display: none; }
+}

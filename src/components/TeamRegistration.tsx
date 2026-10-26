@@ -38,6 +38,7 @@ import {
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { porNome } from '../lib/sumula'
 import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
 import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
@@ -530,9 +531,11 @@ function RosterCard({
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
 
-  const doElenco = varias
+  // Elenco em ordem alfabética (a comissão técnica vem depois dos atletas).
+  const doElenco = (varias
     ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
-    : data.players
+    : [...data.players]
+  ).sort((a, b) => Number(a.role === 'comissao') - Number(b.role === 'comissao') || porNome(a, b))
   const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name

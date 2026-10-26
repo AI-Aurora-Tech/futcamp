@@ -425,6 +425,45 @@ export async function createKnockoutStage(
 }
 
 /**
+ * Cria o mata-mata com os confrontos da PRIMEIRA fase escolhidos à mão pelo
+ * organizador (a sugestão vem da classificação, mas ele pode trocar qualquer
+ * vaga). As fases seguintes nascem "a definir" e são preenchidas pelo avanço
+ * automático. Não cria duas vezes na mesma categoria.
+ */
+export async function createKnockoutFromPairs(
+  champ: Championship,
+  pairs: { home: string | null; away: string | null }[],
+  categoryId?: string,
+): Promise<boolean> {
+  if (pairs.length === 0) return false
+  const fresh = daCategoria(champ, await listMatches(champ.id), categoryId)
+  if (fresh.some((m) => m.phase !== 'group')) return false
+  await bulkInsert(
+    champ.id,
+    plannedToMatches(champ.id, planKnockout(pairs, champ.thirdPlace)).map((m) => ({ ...m, categoryId })),
+  )
+  return true
+}
+
+/**
+ * Troca os times dos confrontos da primeira fase do mata-mata (só os que ainda
+ * não foram jogados). `pairs[i]` vai para o confronto de `bracketPos = i`.
+ */
+export async function updateKnockoutPairs(
+  firstPhase: Match[],
+  pairs: { home: string | null; away: string | null }[],
+): Promise<void> {
+  const porPos = [...firstPhase].sort((a, b) => (a.bracketPos ?? 0) - (b.bracketPos ?? 0))
+  for (let i = 0; i < porPos.length; i++) {
+    const m = porPos[i]
+    const p = pairs[i]
+    if (!p || m.status !== 'scheduled') continue
+    if (m.homeTeamId === p.home && m.awayTeamId === p.away) continue
+    await updateMatch(m.id, { homeTeamId: p.home, awayTeamId: p.away })
+  }
+}
+
+/**
  * Mantém o mata-mata em dia:
  *  1. cria a fase eliminatória assim que TODOS os jogos da primeira fase são
  *     encerrados (se o campeonato prevê mata-mata e a criação automática está
