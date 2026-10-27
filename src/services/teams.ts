@@ -1,5 +1,6 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
+import { selectAll } from '../lib/selectAll'
 import { mutate, query } from './demo'
 import { accessToken, uid } from '../lib/id'
 import { cabeMaisUmTime, motivoLimiteDeTimes } from '../lib/pricing'
@@ -45,13 +46,16 @@ function toRow(t: Partial<Team>): Record<string, unknown> {
 
 export async function listTeams(championshipId: string): Promise<Team[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('*, team_categories(category_id, group)')
-      .eq('championship_id', championshipId)
-      .order('name')
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb
+        .from('teams')
+        .select('*, team_categories(category_id, group)', { count: 'exact' })
+        .eq('championship_id', championshipId)
+        .order('name')
+        .order('id'),
+    )
+    return data.map(fromRow)
   }
   return query((d) =>
     d.teams.filter((t) => t.championshipId === championshipId).sort((a, b) => a.name.localeCompare(b.name)),

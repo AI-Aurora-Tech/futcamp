@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
+import { selectAll } from '../lib/selectAll'
 import { mutate, query } from './demo'
 import { simpleHash, uid } from '../lib/id'
 import {
@@ -39,18 +40,23 @@ function fromRow(r: any): Official {
 // ---------------------------------------------------------------------------
 export async function listOfficials(championshipId: string): Promise<Official[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('officials')
-      .select('id, championship_id, name, username, created_at')
-      .eq('championship_id', championshipId)
-      .order('name')
-    // Se a tabela ainda não existe (migration 0006 não aplicada), não quebra a
-    // tela — apenas retorna vazio.
-    if (error) {
-      console.warn('officials indisponível:', error.message)
+    const sb = supabase
+    try {
+      const data = await selectAll(() =>
+        sb
+          .from('officials')
+          .select('id, championship_id, name, username, created_at', { count: 'exact' })
+          .eq('championship_id', championshipId)
+          .order('name')
+          .order('id'),
+      )
+      return data.map(fromRow)
+    } catch (error: any) {
+      // Se a tabela ainda não existe (migration 0006 não aplicada), não quebra
+      // a tela — apenas retorna vazio.
+      console.warn('officials indisponível:', error?.message)
       return []
     }
-    return (data ?? []).map(fromRow)
   }
   return query((d) => d.officials.filter((o) => o.championshipId === championshipId))
 }
@@ -188,16 +194,19 @@ export async function listAssignedMatches(
   officialId: string,
 ): Promise<Match[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .eq('official_id', officialId)
-      .order('scheduled_at', { nullsFirst: false })
-    if (error) throw error
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb
+        .from('matches')
+        .select('*', { count: 'exact' })
+        .eq('championship_id', championshipId)
+        .eq('official_id', officialId)
+        .order('scheduled_at', { nullsFirst: false })
+        .order('id'),
+    )
     // O mesmo mapeamento das partidas do administrador — inclusive a
     // categoria, que decide quais atletas e clubes o mesário vê no jogo.
-    return (data ?? []).map(matchFromRow)
+    return data.map(matchFromRow)
   }
   return query((d) =>
     d.matches.filter((m) => m.championshipId === championshipId && m.officialId === officialId),

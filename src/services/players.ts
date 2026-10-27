@@ -1,5 +1,6 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
+import { selectAll } from '../lib/selectAll'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { checkCpfConflict } from '../lib/duplicates'
@@ -45,13 +46,16 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
 
 export async function listPlayers(championshipId: string): Promise<Player[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('number', { nullsFirst: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb
+        .from('players')
+        .select('*', { count: 'exact' })
+        .eq('championship_id', championshipId)
+        .order('number', { nullsFirst: false })
+        .order('id'),
+    )
+    return data.map(fromRow)
   }
   return query((d) => d.players.filter((p) => p.championshipId === championshipId))
 }
@@ -86,11 +90,11 @@ async function assertCpfAvailable(
 /** Nomes dos times do campeonato (só para compor a mensagem de erro). */
 async function listTeamNames(championshipId: string): Promise<Map<string, string>> {
   if (authMode === 'supabase' && supabase) {
-    const { data } = await supabase
-      .from('teams')
-      .select('id,name')
-      .eq('championship_id', championshipId)
-    return new Map((data ?? []).map((t: any) => [t.id as string, t.name as string]))
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb.from('teams').select('id,name', { count: 'exact' }).eq('championship_id', championshipId).order('id'),
+    ).catch(() => [] as any[])
+    return new Map(data.map((t: any) => [t.id as string, t.name as string]))
   }
   return query(
     (d) =>
