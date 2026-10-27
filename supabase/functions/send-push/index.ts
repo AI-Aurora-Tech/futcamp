@@ -117,15 +117,28 @@ serve(async (req) => {
 
   for (const row of pending as OutboxRow[]) {
     // 3. Destinatários deste aviso.
-    let subQuery = supabase
-      .from('push_subscriptions')
-      .select('id,endpoint,p256dh,auth,role,team_id')
-      .eq('championship_id', row.championship_id)
-      .eq('role', row.audience)
-    if (row.audience === 'team' && row.target_teams?.length) {
-      subQuery = subQuery.in('team_id', row.target_teams)
+    //    Em páginas: o servidor corta cada resposta em `max_rows` (1000 por
+    //    padrão) sem avisar, e um campeonato grande passa disso fácil.
+    const subs: SubRow[] = []
+    for (;;) {
+      let subQuery = supabase
+        .from('push_subscriptions')
+        .select('id,endpoint,p256dh,auth,role,team_id')
+        .eq('championship_id', row.championship_id)
+        .eq('role', row.audience)
+      if (row.audience === 'team' && row.target_teams?.length) {
+        subQuery = subQuery.in('team_id', row.target_teams)
+      }
+      const { data: page, error: subErr } = await subQuery
+        .order('id')
+        .range(subs.length, subs.length + 999)
+      if (subErr) {
+        console.error('push_subscriptions:', subErr.message)
+        break
+      }
+      if (!page?.length) break
+      subs.push(...(page as SubRow[]))
     }
-    const { data: subs } = await subQuery
 
     const payload = JSON.stringify({
       title: row.title,
@@ -134,7 +147,7 @@ serve(async (req) => {
       tag: `tabelaco-${row.championship_id}-${row.audience}`,
     })
 
-    for (const s of (subs ?? []) as SubRow[]) {
+    for (const s of subs) {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },

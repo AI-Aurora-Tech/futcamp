@@ -1,5 +1,6 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
+import { selectAll } from '../lib/selectAll'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { generateGroupFixtures, generateRoundRobin } from '../lib/fixtures'
@@ -99,14 +100,17 @@ export interface MatchWriter {
 
 export async function listMatches(championshipId: string): Promise<Match[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('round')
-      .order('created_at')
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb
+        .from('matches')
+        .select('*', { count: 'exact' })
+        .eq('championship_id', championshipId)
+        .order('round')
+        .order('created_at')
+        .order('id'),
+    )
+    return data.map(fromRow)
   }
   return query((d) =>
     d.matches
@@ -591,12 +595,11 @@ function eventToRow(e: Partial<MatchEvent>): Record<string, unknown> {
 
 export async function listEvents(championshipId: string): Promise<MatchEvent[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('match_events')
-      .select('*')
-      .eq('championship_id', championshipId)
-    if (error) throw error
-    return (data ?? []).map(eventFromRow)
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb.from('match_events').select('*', { count: 'exact' }).eq('championship_id', championshipId).order('id'),
+    )
+    return data.map(eventFromRow)
   }
   return query((d) => d.events.filter((e) => e.championshipId === championshipId))
 }

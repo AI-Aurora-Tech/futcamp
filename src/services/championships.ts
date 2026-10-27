@@ -1,5 +1,6 @@
 import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
+import { selectAll } from '../lib/selectAll'
 import { mutate, query } from './demo'
 import { uid } from '../lib/id'
 import { planOf, totalCents } from '../lib/pricing'
@@ -110,13 +111,16 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
 /** Lista os campeonatos do organizador (ou todos, no modo demo). */
 export async function listChampionships(ownerId: string): Promise<Championship[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('championships')
-      .select('*')
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb
+        .from('championships')
+        .select('*', { count: 'exact' })
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false })
+        .order('id'),
+    )
+    return data.map(fromRow)
   }
   return query((d) =>
     d.championships
@@ -131,12 +135,15 @@ export async function listChampionships(ownerId: string): Promise<Championship[]
  */
 export async function listAllChampionships(): Promise<Championship[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('championships')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    const sb = supabase
+    const data = await selectAll(() =>
+      sb
+        .from('championships')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .order('id'),
+    )
+    return data.map(fromRow)
   }
   return query((d) =>
     [...d.championships].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
