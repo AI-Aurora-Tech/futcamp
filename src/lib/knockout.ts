@@ -446,8 +446,18 @@ function pendingAdvancesOfBracket(knockout: Match[]): { id: string; patch: Parti
   const at = (phase: MatchPhase, pos: number) =>
     knockout.find((m) => m.phase === phase && (m.bracketPos ?? 0) === pos)
 
-  const assign = (target: Match | undefined, side: 'homeTeamId' | 'awayTeamId', teamId: string) => {
+  // O avanço só PREENCHE a vaga ou corrige quem já estava ali por ter jogado a
+  // partida de origem (resultado corrigido, vencedor que mudou). Time colocado
+  // à mão pelo organizador, ou vindo de outro confronto, nunca é sobrescrito.
+  const assign = (
+    target: Match | undefined,
+    side: 'homeTeamId' | 'awayTeamId',
+    teamId: string,
+    source: Match,
+  ) => {
     if (!target || target.status !== 'scheduled' || target[side] === teamId) return
+    const atual = target[side]
+    if (atual && atual !== source.homeTeamId && atual !== source.awayTeamId) return
     const existing = patches.find((p) => p.id === target.id)
     if (existing) existing.patch[side] = teamId
     else {
@@ -466,7 +476,7 @@ function pendingAdvancesOfBracket(knockout: Match[]): { id: string; patch: Parti
       const w = winnerOf(m)
       if (!w) continue
       const pos = m.bracketPos ?? 0
-      assign(at(next, Math.floor(pos / 2)), pos % 2 === 0 ? 'homeTeamId' : 'awayTeamId', w)
+      assign(at(next, Math.floor(pos / 2)), pos % 2 === 0 ? 'homeTeamId' : 'awayTeamId', w, m)
     }
   }
 
@@ -477,7 +487,7 @@ function pendingAdvancesOfBracket(knockout: Match[]): { id: string; patch: Parti
       const semi = at('semi', pos)
       if (!semi || semi.status !== 'finished') continue
       const l = loserOf(semi)
-      if (l) assign(third, pos === 0 ? 'homeTeamId' : 'awayTeamId', l)
+      if (l) assign(third, pos === 0 ? 'homeTeamId' : 'awayTeamId', l, semi)
     }
   }
 

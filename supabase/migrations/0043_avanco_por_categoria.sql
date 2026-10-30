@@ -4,6 +4,8 @@
 -- fase + posição no chaveamento. Com várias categorias (0033) essas chaves se
 -- repetem, e o vencedor de uma categoria era gravado na partida de outra:
 -- o time certo sumia ("A definir") e entrava um clube de fora da categoria.
+-- O avanço também só PREENCHE a vaga (ou corrige quem jogou a partida de
+-- origem): time colocado à mão ou vindo de outro confronto não é sobrescrito.
 -- Agora o avanço só enxerga as partidas da MESMA categoria do jogo de origem.
 
 create or replace function public.advance_bracket(p_champ uuid)
@@ -47,7 +49,8 @@ begin
          and phase = v_next
          and coalesce(bracket_pos, 0) = coalesce(src.bracket_pos, 0) / 2
          and status = 'scheduled'
-         and home_team_id is distinct from v_win;
+         and home_team_id is distinct from v_win
+         and (home_team_id is null or home_team_id in (src.home_team_id, src.away_team_id));
     else
       update public.matches
          set away_team_id = v_win
@@ -56,7 +59,8 @@ begin
          and phase = v_next
          and coalesce(bracket_pos, 0) = coalesce(src.bracket_pos, 0) / 2
          and status = 'scheduled'
-         and away_team_id is distinct from v_win;
+         and away_team_id is distinct from v_win
+         and (away_team_id is null or away_team_id in (src.home_team_id, src.away_team_id));
     end if;
     get diagnostics v_rows = row_count;
     v_total := v_total + v_rows;
@@ -77,13 +81,15 @@ begin
          set home_team_id = v_loser
        where championship_id = p_champ and phase = 'third_place'
          and category_id is not distinct from src.category_id
-         and status = 'scheduled' and home_team_id is distinct from v_loser;
+         and status = 'scheduled' and home_team_id is distinct from v_loser
+         and (home_team_id is null or home_team_id in (src.home_team_id, src.away_team_id));
     else
       update public.matches
          set away_team_id = v_loser
        where championship_id = p_champ and phase = 'third_place'
          and category_id is not distinct from src.category_id
-         and status = 'scheduled' and away_team_id is distinct from v_loser;
+         and status = 'scheduled' and away_team_id is distinct from v_loser
+         and (away_team_id is null or away_team_id in (src.home_team_id, src.away_team_id));
     end if;
     get diagnostics v_rows = row_count;
     v_total := v_total + v_rows;
