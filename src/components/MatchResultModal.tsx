@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
-import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { buildSumulaHtml, buildSumulaPdf, nomeArquivoSumula, openSumula } from '../lib/sumula'
+import { baixarBytesPdf } from '../lib/pdfDesenho'
+import { timesDaCategoria } from '../lib/categorias'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -68,8 +70,14 @@ export function MatchResultModal({
   onSaved: () => void
 }) {
   const w = writer ?? defaultMatchWriter
-  const home = teams.find((t) => t.id === match.homeTeamId)
-  const away = teams.find((t) => t.id === match.awayTeamId)
+  // Equipes da partida: o organizador pode trocá-las sem apagar o jogo.
+  const [homeId, setHomeId] = useState<string>(match.homeTeamId ?? '')
+  const [awayId, setAwayId] = useState<string>(match.awayTeamId ?? '')
+  const home = teams.find((t) => t.id === homeId)
+  const away = teams.find((t) => t.id === awayId)
+  const teamsChanged = homeId !== (match.homeTeamId ?? '') || awayId !== (match.awayTeamId ?? '')
+  const sameTeam = !!homeId && homeId === awayId
+  const teamOptions = timesDaCategoria(teams, match.categoryId)
   const [homeScore, setHomeScore] = useState<string>(match.homeScore != null ? String(match.homeScore) : '')
   const [awayScore, setAwayScore] = useState<string>(match.awayScore != null ? String(match.awayScore) : '')
   const [status, setStatus] = useState<MatchStatus>(match.status)
@@ -130,11 +138,11 @@ export function MatchResultModal({
   function bumpScore(teamId: string, type: EventType) {
     // Placar automático ao vivo: gol soma para o time; gol contra soma ao adversário.
     const forHome =
-      (type === 'goal' && teamId === match.homeTeamId) ||
-      (type === 'own_goal' && teamId === match.awayTeamId)
+      (type === 'goal' && teamId === homeId) ||
+      (type === 'own_goal' && teamId === awayId)
     const forAway =
-      (type === 'goal' && teamId === match.awayTeamId) ||
-      (type === 'own_goal' && teamId === match.homeTeamId)
+      (type === 'goal' && teamId === awayId) ||
+      (type === 'own_goal' && teamId === homeId)
     if (forHome) setHomeScore((s) => String((Number(s) || 0) + 1))
     if (forAway) setAwayScore((s) => String((Number(s) || 0) + 1))
   }
@@ -170,6 +178,20 @@ export function MatchResultModal({
   }
 
   async function save(newStatus: MatchStatus) {
+    if (sameTeam) {
+      alert('Mandante e visitante precisam ser equipes diferentes.')
+      return
+    }
+    if (
+      teamsChanged &&
+      (events.length > 0 || match.status === 'finished') &&
+      !window.confirm(
+        'Esta partida já tem gols/cartões ou foi encerrada. Trocar as equipes mantém esses lançamentos, ' +
+          'que passarão a valer para as novas equipes, e zera a escalação. Trocar mesmo assim?',
+      )
+    ) {
+      return
+    }
     // Ao vivo/encerrada, placar em branco vira 0 (entra na classificação);
     // agendada mantém null (ainda sem placar).
     const norm = (v: string) => (v === '' ? (newStatus === 'scheduled' ? null : 0) : Number(v))
@@ -193,6 +215,13 @@ export function MatchResultModal({
       patch.penaltyAway = penAway === '' ? null : Number(penAway)
     }
     patch.incidents = incidents.trim() || undefined
+    if (!readOnlySchedule && teamsChanged) {
+      // A escalação e os eventos pertencem às equipes antigas: a escalação é
+      // zerada para ser refeita com as novas.
+      patch.homeTeamId = homeId || null
+      patch.awayTeamId = awayId || null
+      patch.lineup = []
+    }
     setBusy(true)
     await w.updateMatch(match.id, patch)
     // Encerrar a partida enfileira, de uma vez, o resultado, o resumo de cada
@@ -206,8 +235,10 @@ export function MatchResultModal({
   }
 
   function generateSumula(action: 'print' | 'download') {
-    const category = championship.categories.length === 1 ? championship.categories[0] : undefined
-    const html = buildSumulaHtml({
+    const category =
+      championship.categories.find((c) => c.id === match.categoryId) ??
+      (championship.categories.length === 1 ? championship.categories[0] : undefined)
+    const params = {
       championship,
       match: {
         ...match,
@@ -220,9 +251,9 @@ export function MatchResultModal({
       players,
       events,
       category,
-    })
-    if (action === 'print') openSumula(html)
-    else downloadSumula(`sumula-${home?.shortName || 'mandante'}-x-${away?.shortName || 'visitante'}.html`, html)
+    }
+    if (action === 'print') openSumula(buildSumulaHtml(params))
+    else baixarBytesPdf(buildSumulaPdf(params), nomeArquivoSumula(category?.name, home?.name, away?.name))
   }
 
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
@@ -306,6 +337,30 @@ export function MatchResultModal({
         </div>
       )}
 
+      {!readOnlySchedule && (
+        <div className="schedule-row">
+          <label className="field">
+            <span className="field__label">Mandante</span>
+            <select value={homeId} onChange={(e) => setHomeId(e.target.value)}>
+              <option value="">— a definir —</option>
+              {teamOptions.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field__label">Visitante</span>
+            <select value={awayId} onChange={(e) => setAwayId(e.target.value)}>
+              <option value="">— a definir —</option>
+              {teamOptions.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </label>
+          {sameTeam && <span className="field__hint">Escolha equipes diferentes.</span>}
+        </div>
+      )}
+
       {officials && (
         <label className="field mesa-assign">
           <span className="field__label">Mesário responsável</span>
@@ -334,7 +389,7 @@ export function MatchResultModal({
         </div>
       </div>
 
-      {isKnockoutMatch && match.homeTeamId && match.awayTeamId && (
+      {isKnockoutMatch && homeId && awayId && (
         <div className={`penalties ${isTied ? 'penalties--needed' : ''}`}>
           <div className="penalties__head">
             <strong>🥅 Disputa por pênaltis</strong>
@@ -373,13 +428,13 @@ export function MatchResultModal({
         </div>
       )}
 
-      {isKnockoutMatch && !readOnlySchedule && match.homeTeamId && match.awayTeamId && (
+      {isKnockoutMatch && !readOnlySchedule && homeId && awayId && (
         <label className={`field ko-winner ${isTied && !winnerTeamId ? 'ko-winner--warn' : ''}`}>
           <span className="field__label">🏆 Classificado para a fase seguinte</span>
           <select value={winnerTeamId} onChange={(e) => setWinnerTeamId(e.target.value)}>
             <option value="">— pelo placar —</option>
-            <option value={match.homeTeamId}>{home?.name}</option>
-            <option value={match.awayTeamId}>{away?.name}</option>
+            <option value={homeId}>{home?.name}</option>
+            <option value={awayId}>{away?.name}</option>
           </select>
           <span className="field__hint">
             {penWinner
@@ -391,7 +446,7 @@ export function MatchResultModal({
         </label>
       )}
 
-      {match.homeTeamId && match.awayTeamId && (
+      {homeId && awayId && (
         <PresencePanel
           home={home}
           away={away}
@@ -405,7 +460,7 @@ export function MatchResultModal({
         />
       )}
 
-      {match.homeTeamId && match.awayTeamId && (
+      {homeId && awayId && (
         <div className="events-box">
           <h4>Eventos da partida {status === 'live' && <span className="live-dot">ao vivo</span>}</h4>
           {teamPlayers.length === 0 && (
@@ -413,8 +468,8 @@ export function MatchResultModal({
           )}
           <div className="event-form">
             <select value={evTeam} onChange={(e) => { setEvTeam(e.target.value); setEvPlayer(''); setEvPlayerIn('') }}>
-              {match.homeTeamId && <option value={match.homeTeamId}>{home?.name}</option>}
-              {match.awayTeamId && <option value={match.awayTeamId}>{away?.name}</option>}
+              {homeId && <option value={homeId}>{home?.name}</option>}
+              {awayId && <option value={awayId}>{away?.name}</option>}
             </select>
             <select value={evType} onChange={(e) => setEvType(e.target.value as EventType)}>
               {(Object.keys(EVENT_LABELS) as EventType[]).map((t) => (

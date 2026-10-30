@@ -45,13 +45,24 @@ function toRow(p: Partial<Player>): Record<string, unknown> {
 
 export async function listPlayers(championshipId: string): Promise<Player[]> {
   if (authMode === 'supabase' && supabase) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('championship_id', championshipId)
-      .order('number', { nullsFirst: false })
-    if (error) throw error
-    return (data ?? []).map(fromRow)
+    // O PostgREST corta cada resposta em `max_rows` (1000). Lê em páginas até
+    // acabar, para nenhum atleta sumir do sistema. `id` desempata a ordenação,
+    // mantendo as páginas estáveis.
+    const PAGE = 1000
+    const rows: any[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('championship_id', championshipId)
+        .order('number', { nullsFirst: false })
+        .order('id')
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      rows.push(...(data ?? []))
+      if (!data || data.length < PAGE) break
+    }
+    return rows.map(fromRow)
   }
   return query((d) => d.players.filter((p) => p.championshipId === championshipId))
 }

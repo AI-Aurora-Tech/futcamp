@@ -295,6 +295,7 @@ export function MatchesPanel({
 
       {editing && (
         <MatchResultModal
+          key={editing.id}
           championship={championship}
           match={editing}
           allMatches={matches}

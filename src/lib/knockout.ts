@@ -426,7 +426,19 @@ function isBye(m: Match): boolean {
  * perdedores das semis, quando há disputa de 3º) para a fase seguinte.
  */
 export function pendingAdvances(matches: Match[]): { id: string; patch: Partial<Match> }[] {
-  const knockout = matches.filter((m) => m.phase !== 'group')
+  // Cada categoria tem o seu chaveamento: fase + posição se repetem de uma
+  // categoria para outra, então o avanço é calculado separadamente em cada uma.
+  // Sem isso o vencedor de uma categoria cairia na partida de outra.
+  const porCategoria = new Map<string, Match[]>()
+  for (const m of matches) {
+    if (m.phase === 'group') continue
+    const k = m.categoryId ?? ''
+    ;(porCategoria.get(k) ?? porCategoria.set(k, []).get(k)!)!.push(m)
+  }
+  return [...porCategoria.values()].flatMap(pendingAdvancesOfBracket)
+}
+
+function pendingAdvancesOfBracket(knockout: Match[]): { id: string; patch: Partial<Match> }[] {
   if (knockout.length === 0) return []
 
   const phases = KNOCKOUT_ORDER.filter((p) => knockout.some((m) => m.phase === p))
@@ -434,8 +446,18 @@ export function pendingAdvances(matches: Match[]): { id: string; patch: Partial<
   const at = (phase: MatchPhase, pos: number) =>
     knockout.find((m) => m.phase === phase && (m.bracketPos ?? 0) === pos)
 
-  const assign = (target: Match | undefined, side: 'homeTeamId' | 'awayTeamId', teamId: string) => {
+  // O avanço só PREENCHE a vaga ou corrige quem já estava ali por ter jogado a
+  // partida de origem (resultado corrigido, vencedor que mudou). Time colocado
+  // à mão pelo organizador, ou vindo de outro confronto, nunca é sobrescrito.
+  const assign = (
+    target: Match | undefined,
+    side: 'homeTeamId' | 'awayTeamId',
+    teamId: string,
+    source: Match,
+  ) => {
     if (!target || target.status !== 'scheduled' || target[side] === teamId) return
+    const atual = target[side]
+    if (atual && atual !== source.homeTeamId && atual !== source.awayTeamId) return
     const existing = patches.find((p) => p.id === target.id)
     if (existing) existing.patch[side] = teamId
     else {
@@ -454,7 +476,7 @@ export function pendingAdvances(matches: Match[]): { id: string; patch: Partial<
       const w = winnerOf(m)
       if (!w) continue
       const pos = m.bracketPos ?? 0
-      assign(at(next, Math.floor(pos / 2)), pos % 2 === 0 ? 'homeTeamId' : 'awayTeamId', w)
+      assign(at(next, Math.floor(pos / 2)), pos % 2 === 0 ? 'homeTeamId' : 'awayTeamId', w, m)
     }
   }
 
@@ -465,7 +487,7 @@ export function pendingAdvances(matches: Match[]): { id: string; patch: Partial<
       const semi = at('semi', pos)
       if (!semi || semi.status !== 'finished') continue
       const l = loserOf(semi)
-      if (l) assign(third, pos === 0 ? 'homeTeamId' : 'awayTeamId', l)
+      if (l) assign(third, pos === 0 ? 'homeTeamId' : 'awayTeamId', l, semi)
     }
   }
 

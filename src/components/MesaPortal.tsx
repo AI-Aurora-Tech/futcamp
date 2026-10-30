@@ -194,6 +194,7 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
 
       {editing && writer && (
         <MatchResultModal
+          key={editing.id}
           championship={compPartida}
           match={editing}
           allMatches={partidasCat}
