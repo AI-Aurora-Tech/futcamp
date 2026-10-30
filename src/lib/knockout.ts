@@ -426,7 +426,19 @@ function isBye(m: Match): boolean {
  * perdedores das semis, quando há disputa de 3º) para a fase seguinte.
  */
 export function pendingAdvances(matches: Match[]): { id: string; patch: Partial<Match> }[] {
-  const knockout = matches.filter((m) => m.phase !== 'group')
+  // Cada categoria tem o seu chaveamento: fase + posição se repetem de uma
+  // categoria para outra, então o avanço é calculado separadamente em cada uma.
+  // Sem isso o vencedor de uma categoria cairia na partida de outra.
+  const porCategoria = new Map<string, Match[]>()
+  for (const m of matches) {
+    if (m.phase === 'group') continue
+    const k = m.categoryId ?? ''
+    ;(porCategoria.get(k) ?? porCategoria.set(k, []).get(k)!)!.push(m)
+  }
+  return [...porCategoria.values()].flatMap(pendingAdvancesOfBracket)
+}
+
+function pendingAdvancesOfBracket(knockout: Match[]): { id: string; patch: Partial<Match> }[] {
   if (knockout.length === 0) return []
 
   const phases = KNOCKOUT_ORDER.filter((p) => knockout.some((m) => m.phase === p))
