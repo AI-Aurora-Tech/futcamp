@@ -104,8 +104,26 @@ export async function signOut(): Promise<void> {
 export async function getCurrentOrganizer(): Promise<Organizer | null> {
   if (authMode === 'supabase' && supabase) {
     const { data } = await supabase.auth.getSession()
-    const user = data.session?.user
-    if (!user) return null
+    if (!data.session) return null
+    // A sessão fica guardada no navegador e continua "válida" mesmo depois de a
+    // conta ser removida do banco. getUser() confere no servidor; se a conta
+    // não existe mais, encerra a sessão local.
+    const { data: check, error } = await supabase.auth.getUser()
+    const user = check.user
+    if (error || !user) {
+      if (error && (error.status === undefined || error.status >= 500)) {
+        // Falha de rede/servidor: não derruba quem não foi removido.
+        const cached = data.session.user
+        const mail = cached.email ?? ''
+        return {
+          id: cached.id,
+          email: mail,
+          name: (cached.user_metadata?.name as string) || nameFromEmail(mail),
+        }
+      }
+      await supabase.auth.signOut()
+      return null
+    }
     const email = user.email ?? ''
     return {
       id: user.id,
