@@ -8,6 +8,7 @@ import {
   type Player,
   type Team,
 } from '../types'
+import type { DocumentoPdf, Linha } from './pdf'
 
 function esc(s: unknown): string {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
@@ -209,15 +210,81 @@ export function openSumula(html: string): void {
   w.document.close()
 }
 
-/** Baixa a súmula como arquivo .html. */
-export function downloadSumula(filename: string, html: string): void {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+/** Nome do arquivo: "Categoria - Mandante x Visitante.pdf" (sem caracteres proibidos). */
+export function nomeArquivoSumula(categoryName: string | undefined, home?: string, away?: string): string {
+  const base = [categoryName, `${home || 'Mandante'} x ${away || 'Visitante'}`]
+    .filter(Boolean)
+    .join(' - ')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return `${base}.pdf`
+}
+
+/** Monta a súmula como texto para o gerador de PDF (sem tabelas). */
+export function buildSumulaPdf(params: {
+  championship: Championship
+  match: Match
+  teams: Team[]
+  players: Player[]
+  events: MatchEvent[]
+  category?: Category
+}): DocumentoPdf {
+  const { championship, match, teams, players, events, category } = params
+  const home = teams.find((t) => t.id === match.homeTeamId)
+  const away = teams.find((t) => t.id === match.awayTeamId)
+  const ev = events.filter((e) => e.matchId === match.id)
+  const pById = new Map(players.map((p) => [p.id, p] as const))
+  const tName = (id: string) => teams.find((t) => t.id === id)?.shortName || teams.find((t) => t.id === id)?.name || ''
+  const who = (id?: string) => {
+    const p = id ? pById.get(id) : undefined
+    return p ? (p.number != null ? `#${p.number} ${p.name}` : p.name) : '(não informado)'
+  }
+  const minute = (e: MatchEvent) => (e.minute != null ? `${e.minute}' ` : '')
+  const byMinute = (a: MatchEvent, b: MatchEvent) => (a.minute ?? 999) - (b.minute ?? 999)
+
+  const lines: Linha[] = []
+  const section = (title: string, items: string[]) => {
+    lines.push({ texto: title, estilo: 'secao' })
+    if (!items.length) lines.push({ texto: '—', estilo: 'corpo' })
+    for (const t of items) lines.push({ texto: t, estilo: 'item' })
+  }
+  const roster = (team?: Team) => {
+    if (!team) return []
+    const list = players.filter((p) => p.teamId === team.id && (!category || p.categoryId === category.id))
+    const fmt = (p: Player) =>
+      [p.number != null ? `#${p.number}` : '', p.name, p.cpf ? `CPF ${p.cpf}` : '', labelDaPosicao(p.position)]
+        .filter(Boolean)
+        .join(' - ')
+    const athletes = list.filter((p) => (p.role ?? 'atleta') === 'atleta').sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
+    const staff = list.filter((p) => p.role === 'comissao')
+    return [...athletes.map(fmt), ...staff.map((p) => `Comissão técnica: ${fmt(p)}`)]
+  }
+
+  const score = match.homeScore != null && match.awayScore != null ? `${match.homeScore} x ${match.awayScore}` : '____ x ____'
+  const refereeName = (championship.referees ?? []).find((r) => r.id === match.refereeId)?.name ?? ''
+  const status = match.status === 'finished' ? 'Encerrada' : match.status === 'live' ? 'Ao vivo' : 'Agendada'
+
+  lines.push({ texto: `${home?.name ?? 'A definir'} x ${away?.name ?? 'A definir'}`, estilo: 'titulo' })
+  lines.push({ texto: `Súmula da partida${category ? ' - ' + category.name : ''} - ${championship.name}`, estilo: 'subtitulo' })
+  lines.push({ texto: `Placar: ${score}${match.penaltyHome != null && match.penaltyAway != null ? ` (${match.penaltyHome} x ${match.penaltyAway} nos pênaltis)` : ''}`, estilo: 'corpo' })
+  lines.push({ texto: `Fase: ${match.phase === 'group' ? `Rodada ${match.round}` : PHASE_LABELS[match.phase]} - Situação: ${status}`, estilo: 'corpo' })
+  lines.push({ texto: `Data/hora: ${fmtDate(match.scheduledAt)} - Local: ${match.venue || '__________'}`, estilo: 'corpo' })
+  lines.push({ texto: `Árbitro: ${refereeName || '__________'}`, estilo: 'corpo' })
+
+  section(`Elenco - ${home?.name ?? 'Mandante'}`, roster(home))
+  section(`Elenco - ${away?.name ?? 'Visitante'}`, roster(away))
+  section('Gols marcados', ev.filter((e) => e.type === 'goal' || e.type === 'own_goal').sort(byMinute)
+    .map((e) => `${minute(e)}${who(e.playerId)}${e.type === 'own_goal' ? ' (contra)' : ''} - ${tName(e.teamId)}`))
+  section('Substituições', ev.filter((e) => e.type === 'substitution').sort(byMinute)
+    .map((e) => `${minute(e)}Sai ${who(e.playerId)} / Entra ${who(e.playerInId)} - ${tName(e.teamId)}`))
+  section('Cartões amarelos', ev.filter((e) => e.type === 'yellow_card').sort(byMinute)
+    .map((e) => `${minute(e)}${who(e.playerId)} - ${tName(e.teamId)}`))
+  section('Cartões vermelhos / expulsões', ev.filter((e) => e.type === 'red_card').sort(byMinute)
+    .map((e) => `${minute(e)}${who(e.playerId)}${e.detail ? ` (${e.detail})` : ''} - ${tName(e.teamId)}`))
+  lines.push({ texto: 'Relato de incidentes', estilo: 'secao' })
+  lines.push({ texto: match.incidents || 'Sem incidentes registrados.', estilo: 'corpo' })
+  lines.push({ texto: 'Assinaturas: Árbitro ______________  Mandante ______________  Visitante ______________', estilo: 'nota' })
+
+  return { titulo: `Súmula - ${home?.name ?? ''} x ${away?.name ?? ''}`, linhas: lines, rodape: championship.name }
 }

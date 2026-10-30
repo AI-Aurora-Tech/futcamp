@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
-import { buildSumulaHtml, downloadSumula, openSumula } from '../lib/sumula'
+import { buildSumulaHtml, buildSumulaPdf, nomeArquivoSumula, openSumula } from '../lib/sumula'
+import { baixarPdf } from '../lib/pdf'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -206,8 +207,10 @@ export function MatchResultModal({
   }
 
   function generateSumula(action: 'print' | 'download') {
-    const category = championship.categories.length === 1 ? championship.categories[0] : undefined
-    const html = buildSumulaHtml({
+    const category =
+      championship.categories.find((c) => c.id === match.categoryId) ??
+      (championship.categories.length === 1 ? championship.categories[0] : undefined)
+    const params = {
       championship,
       match: {
         ...match,
@@ -220,9 +223,9 @@ export function MatchResultModal({
       players,
       events,
       category,
-    })
-    if (action === 'print') openSumula(html)
-    else downloadSumula(`sumula-${home?.shortName || 'mandante'}-x-${away?.shortName || 'visitante'}.html`, html)
+    }
+    if (action === 'print') openSumula(buildSumulaHtml(params))
+    else baixarPdf(buildSumulaPdf(params), nomeArquivoSumula(category?.name, home?.name, away?.name))
   }
 
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
