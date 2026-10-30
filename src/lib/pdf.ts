@@ -135,11 +135,11 @@ export function escaparWinAnsi(texto: string): number[] {
  * quando a origem tem dezenas de milhares de itens — exatamente o tamanho de
  * um regulamento longo.
  */
-function anexar(destino: number[], origem: readonly number[]): void {
+export function anexar(destino: number[], origem: readonly number[]): void {
   for (let i = 0; i < origem.length; i++) destino.push(origem[i])
 }
 
-function bytesDe(texto: string): number[] {
+export function bytesDe(texto: string): number[] {
   // Cabeçalhos e comandos do PDF são ASCII puro.
   const out: number[] = []
   for (let i = 0; i < texto.length; i++) out.push(texto.charCodeAt(i) & 0xff)

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from '../services/matches'
 import { buildSumulaHtml, buildSumulaPdf, nomeArquivoSumula, openSumula } from '../lib/sumula'
-import { baixarPdf } from '../lib/pdf'
+import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { timesDaCategoria } from '../lib/categorias'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
@@ -253,7 +253,7 @@ export function MatchResultModal({
       category,
     }
     if (action === 'print') openSumula(buildSumulaHtml(params))
-    else baixarPdf(buildSumulaPdf(params), nomeArquivoSumula(category?.name, home?.name, away?.name))
+    else baixarBytesPdf(buildSumulaPdf(params), nomeArquivoSumula(category?.name, home?.name, away?.name))
   }
 
   const playerName = (id?: string) => players.find((p) => p.id === id)?.name
