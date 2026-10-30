@@ -308,6 +308,20 @@ export async function createTeamAccount(
     if (!emailPlausivel(u)) {
       return { ok: false, error: 'Informe um e-mail válido para o gestor do time (ex.: nome@email.com).' }
     }
+    let organizerEmail = ''
+    try {
+      organizerEmail = normalizarEmail(
+        (JSON.parse(localStorage.getItem('futcamp:organizer') ?? 'null') as { email?: string } | null)?.email,
+      )
+    } catch {
+      /* ignore */
+    }
+    if (organizerEmail && organizerEmail === u) {
+      return {
+        ok: false,
+        error: 'Este e-mail já está cadastrado como organizador de campeonato. Use outro e-mail para gerir o time.',
+      }
+    }
     const slot1 = Boolean(t.username && t.passwordHash)
     const slot2 = Boolean(t.username2 && t.passwordHash2)
     if (slot1 && slot2) return { ok: false, error: 'Este time já possui 2 gestores.' }
