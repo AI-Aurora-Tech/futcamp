@@ -39,7 +39,7 @@ import { PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
 import { PlanoBlock } from './PlanoBlock'
-import { formatBRL, isLocked } from '../lib/pricing'
+import { formatBRL, isLocked, limitePorCategoria } from '../lib/pricing'
 import {
   atletaDaCategoria,
   categoriaInicial,
@@ -50,6 +50,7 @@ import {
   statusDaCategoria,
   statusEfetivo,
   temVariasCategorias,
+  timesDaCategoria,
 } from '../lib/categorias'
 import { setCategoryStatus } from '../services/championships'
 import { useRealtimeChampionship } from '../lib/realtime'
@@ -433,7 +434,16 @@ export function ManageChampionship({
               </div>
             )}
 
-            <PlanoBlock champ={champ} totalTimes={teams.length} onChanged={reload} />
+            <PlanoBlock
+              champ={champ}
+              totalTimes={
+                limitePorCategoria(champ)
+                  ? Math.max(0, ...champ.categories.map((c) => timesDaCategoria(teams, c.id).length))
+                  : teams.length
+              }
+              porCategoria={limitePorCategoria(champ)}
+              onChanged={reload}
+            />
 
             <div className="settings-block">
               <h3>Regulamento</h3>

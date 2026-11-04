@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { getChampionship } from '../services/championships'
 import { championshipInviteScope, createTeamViaLink, listTeams } from '../services/teams'
-import { cabeMaisUmTime } from '../lib/pricing'
+import { cabeMaisUmTime, limitePorCategoria } from '../lib/pricing'
+import { elencoDeTimes } from '../lib/categorias'
 import { fileToDataUrl } from '../lib/image'
 import type { Championship } from '../types'
 import { Button, ChampLogo, Field, Spinner, TeamBadge } from './ui'
@@ -69,7 +70,12 @@ export function CreateTeamViaLink({
         // de salvar. Melhor deixar tentar do que barrar por engano.
         try {
           const times = await listTeams(championshipId)
-          if (active) setLotado(!cabeMaisUmTime(c.plan, times.length))
+          // Campeonato novo: lotado só quando TODAS as categorias do link estão
+          // cheias. O antigo conta o campeonato inteiro, como sempre.
+          const cheio = limitePorCategoria(c)
+            ? validas.length > 0 && validas.every((id) => !cabeMaisUmTime(c.plan, elencoDeTimes(times, id).length))
+            : !cabeMaisUmTime(c.plan, times.length)
+          if (active) setLotado(cheio)
         } catch {
           /* ignore */
         }

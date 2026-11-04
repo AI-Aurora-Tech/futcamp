@@ -25,11 +25,14 @@ import { Button } from './ui'
 export function PlanoBlock({
   champ,
   totalTimes,
+  porCategoria = false,
   onChanged,
 }: {
   champ: Championship
   /** Equipes já cadastradas — para avisar quando o plano novo não as comporta. */
   totalTimes?: number
+  /** `totalTimes` é a maior categoria (campeonato com limite por categoria). */
+  porCategoria?: boolean
   onChanged: () => void
 }) {
   const atual = planOf(champ.plan)
@@ -91,7 +94,7 @@ export function PlanoBlock({
         Plano atual: <b>{atual.tier}</b> ·{' '}
         {atual.maxTeams == null ? 'equipes ilimitadas' : `até ${atual.maxTeams} equipes`} ·{' '}
         {cats} categoria(s){champ.amountCents ? ` · ${formatBRL(champ.amountCents)}` : ''}
-        {totalTimes != null && ` · ${totalTimes} equipe(s) cadastrada(s)`}
+        {totalTimes != null && ` · ${totalTimes} equipe(s) cadastrada(s)${porCategoria ? ' na maior categoria' : ''}`}
       </p>
       <p className="muted small">
         Trocar de plano <b>não apaga nada</b>: times, elencos, tabela e súmulas continuam
@@ -153,8 +156,8 @@ export function PlanoBlock({
 
       {naoCabem && (
         <p className="plano-troca__previsao is-cobra">
-          ⚠️ Este campeonato tem {totalTimes} equipe(s) e o plano {planOf(escolhido as PlanKey).tier}{' '}
-          permite {limiteNovo}. Nenhuma equipe é apagada — mas você não conseguirá cadastrar novas
+          ⚠️ Este campeonato tem {totalTimes} equipe(s){porCategoria ? ' na maior categoria' : ''} e o plano {planOf(escolhido as PlanKey).tier}{' '}
+          permite {limiteNovo}{porCategoria ? ' por categoria' : ''}. Nenhuma equipe é apagada — mas você não conseguirá cadastrar novas
           enquanto estiver acima do limite.
         </p>
       )}

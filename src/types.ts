@@ -58,6 +58,13 @@ export interface Category {
   maxAthletes?: number
   /** Máximo de membros da comissão técnica por time nesta categoria. */
   maxStaff?: number
+  /**
+   * Equipes previstas NESTA categoria, informadas na criação do campeonato.
+   * Escolhe o plano (o limite de equipes do plano vale por categoria) e liga o
+   * limite por categoria. Ausente = campeonato antigo, que segue com o limite
+   * contado no campeonato inteiro.
+   */
+  expectedTeams?: number
 
   /* --- A categoria como competição (migration 0033) --------------------- */
 
