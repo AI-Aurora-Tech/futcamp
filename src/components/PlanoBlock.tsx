@@ -42,13 +42,17 @@ export function PlanoBlock({
   const [aviso, setAviso] = useState<string | null>(null)
 
   const cats = champ.categories?.length || 1
-  const jaPago = champ.paymentStatus === 'paid' || champ.paymentStatus === 'free'
-    ? champ.amountCents ?? 0
-    : 0
   const pendente = champ.planChange
+  // O que já foi pago: o do plano de ORIGEM. Com um upgrade pendente, é o de
+  // antes dele — quem trocou duas vezes sem pagar não perde o abatimento.
+  const origem = pendente ?? { paymentStatus: champ.paymentStatus, amountCents: champ.amountCents }
+  const jaPago =
+    origem.paymentStatus === 'paid' || origem.paymentStatus === 'free' ? origem.amountCents ?? 0 : 0
 
   const novo = escolhido ? breakdown(escolhido, cats) : null
-  const sobe = novo ? novo.totalCents > jaPago : false
+  const paraDiamante = escolhido === 'diamante'
+  const sobe = novo ? paraDiamante || novo.totalCents > jaPago : false
+  const diferenca = novo ? Math.max(0, novo.totalCents - jaPago) : 0
   const limiteNovo = escolhido ? limiteDeTimes(escolhido) : Number.POSITIVE_INFINITY
   const naoCabem = totalTimes != null && totalTimes > limiteNovo
 
@@ -106,7 +110,8 @@ export function PlanoBlock({
           <p>
             ⏳ Troca pendente: o campeonato passou de <b>{planOf(pendente.plan).tier}</b> para{' '}
             <b>{atual.tier}</b> e está aguardando o pagamento
-            {champ.amountCents ? ` de ${formatBRL(champ.amountCents)}` : ''}.
+            {(champ.dueCents ?? champ.amountCents) ? ` de ${formatBRL(champ.dueCents ?? champ.amountCents ?? 0)}` : ''}
+            {champ.dueCents != null && champ.amountCents ? ` (a diferença; o plano ${atual.tier} custa ${formatBRL(champ.amountCents)})` : ''}.
           </p>
           <Button variant="soft" type="button" onClick={() => void desfazer()} disabled={busy}>
             ↩ Desfazer e voltar para {planOf(pendente.plan).tier}
@@ -138,13 +143,21 @@ export function PlanoBlock({
         <p className={`plano-troca__previsao ${sobe ? 'is-cobra' : ''}`}>
           {planOf(escolhido as PlanKey).consult ? (
             <>
-              O plano Diamante é negociado com um consultor. Escolher aqui não gera cobrança —
-              fale com a gente pela página de planos.
+              O <b>Diamante</b> é uma assinatura mensal ({formatBRL(planOf('diamante').monthlyCents ?? 0)}/mês,
+              12 meses) e não abate o que você já pagou. Ao trocar, o campeonato fica fechado até a
+              assinatura ser contratada na tela de pagamento. Dúvidas? Fale com o consultor pelo
+              WhatsApp.
             </>
           ) : sobe ? (
             <>
-              💳 Vai gerar uma cobrança de <b>{formatBRL(novo.totalCents)}</b>. O campeonato fica
-              fechado até o pagamento ser confirmado — e você pode desfazer antes de pagar.
+              💳 Vai gerar uma cobrança de <b>{formatBRL(diferenca)}</b>
+              {jaPago > 0 && (
+                <>
+                  {' '}— só a diferença: o plano {planOf(escolhido as PlanKey).tier} custa{' '}
+                  {formatBRL(novo.totalCents)} e você já pagou {formatBRL(jaPago)}
+                </>
+              )}
+              . O campeonato fica fechado até o pagamento ser confirmado — e você pode desfazer antes de pagar.
             </>
           ) : (
             <>

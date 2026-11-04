@@ -139,7 +139,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
                 </p>
                 {isLocked(c) ? (
                   <p className="champ-card__desc champ-card__pay">
-                    Falta pagar {formatBRL(c.amountCents ?? 0)} para liberar.
+                    Falta pagar {formatBRL(c.dueCents ?? c.amountCents ?? 0)} para liberar.
                   </p>
                 ) : (
                   c.description && <p className="champ-card__desc">{c.description}</p>

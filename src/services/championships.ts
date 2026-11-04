@@ -41,6 +41,7 @@ function fromRow(r: any): Championship {
     venues: Array.isArray(r.venues) ? r.venues : [],
     sponsors: Array.isArray(r.sponsors) ? r.sponsors : [],
     plan: r.plan ?? undefined,
+    dueCents: r.due_cents ?? undefined,
     planChange: r.plan_change
       ? {
           plan: r.plan_change.plan ?? undefined,
@@ -268,6 +269,8 @@ export interface TrocaDePlano {
   amountCents: number
   /** A troca gerou cobrança (subiu de plano)? */
   cobra: boolean
+  /** Quanto já tinha sido pago do plano de origem (abatido da cobrança). */
+  jaPagoCents: number
   aPagarCents: number
 }
 
@@ -301,30 +304,40 @@ export async function changePlan(champId: string, plan: PlanKey): Promise<TrocaD
       tier: r.tier,
       amountCents: r.amount_cents ?? 0,
       cobra: Boolean(r.cobra),
+      jaPagoCents: r.ja_pago ?? 0,
       aPagarCents: r.a_pagar ?? 0,
     }
   }
 
+  // Demo: as mesmas regras do banco (`change_championship_plan`, migration 0051).
   return mutate((d) => {
     const c = d.championships.find((x) => x.id === champId)
     if (!c) throw new Error('Campeonato não encontrado.')
     if ((c.plan ?? 'gratis') === plan) {
       throw new Error(`O campeonato já está no plano ${planOf(plan).tier}.`)
     }
-    const novo = totalCents(plan, c.categories.length)
-    const jaPago = c.paymentStatus === 'paid' || c.paymentStatus === 'free' ? c.amountCents ?? 0 : 0
-    const sobe = novo > jaPago
+    const diamante = plan === 'diamante'
+    const novo = diamante ? planOf('diamante').monthlyCents ?? 0 : totalCents(plan, c.categories.length)
+
+    // A origem: se já há um upgrade pendente, o estado de antes dele.
+    const origem = c.planChange ?? {
+      plan: c.plan,
+      amountCents: c.amountCents,
+      paymentStatus: c.paymentStatus,
+      paymentRef: c.paymentRef,
+      paidAt: c.paidAt,
+    }
+    const jaPago =
+      origem.paymentStatus === 'paid' || origem.paymentStatus === 'free' ? origem.amountCents ?? 0 : 0
+    // O Diamante é assinatura: sempre pendente, sem abater o plano anterior.
+    const sobe = diamante || novo > jaPago
 
     if (sobe) {
-      c.planChange = c.planChange ?? {
-        plan: c.plan,
-        amountCents: c.amountCents,
-        paymentStatus: c.paymentStatus,
-        paymentRef: c.paymentRef,
-        paidAt: c.paidAt,
-      }
+      c.planChange = origem
       c.plan = plan
       c.amountCents = novo
+      // Upgrade cobra só a diferença; o Diamante cobra a assinatura inteira.
+      c.dueCents = diamante ? undefined : novo - jaPago
       c.paymentStatus = 'pending'
       c.paymentRef = undefined
       c.paidAt = undefined
@@ -332,18 +345,18 @@ export async function changePlan(champId: string, plan: PlanKey): Promise<TrocaD
       c.planChange = undefined
       c.plan = plan
       c.amountCents = novo
-      c.paymentStatus = novo > 0 ? c.paymentStatus ?? 'free' : 'free'
-      if (novo === 0) {
-        c.paymentRef = undefined
-        c.paidAt = undefined
-      }
+      c.dueCents = undefined
+      c.paymentStatus = novo > 0 ? origem.paymentStatus ?? 'free' : 'free'
+      c.paymentRef = novo > 0 ? origem.paymentRef : undefined
+      c.paidAt = novo > 0 ? origem.paidAt : undefined
     }
     return {
       plan,
       tier: planOf(plan).tier,
       amountCents: novo,
       cobra: sobe,
-      aPagarCents: sobe ? novo : 0,
+      jaPagoCents: jaPago,
+      aPagarCents: sobe ? (diamante ? novo : novo - jaPago) : 0,
     }
   })
 }
@@ -364,6 +377,7 @@ export async function revertPlan(champId: string): Promise<void> {
     c.paymentStatus = v.paymentStatus
     c.paymentRef = v.paymentRef
     c.paidAt = v.paidAt
+    c.dueCents = undefined
     c.planChange = undefined
     return null
   })

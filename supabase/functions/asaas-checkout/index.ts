@@ -59,7 +59,7 @@ const json = (body: unknown, status = 200) =>
  * é assim que se sabe, sem adivinhar, qual código está publicado no Supabase.
  * Suba este número a cada mudança.
  */
-export const VERSAO = '6'
+export const VERSAO = '7'
 
 /** Produção ou sandbox. A chave de homologação traz "hmlg" no meio. */
 export function asaasBase(env: string | undefined, key: string): string {
@@ -215,6 +215,8 @@ interface ChampRow {
   name: string
   plan: string | null
   amount_cents: number | null
+  /** Upgrade de plano: só a diferença. Nulo = vale o amount_cents inteiro. */
+  due_cents: number | null
   payment_status: string | null
   categories: { id: string; name: string }[] | null
   owner_id: string
@@ -275,7 +277,7 @@ serve(async (req) => {
 
   const { data, error } = await db
     .from('championships')
-    .select('id, name, plan, amount_cents, payment_status, categories, owner_id, negotiated_kind, negotiated_months')
+    .select('id, name, plan, amount_cents, due_cents, payment_status, categories, owner_id, negotiated_kind, negotiated_months')
     .eq('id', championshipId)
     .maybeSingle()
   if (error) return json({ error: error.message, versao: VERSAO }, 500)
@@ -327,14 +329,18 @@ serve(async (req) => {
     }
   }
 
-  const cents = mensal ? (assinatura?.cents ?? 0) : (champ.amount_cents ?? 0)
+  // Upgrade de plano cobra só a DIFERENÇA (`due_cents`); campeonato novo, o total.
+  const upgrade = !mensal && champ.due_cents != null
+  const cents = mensal ? (assinatura?.cents ?? 0) : (champ.due_cents ?? champ.amount_cents ?? 0)
   if (cents <= 0) return json({ error: 'Campeonato sem valor a cobrar', versao: VERSAO }, 409)
 
   const nCats = Array.isArray(champ.categories) ? champ.categories.length : 1
   const extra = Math.max(0, nCats - 1)
   const descricao = (
-    `Campeonato "${champ.name}" · ${nCats} categoria(s)` +
-    (extra > 0 ? ` (1 inclusa + ${extra})` : '')
+    upgrade
+      ? `Campeonato "${champ.name}" · diferença da troca de plano (${nCats} categoria(s))`
+      : `Campeonato "${champ.name}" · ${nCats} categoria(s)` +
+        (extra > 0 ? ` (1 inclusa + ${extra})` : '')
   ).slice(0, 200)
 
   const meses = Math.max(1, assinatura?.months ?? champ.negotiated_months ?? 12)

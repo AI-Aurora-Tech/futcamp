@@ -294,24 +294,33 @@ select pg_temp.recusa('o link público também respeita o limite',
   'permite até 8 equipe');
 
 -- Trocar para um plano maior libera na hora.
+-- (preparo do cenário: troca de plano como o servidor faz)
+select set_config('tabelaco.liberando', 'on', false);
 update public.championships set plan = 'bronze'
  where id = '55555555-5555-5555-5555-555555555555';
+select set_config('tabelaco.liberando', '', false);
 insert into public.teams (championship_id, name)
 values ('55555555-5555-5555-5555-555555555555', 'Time 9');
 select pg_temp.checa('o Bronze aceita a 9ª equipe',
   (select count(*) from teams where championship_id = '55555555-5555-5555-5555-555555555555') = 9);
 
 -- Ouro não tem teto.
+-- (preparo do cenário: troca de plano como o servidor faz)
+select set_config('tabelaco.liberando', 'on', false);
 update public.championships set plan = 'ouro'
  where id = '55555555-5555-5555-5555-555555555555';
+select set_config('tabelaco.liberando', '', false);
 insert into public.teams (championship_id, name)
 select '55555555-5555-5555-5555-555555555555', 'Extra ' || i from generate_series(1, 40) i;
 select pg_temp.checa('Ouro não tem teto',
   (select count(*) from teams where championship_id = '55555555-5555-5555-5555-555555555555') = 49);
 
 -- Voltar para um plano menor NÃO apaga equipe nenhuma — só impede a próxima.
+-- (preparo do cenário: troca de plano como o servidor faz)
+select set_config('tabelaco.liberando', 'on', false);
 update public.championships set plan = 'gratis'
  where id = '55555555-5555-5555-5555-555555555555';
+select set_config('tabelaco.liberando', '', false);
 select pg_temp.checa('rebaixar o plano não apaga equipes',
   (select count(*) from teams where championship_id = '55555555-5555-5555-5555-555555555555') = 49);
 select pg_temp.recusa('mas trava a próxima',
@@ -322,8 +331,11 @@ select pg_temp.recusa('mas trava a próxima',
 -- Vagas, para a tela avisar antes.
 select pg_temp.checa('vagas: zero quando estourou',
   (public.champ_team_slots('55555555-5555-5555-5555-555555555555')->>'restantes')::int = 0);
+-- (preparo do cenário: troca de plano como o servidor faz)
+select set_config('tabelaco.liberando', 'on', false);
 update public.championships set plan = 'ouro'
  where id = '55555555-5555-5555-5555-555555555555';
+select set_config('tabelaco.liberando', '', false);
 select pg_temp.checa('vagas: nulo quando o plano é ilimitado',
   public.champ_team_slots('55555555-5555-5555-5555-555555555555')->>'restantes' is null);
 
@@ -413,8 +425,11 @@ select pg_temp.checa('e o campeonato alheio não mudou',
   (select plan from championships where id = '88888888-8888-8888-8888-888888888888') = 'gratis');
 
 -- E o app, sozinho, continua sem conseguir se promover.
+-- (preparo do cenário: troca de plano como o servidor faz)
+select set_config('tabelaco.liberando', 'on', false);
 update public.championships set plan = 'ouro', payment_status = 'paid'
  where id = '66666666-6666-6666-6666-666666666666';
+select set_config('tabelaco.liberando', '', false);
 select pg_temp.checa('o app não se promove escrevendo direto na tabela',
   (select payment_status from championships where id = '66666666-6666-6666-6666-666666666666') = 'paid'
   and (select amount_cents from championships where id = '66666666-6666-6666-6666-666666666666') = 5990);
@@ -1287,3 +1302,79 @@ select pg_temp.recusa('Grátis novo para na 9ª equipe da categoria',
   format($q$ insert into public.team_categories (team_id, championship_id, category_id) values (%L, %L, 'a') $q$,
          'e3000000-0000-0000-0000-000000000009', :'lim_gratis'),
   'por categoria');
+
+-- ===========================================================================
+-- Subir de plano cobra só a DIFERENÇA (0051).
+-- ===========================================================================
+reset request.jwt.claims;
+\set dif_dono 'f1000000-0000-0000-0000-0000000000d1'
+\set dif_c 'f1000000-0000-0000-0000-0000000000a1'
+insert into auth.users (id, email) values (:'dif_dono', 'dif@teste.com') on conflict do nothing;
+set request.jwt.claim.sub = :'dif_dono';
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'dif_c', :'dif_dono', 'Copa Diferença', 'futebol', 'league', '2026', 'bronze', '[{"id":"a","name":"A"}]'::jsonb);
+select pg_temp.checa('Bronze novo nasce pendente pelo valor cheio, sem devido separado',
+  (select amount_cents from championships where id = :'dif_c') = 5990
+  and (select due_cents from championships where id = :'dif_c') is null);
+select public.mark_championship_paid(:'dif_c', 'pago-bronze');
+select pg_temp.checa('  e depois de pago está liberado',
+  (select payment_status from championships where id = :'dif_c') = 'paid');
+
+select public.change_championship_plan(:'dif_c', 'prata') as _;
+select pg_temp.checa('Bronze pago → Prata: cobra só R$ 20,00 (79,90 − 59,90)',
+  (select due_cents from championships where id = :'dif_c') = 2000
+  and (select amount_cents from championships where id = :'dif_c') = 7990
+  and (select payment_status from championships where id = :'dif_c') = 'pending');
+
+select public.change_championship_plan(:'dif_c', 'ouro') as _;
+select pg_temp.checa('  trocar de ideia para Ouro antes de pagar mantém o abatimento (R$ 50,00)',
+  (select due_cents from championships where id = :'dif_c') = 5000
+  and (select amount_cents from championships where id = :'dif_c') = 10990);
+
+update public.championships set due_cents = 1 where id = :'dif_c';
+select pg_temp.checa('  o app não consegue baixar o devido',
+  (select due_cents from championships where id = :'dif_c') = 5000);
+
+update public.championships set categories = '[{"id":"a","name":"A"},{"id":"b","name":"B"}]'::jsonb where id = :'dif_c';
+select pg_temp.checa('  categoria nova durante o upgrade refaz o devido (169,80 − 59,90 = R$ 109,90)',
+  (select amount_cents from championships where id = :'dif_c') = 16980
+  and (select due_cents from championships where id = :'dif_c') = 10990);
+
+select public.revert_championship_plan(:'dif_c') as _;
+select pg_temp.checa('  desfazer volta ao Bronze pago, sem dívida',
+  (select plan from championships where id = :'dif_c') = 'bronze'
+  and (select payment_status from championships where id = :'dif_c') = 'paid'
+  and (select due_cents from championships where id = :'dif_c') is null);
+
+select public.change_championship_plan(:'dif_c', 'prata') as _;
+select public.mark_championship_paid(:'dif_c', 'pago-prata');
+-- (o campeonato já tem 2 categorias: o Prata sai por 79,90 + 49,90 = 129,80)
+select pg_temp.checa('pago o upgrade: devido zera e o total do plano vira a base',
+  (select due_cents from championships where id = :'dif_c') is null
+  and (select amount_cents from championships where id = :'dif_c') = 12980
+  and (select plan_change from championships where id = :'dif_c') is null);
+
+select public.change_championship_plan(:'dif_c', 'ouro') as _;
+select pg_temp.checa('  a próxima troca abate o Prata (169,80 − 129,80 = R$ 40,00)',
+  (select due_cents from championships where id = :'dif_c') = 4000);
+select public.revert_championship_plan(:'dif_c') as _;
+
+select public.change_championship_plan(:'dif_c', 'bronze') as _;
+select pg_temp.checa('descer de plano vale na hora, sem cobrar e sem fechar',
+  (select payment_status from championships where id = :'dif_c') = 'paid'
+  and (select due_cents from championships where id = :'dif_c') is null);
+
+-- O organizador não troca o plano por fora da função (sem pagar a diferença).
+select public.mark_championship_paid(:'dif_c', 'pago-bronze-2');
+update public.championships set plan = 'ouro' where id = :'dif_c';
+select pg_temp.checa('UPDATE direto não troca o plano de graça',
+  (select plan from championships where id = :'dif_c') = 'bronze');
+
+-- Do Grátis para um plano pago: cobra o valor cheio (nada foi pago antes).
+\set dif_g 'f1000000-0000-0000-0000-0000000000a2'
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'dif_g', :'dif_dono', 'Grátis', 'futebol', 'league', '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb);
+select public.change_championship_plan(:'dif_g', 'bronze') as _;
+select pg_temp.checa('Grátis → Bronze cobra o valor cheio (R$ 59,90)',
+  (select due_cents from championships where id = :'dif_g') = 5990);
+reset request.jwt.claim.sub;

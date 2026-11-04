@@ -39,7 +39,7 @@ export function asaasBase(env: string | undefined, key: string): string {
 /** Situações em que o dinheiro é do organizador do Tabelaço. */
 export const PAGOS = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']
 
-export const VERSAO = '3'
+export const VERSAO = '4'
 
 /**
  * O campeonato guarda o último checkout em `payment_ref`, como `checkout:<id>`.
@@ -256,7 +256,7 @@ serve(async (req) => {
 
   const { data: champ } = await db
     .from('championships')
-    .select('id, amount_cents, payment_status')
+    .select('id, amount_cents, due_cents, payment_status')
     .eq('id', champId)
     .maybeSingle()
   if (!champ) return json({ ok: true, skipped: 'campeonato inexistente' })
@@ -270,7 +270,8 @@ serve(async (req) => {
   // o valor É a prova e precisa cobrir o devido. Só o caminho do checkout
   // dispensa a conferência, porque ali o valor foi definido por nós na criação
   // e o Asaas não tem como cobrar diferente.
-  const devido = champ.amount_cents ?? 0
+  // Upgrade de plano: o devido é só a diferença (`due_cents`).
+  const devido = champ.due_cents ?? champ.amount_cents ?? 0
   if (porCobranca && devido > 0 && cents + 1 < devido) {
     console.error('asaas-webhook: valor menor que o devido', { champId, cents, devido })
     return json({ ok: true, status: 'valor insuficiente' })

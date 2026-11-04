@@ -31,7 +31,7 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
-export const VERSAO = '4'
+export const VERSAO = '5'
 
 /** Produção ou sandbox. A chave de homologação traz "hmlg" no meio. */
 export function asaasBase(env: string | undefined, key: string): string {
@@ -250,7 +250,7 @@ serve(async (req) => {
 
   const { data: champ } = await db
     .from('championships')
-    .select('id, amount_cents, payment_status, payment_ref')
+    .select('id, amount_cents, due_cents, payment_status, payment_ref')
     .eq('id', championshipId)
     .maybeSingle()
   if (!champ) return json({ error: 'Campeonato não encontrado', versao: VERSAO }, 404)
@@ -258,7 +258,8 @@ serve(async (req) => {
     return json({ paid: champ.payment_status === 'paid', status: champ.payment_status, versao: VERSAO })
   }
 
-  const devido = champ.amount_cents ?? 0
+  // Upgrade de plano: o devido é só a diferença (`due_cents`).
+  const devido = champ.due_cents ?? champ.amount_cents ?? 0
   const api = (caminho: string) => fetch(`${base}${caminho}`, { headers: { access_token: key } })
 
   const tentado: string[] = []
