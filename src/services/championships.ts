@@ -205,16 +205,30 @@ export async function listPublicChampionships(): Promise<Championship[]> {
     // andamento só pelas CATEGORIAS (championships.status ainda 'draft'). Como
     // "em andamento" mora no jsonb das categorias, trazemos os mais recentes e
     // filtramos pela situação efetiva aqui — o mesmo critério do resto do app.
-    const { data, error } = await supabase
-      .from('championships')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200)
-    if (error) throw error
-    return (data ?? [])
-      .map(fromRow)
-      .filter((c) => isPubliclyListed(c, now))
-      .sort(order)
+    //
+    // Mas trazer "os mais recentes" sem filtro inclui os rascunhos: com muitos
+    // deles, os em andamento ficavam fora do corte (ou a consulta, pesada pelos
+    // logos, estourava o tempo e a home ficava vazia). Então o banco já devolve
+    // só quem pode aparecer: status em andamento/encerrado OU alguma categoria
+    // em andamento/encerrada.
+    const db = supabase
+    const consulta = () =>
+      db.from('championships').select('*').order('created_at', { ascending: false }).limit(200)
+    const respostas = await Promise.all([
+      consulta().in('status', ['active', 'finished']),
+      // jsonb: o filtro vai como texto JSON (um array JS viraria array do Postgres).
+      consulta().eq('status', 'draft').contains('categories', JSON.stringify([{ status: 'active' }])),
+      consulta().eq('status', 'draft').contains('categories', JSON.stringify([{ status: 'finished' }])),
+    ])
+    const porId = new Map<string, Championship>()
+    for (const { data, error } of respostas) {
+      if (error) throw error
+      for (const row of data ?? []) {
+        const c = fromRow(row)
+        porId.set(c.id, c)
+      }
+    }
+    return [...porId.values()].filter((c) => isPubliclyListed(c, now)).sort(order)
   }
   return query((d) => d.championships.filter((c) => isPubliclyListed(c, now)).sort(order))
 }

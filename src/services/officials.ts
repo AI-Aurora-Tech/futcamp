@@ -152,6 +152,57 @@ export async function mesaLogin(
   })
 }
 
+/** Campeonato em que o e-mail/senha é mesário (login pela página inicial). */
+export interface MesaAccess {
+  championshipId: string
+  championshipName: string
+  championshipLogo?: string
+  officialId: string
+  name: string
+  /** Usuário exatamente como cadastrado (as RPCs do portal comparam assim). */
+  username: string
+}
+
+/**
+ * Login do mesário pela tela de login padrão: procura, em todos os
+ * campeonatos, o mesário com esse e-mail e senha.
+ */
+export async function mesaLoginByEmail(email: string, password: string): Promise<MesaAccess[]> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('mesa_login_email', {
+      p_username: email.trim(),
+      p_password: password,
+    })
+    // RPC ausente (migration não aplicada) ou falha: não é mesário.
+    if (error || !Array.isArray(data)) return []
+    return data.map((r: any) => ({
+      championshipId: r.championship_id,
+      championshipName: r.championship_name ?? '',
+      championshipLogo: r.championship_logo ?? undefined,
+      officialId: r.id,
+      name: r.name,
+      username: r.username,
+    }))
+  }
+  return query((d) => {
+    const uname = email.trim().toLowerCase()
+    return d.officials
+      .filter((o) => o.username.toLowerCase() === uname && o.passwordHash && o.passwordHash === hash(password))
+      .map((o) => {
+        const c = d.championships.find((x) => x.id === o.championshipId)
+        return {
+          championshipId: o.championshipId,
+          championshipName: c?.name ?? '',
+          championshipLogo: c?.logo,
+          officialId: o.id,
+          name: o.name,
+          username: o.username,
+        }
+      })
+      .filter((a) => a.championshipName)
+  })
+}
+
 /**
  * Define uma nova senha do mesário quando a conta está com a senha zerada
  * (recuperação iniciada pelo administrador). Não exige a senha antiga.

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { porNome } from '../lib/ordem'
 import {
   motivoDaFalha,
   addRegPlayer,
@@ -38,7 +39,7 @@ import {
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
-import { abrirSessaoTime, temSessaoTime } from '../lib/teamSession'
+import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
 import { LINK_SUPORTE_TIME } from '../lib/whatsapp'
 
@@ -92,6 +93,12 @@ export function TeamRegistration({
     void reload()
   }
 
+  function logout() {
+    fecharSessaoTime(teamId)
+    setAuthed(false)
+    onHome()
+  }
+
   if (loading) return <div className="container pad-lg"><Spinner /></div>
   if (invalid || !data) {
     return (
@@ -122,6 +129,9 @@ export function TeamRegistration({
               <div className="reg__doc">
                 <RegulamentoButton champ={data.championship} variant="soft" />
               </div>
+            )}
+            {authed && (
+              <button className="btn btn--ghost btn--sm mesa-logout reg__logout" onClick={logout}>Sair</button>
             )}
           </div>
         </div>
@@ -520,9 +530,11 @@ function RosterCard({
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
 
-  const doElenco = varias
-    ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
-    : data.players
+  const doElenco = (
+    varias
+      ? data.players.filter((p) => (p.categoryId || minhas[0]?.id) === catAtual)
+      : [...data.players]
+  ).sort(porNome)
   const athletes = doElenco.filter((p) => (p.role ?? 'atleta') === 'atleta').length
   const staff = doElenco.filter((p) => p.role === 'comissao').length
   const nomeCat = minhas.find((c) => c.id === catAtual)?.name

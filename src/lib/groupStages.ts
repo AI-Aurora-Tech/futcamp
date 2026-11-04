@@ -73,6 +73,19 @@ export function totalQualifiers(stage: GroupStage): number {
   return stageGroupLetters(stage.numGroups).reduce((s, g) => s + qualifiersOfGroup(stage, g), 0)
 }
 
+/**
+ * Grupo em que o jogo realmente está. Na 1ª fase vale o grupo ATUAL dos dois
+ * times (quando é o mesmo) — o rótulo gravado no jogo pode ter ficado para trás
+ * depois de um novo sorteio. Nas fases seguintes, o grupo gravado no jogo.
+ */
+export function grupoDoJogo(m: Match, grupoDoTime: Map<string, string | undefined>): string | undefined {
+  if (matchStage(m) <= 1 && m.homeTeamId && m.awayTeamId) {
+    const gh = grupoDoTime.get(m.homeTeamId)
+    if (gh && gh === grupoDoTime.get(m.awayTeamId)) return gh
+  }
+  return m.group
+}
+
 /** Fase de grupos a que a partida pertence (1 = primeira). */
 export function matchStage(m: Match): number {
   return m.stage ?? 1
@@ -168,9 +181,12 @@ export function standingsOfStage(
   for (const [group, ids] of Object.entries(composition)) {
     const groupTeams = ids.map((id) => byId.get(id)).filter((t): t is Team => !!t)
     const idSet = new Set(ids)
+    // Na 1ª fase o grupo é o da inscrição dos times: um jogo entre dois times
+    // do grupo B vale para o B mesmo que tenha sido gravado com outro rótulo
+    // (tabela gerada antes de um novo sorteio de grupos).
     const groupMatches = stageMatches.filter(
       (m) =>
-        (m.group ? m.group === group : true) &&
+        (stage <= 1 || !m.group || m.group === group) &&
         m.homeTeamId != null &&
         m.awayTeamId != null &&
         idSet.has(m.homeTeamId) &&

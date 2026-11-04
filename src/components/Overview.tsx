@@ -14,6 +14,7 @@ import { ChampionBanner } from './ChampionBanner'
 import type { Championship, Match, MatchEvent, Player, Team } from '../types'
 import { StandingsTable } from './StandingsTable'
 import { MatchRow } from './MatchesPanel'
+import { BracketView } from './BracketView'
 import { TeamBadge, EmptyState } from './ui'
 
 export function Overview({
@@ -22,12 +23,15 @@ export function Overview({
   matches,
   players = [],
   events = [],
+  publico = false,
 }: {
   championship: Championship
   teams: Team[]
   matches: Match[]
   players?: Player[]
   events?: MatchEvent[]
+  /** Painel público: "Próximos jogos" só lista os que já têm data e hora. */
+  publico?: boolean
 }) {
   // Grupos com classificação GERAL: as equipes jogam nos seus grupos, mas a
   // tabela é única (todas as equipes juntas) e vale a colocação geral.
@@ -62,9 +66,20 @@ export function Overview({
     [championship, teams, matches, events],
   )
 
+  // O mata-mata aparece na visão geral assim que existe, e vai se preenchendo
+  // a cada jogo encerrado (os vencedores avançam sozinhos).
+  const knockout = matches.filter((m) => m.phase !== 'group')
   const finished = matches.filter((m) => m.status === 'finished')
   const recent = finished.slice(-5).reverse()
-  const upcoming = matches.filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId).slice(0, 5)
+  // No link público, "Próximos jogos" lista só os que já têm data e hora,
+  // em ordem cronológica.
+  const upcoming = (
+    publico
+      ? matches
+          .filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId && !!m.scheduledAt)
+          .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))
+      : matches.filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId)
+  ).slice(0, 5)
 
   const goals = finished.reduce((s, m) => s + (m.homeScore ?? 0) + (m.awayScore ?? 0), 0)
 
@@ -81,11 +96,13 @@ export function Overview({
 
       <div className="overview__cols">
         <div className="overview__main">
-          <h2 className="section-title">Classificação</h2>
+          {!isKnockout && <h2 className="section-title">Classificação</h2>}
           {isKnockout ? (
-            <EmptyState icon="🏆" title="Formato mata-mata">
-              <p>Neste formato não há tabela de pontos. Acompanhe o chaveamento na aba Partidas.</p>
-            </EmptyState>
+            knockout.length === 0 && (
+              <EmptyState icon="🏆" title="Formato mata-mata">
+                <p>Neste formato não há tabela de pontos. O chaveamento aparece aqui assim que os jogos forem gerados.</p>
+              </EmptyState>
+            )
           ) : isGroups ? (
             <>
               {stageTables.map(({ cfg, stage, table }) => (
@@ -129,6 +146,13 @@ export function Overview({
                 championTeamId={podium.decidedBy === 'league' ? podium.championId : undefined}
               />
             </>
+          )}
+
+          {knockout.length > 0 && (
+            <div className="bracket-block">
+              <h2 className="section-title">🏆 Mata-mata</h2>
+              <BracketView matches={knockout} teams={teams} />
+            </div>
           )}
         </div>
 
