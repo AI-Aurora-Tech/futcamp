@@ -572,7 +572,7 @@ simplesmente não envia nada.
 pontos corridos/grupos, fases seguintes, mata-mata, jogos de W.O. da eliminação
 de um time) nascem sem data e em silêncio: o aviso só sai quando a **data e a
 hora** do jogo são definidas (marcada) ou alteradas (remarcada). Trocar só o
-local ou o árbitro não gera mensagem (migration `0043_whatsapp_so_com_data.sql`).
+local ou o árbitro não gera mensagem (migration `0044_whatsapp_so_com_data.sql`).
 
 Os avisos nascem de **gatilhos no banco** e vão para a fila `whatsapp_outbox`
 (uma linha por aviso, com os **times** — o telefone do responsável, `teams.phone`,
@@ -588,7 +588,7 @@ execução fica pendente e sai no próximo agendamento.
 ### Como habilitar
 
 1. **Banco** — rode as migrations `0041_whatsapp_evolution.sql`,
-   `0042_whatsapp_consolidacao.sql` e, em seguida, `0043_whatsapp_so_com_data.sql`.
+   `0042_whatsapp_consolidacao.sql` e, em seguida, `0044_whatsapp_so_com_data.sql`.
 2. **Edge Function** — publique a `send-whatsapp` e configure os secrets (a
    apikey fica **só** no servidor):
    ```bash
