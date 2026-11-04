@@ -13,6 +13,8 @@ import { vitrine } from '../lib/vitrine'
 import { statusEfetivo } from '../lib/categorias'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
+import { mesaLoginByEmail, type MesaAccess } from '../services/officials'
+import { abrirSessaoMesa } from '../lib/mesaSession'
 import { Button, ChampLogo, Field, SuporteLink, TeamBadge } from './ui'
 
 /** Campeão de cada campeonato encerrado, para a vitrine pública. */
@@ -135,6 +137,18 @@ function entrarNoTime(t: TeamAccess) {
   window.location.hash = `#/t/${t.teamId}?k=${encodeURIComponent(t.token)}`
 }
 
+/** Abre o portal do mesário já autenticado — só com as partidas dele. */
+function entrarComoMesario(m: MesaAccess, password: string) {
+  abrirSessaoMesa({
+    championshipId: m.championshipId,
+    officialId: m.officialId,
+    name: m.name,
+    username: m.username,
+    password,
+  })
+  window.location.hash = `#/mesa/${m.championshipId}`
+}
+
 export function Landing() {
   const { signIn, signUp, enterDemo, mode } = useAuth()
   const [tab, setTab] = useState<'in' | 'up'>('in')
@@ -145,9 +159,13 @@ export function Landing() {
   const [busy, setBusy] = useState(false)
   // Times que o e-mail/senha abriu, quando é mais de um: a pessoa escolhe.
   const [meusTimes, setMeusTimes] = useState<TeamAccess[] | null>(null)
+  // Campeonatos em que o e-mail/senha é mesário, quando é mais de um.
+  const [minhasMesas, setMinhasMesas] = useState<MesaAccess[] | null>(null)
   const [ongoing, setOngoing] = useState<Championship[]>([])
   const [champions, setChampions] = useState<Record<string, ChampionInfo>>({})
   const [search, setSearch] = useState('')
+  // Falha ao buscar a vitrine: mostra o motivo em vez de "nenhum campeonato".
+  const [erroLista, setErroLista] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -159,7 +177,12 @@ export function Landing() {
           (map) => active && setChampions(map),
         )
       })
-      .catch(() => active && setOngoing([]))
+      .catch((e) => {
+        if (!active) return
+        setOngoing([])
+        const msg = e instanceof Error ? e.message : (e as { message?: string })?.message
+        setErroLista(msg || 'erro desconhecido')
+      })
     return () => {
       active = false
     }
@@ -184,6 +207,18 @@ export function Landing() {
     return true
   }
 
+  /** Tenta entrar como MESÁRIO. Devolve `true` quando entrou ou abriu a lista. */
+  async function tentarComoMesario(): Promise<boolean> {
+    const mesas = await mesaLoginByEmail(email, password)
+    if (mesas.length === 0) return false
+    if (mesas.length === 1) {
+      entrarComoMesario(mesas[0], password)
+      return true
+    }
+    setMinhasMesas(mesas)
+    return true
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
@@ -200,6 +235,7 @@ export function Landing() {
       // aceita qualquer e-mail (é conta de brinquedo) e engoliria o do time.
       if (mode === 'demo') {
         if (await tentarComoTime()) return
+        if (await tentarComoMesario()) return
         const err = await signIn(email, password)
         if (err) setError(err)
         return
@@ -209,6 +245,8 @@ export function Landing() {
       if (!err) return
       // Organizador não é: pode ser gestor de time.
       if (await tentarComoTime()) return
+      // Nem time: pode ser mesário.
+      if (await tentarComoMesario()) return
       setError(err)
     } finally {
       setBusy(false)
@@ -262,7 +300,31 @@ export function Landing() {
       </div>
 
       <div className="landing__panel">
-        {meusTimes ? (
+        {minhasMesas ? (
+          <div className="auth-card">
+            <h2 className="auth-card__title">Seus campeonatos</h2>
+            <p className="muted">
+              Você é mesário em {minhasMesas.length} campeonatos. Escolha qual você quer abrir.
+            </p>
+            <ul className="team-pick">
+              {minhasMesas.map((m) => (
+                <li key={m.officialId}>
+                  <button type="button" className="team-pick__item" onClick={() => entrarComoMesario(m, password)}>
+                    <span className="team-pick__logo"><ChampLogo logo={m.championshipLogo} /></span>
+                    <span className="team-pick__text">
+                      <strong>{m.championshipName}</strong>
+                      <span className="muted small">Mesário · {m.name}</span>
+                    </span>
+                    <span aria-hidden>→</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button className="link-btn" onClick={() => { setMinhasMesas(null); setPassword('') }}>
+              ← Entrar com outra conta
+            </button>
+          </div>
+        ) : meusTimes ? (
           <div className="auth-card">
             <h2 className="auth-card__title">Seus times</h2>
             <p className="muted">
@@ -323,7 +385,8 @@ export function Landing() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                minLength={6}
+                // Senha de mesário pode ter 4 caracteres; o mínimo de 6 vale só para criar conta.
+                minLength={tab === 'up' ? 6 : 4}
                 required
               />
             </Field>
@@ -345,6 +408,10 @@ export function Landing() {
             🛡️ <b>Dono de time?</b> Entre aqui com o mesmo e-mail e senha que você criou
             pelo link do organizador. A conta do time nasce sempre daquele link — depois
             dela criada, esta página é a porta de entrada.
+          </p>
+          <p className="auth-note auth-note--time">
+            🧾 <b>Mesário?</b> Entre aqui com o e-mail e a senha que o organizador cadastrou —
+            você verá somente as partidas atribuídas a você.
           </p>
 
           <p className="auth-note">
@@ -389,9 +456,11 @@ export function Landing() {
         </div>
         {nada ? (
           <p className="muted">
-            {search
-              ? `Nenhum campeonato encontrado para “${search}”.`
-              : 'Nenhum campeonato em andamento no momento.'}
+            {erroLista
+              ? `Não foi possível carregar os campeonatos: ${erroLista}`
+              : search
+                ? `Nenhum campeonato encontrado para “${search}”.`
+                : 'Nenhum campeonato em andamento no momento.'}
           </p>
         ) : (
           <>

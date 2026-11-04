@@ -582,6 +582,8 @@ export interface LineupEntry {
   playerId: string
   /** Número da camisa nesta partida (pode diferir do número de inscrição). */
   number?: number
+  /** Capitão da equipe nesta partida (um por time). */
+  captain?: boolean
 }
 
 export type MatchStatus = 'scheduled' | 'live' | 'finished'

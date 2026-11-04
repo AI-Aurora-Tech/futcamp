@@ -12,7 +12,9 @@ import {
   type NewTeam,
   type TeamManager,
 } from '../services/teams'
-import type { Championship, Team } from '../types'
+import { eliminateTeam } from '../services/matches'
+import type { Championship, Match, Team } from '../types'
+import { planejarEliminacao, timesEliminados, WO_GOLS } from '../lib/eliminacao'
 import { fileToDataUrl } from '../lib/image'
 import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
 import { competicaoDaCategoria, elencoDeTimes } from '../lib/categorias'
@@ -21,12 +23,15 @@ import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } fro
 export function TeamsPanel({
   championship,
   teams,
+  matches = [],
   categoryId,
   onChange,
 }: {
   championship: Championship
   /** TODOS os clubes do campeonato — a inscrição é que diz quem joga o quê. */
   teams: Team[]
+  /** Partidas DESTA categoria — usadas para eliminar um time (W.O.). */
+  matches?: Match[]
   /** Categoria em foco. Indefinida = campeonato de categoria única. */
   categoryId?: string
   onChange: () => void
@@ -34,6 +39,7 @@ export function TeamsPanel({
   const [editing, setEditing] = useState<Team | null>(null)
   const [adding, setAdding] = useState(false)
   const [managing, setManaging] = useState<Team | null>(null)
+  const [eliminating, setEliminating] = useState<Team | null>(null)
   const [drawing, setDrawing] = useState(false)
   const [search, setSearch] = useState('')
   // Limite do plano contratado. O botão some quando não cabe mais — deixar
@@ -47,6 +53,7 @@ export function TeamsPanel({
   const vagas = vagasDeTime(championship.plan, teams.length)
   const semVagas = vagas <= 0
   const grouped = championship.format === 'groups_knockout'
+  const eliminados = useMemo(() => timesEliminados(matches), [matches])
   const numGroups = Math.max(1, championship.numGroups ?? 2)
 
   // Busca por nome do time, responsável ou grupo ("grupo b" / "b").
@@ -73,7 +80,10 @@ export function TeamsPanel({
       return
     }
     const onde = catNome ? ` do ${catNome}` : ''
-    if (!confirm(`Sortear ${daCategoria.length} time(s)${onde} em ${numGroups} grupo(s)? Isso substitui a divisão atual.`)) return
+    const aviso = matches.length
+      ? '\n\nJá existem jogos nesta categoria: depois do sorteio, use “Gerar tabela” na aba Partidas para ajustar os jogos aos novos grupos.'
+      : ''
+    if (!confirm(`Sortear ${daCategoria.length} time(s)${onde} em ${numGroups} grupo(s)? Isso substitui a divisão atual.${aviso}`)) return
     setDrawing(true)
     try {
       const labels = Array.from({ length: numGroups }, (_, i) => String.fromCharCode(65 + i))
@@ -239,11 +249,13 @@ export function TeamsPanel({
                   {t.phone ? ` · ${t.phone}` : ''}
                 </span>
                 {grouped && t.group && <span className="team-item__group">Grupo {t.group}</span>}
+                {eliminados.has(t.id) && <span className="team-item__group team-item__group--out">Eliminado</span>}
               </div>
               <div className="team-item__actions">
                 <button className="icon-btn" title="Copiar link de inscrição" onClick={() => void copyInviteLink(t)}>🔗</button>
                 <button className="icon-btn" title="Gestores e senhas" onClick={() => setManaging(t)}>🔑</button>
                 <button className="icon-btn" title="Editar" onClick={() => setEditing(t)}>✎</button>
+                <button className="icon-btn icon-btn--danger" title="Eliminar do campeonato (W.O.)" onClick={() => setEliminating(t)}>🚫</button>
                 <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(t)}>🗑</button>
               </div>
             </div>
@@ -272,7 +284,139 @@ export function TeamsPanel({
       {managing && (
         <ManagersModal team={managing} onClose={() => setManaging(null)} />
       )}
+
+      {eliminating && (
+        <EliminateModal
+          championship={championship}
+          team={daCategoria.find((t) => t.id === eliminating.id) ?? eliminating}
+          teams={daCategoria}
+          matches={matches}
+          categoryId={categoryId}
+          categoryName={catNome}
+          onClose={() => setEliminating(null)}
+          onDone={() => {
+            setEliminating(null)
+            onChange()
+          }}
+        />
+      )}
     </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Eliminar time — W.O. nos jogos que ele ainda teria                          */
+/* -------------------------------------------------------------------------- */
+function EliminateModal({
+  championship,
+  team,
+  teams,
+  matches,
+  categoryId,
+  categoryName,
+  onClose,
+  onDone,
+}: {
+  championship: Championship
+  team: Team
+  /** Times da categoria, com o grupo dela. */
+  teams: Team[]
+  matches: Match[]
+  categoryId?: string
+  categoryName?: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const plano = useMemo(
+    () => planejarEliminacao(championship, team, teams, matches, categoryId),
+    [championship, team, teams, matches, categoryId],
+  )
+  const [busy, setBusy] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const pendentes = plano.atualizar.length
+  const faltantes = plano.criar.length
+
+  async function eliminar(criarFaltantes: boolean) {
+    setBusy(true)
+    setErro(null)
+    try {
+      await eliminateTeam(plano, championship.id, criarFaltantes)
+      onDone()
+    } catch (e) {
+      setErro((e as Error)?.message || 'Não foi possível eliminar o time agora.')
+      setBusy(false)
+    }
+  }
+
+  const nada = pendentes === 0 && faltantes === 0
+  // Clube em mais de uma categoria: a eliminação vale SÓ para a categoria em
+  // foco — as outras inscrições seguem normalmente.
+  const outrasCategorias = (team.categoryIds ?? [])
+    .filter((c) => c !== categoryId)
+    .map((c) => championship.categories.find((x) => x.id === c)?.name)
+    .filter((n): n is string => !!n)
+  const variasCategorias = !!categoryName && outrasCategorias.length > 0
+
+  return (
+    <Modal
+      title={variasCategorias ? `Eliminar ${team.name} · ${categoryName}` : `Eliminar ${team.name}`}
+      onClose={onClose}
+      dismissable={false}
+    >
+      {variasCategorias && (
+        <p className="auth-error">
+          ⚠️ {team.name} está inscrito em mais de uma categoria. Será eliminado <b>somente do{' '}
+          {categoryName}</b> — continua disputando {outrasCategorias.join(', ')}.
+        </p>
+      )}
+      <p>
+        O time sai da disputa: cada jogo que ele ainda teria vira <b>derrota por W.O.</b>, com{' '}
+        <b>{WO_GOLS} × 0</b> para o adversário. Os jogos já encerrados continuam valendo, e o time
+        não é apagado.
+      </p>
+      <ul className="muted">
+        <li>
+          {pendentes === 0
+            ? 'Nenhum jogo já criado está pendente.'
+            : `${pendentes} jogo(s) já criado(s) e não encerrado(s) receberão o W.O.`}
+        </li>
+        <li>
+          {faltantes === 0
+            ? 'Não há jogos a criar — a tabela do time já está completa.'
+            : `${faltantes} jogo(s) que ele ainda deveria disputar não existem na tabela.`}
+        </li>
+      </ul>
+
+      {faltantes > 0 && (
+        <p>
+          <b>
+            Deseja criar todos os jogos que {team.name} deveria jogar
+            {variasCategorias ? ` no ${categoryName}` : ''} e aplicar o W.O. ({WO_GOLS} × 0 para o
+            adversário)?
+          </b>
+        </p>
+      )}
+
+      {erro && <p className="auth-error">{erro}</p>}
+
+      <div className="form-actions">
+        <Button variant="ghost" type="button" onClick={onClose} disabled={busy}>Cancelar</Button>
+        {faltantes > 0 && (
+          <Button variant="soft" type="button" onClick={() => void eliminar(false)} disabled={busy}>
+            Não, só os jogos já criados
+          </Button>
+        )}
+        <Button variant="danger" type="button" onClick={() => void eliminar(true)} disabled={busy || nada}>
+          {busy
+            ? 'Eliminando…'
+            : faltantes > 0
+              ? 'Sim, criar jogos e aplicar W.O.'
+              : variasCategorias
+                ? `Eliminar do ${categoryName}`
+                : 'Eliminar e aplicar W.O.'}
+        </Button>
+      </div>
+    </Modal>
   )
 }
 
