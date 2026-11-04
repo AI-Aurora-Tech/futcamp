@@ -13,7 +13,13 @@ import { vitrine } from '../lib/vitrine'
 import { statusEfetivo } from '../lib/categorias'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
-import { mesaLoginByEmail, type MesaAccess } from '../services/officials'
+import {
+  criarSenhaDoMesario,
+  mesaLoginByEmail,
+  mesaSenhaZerada,
+  type MesaAccess,
+  type MesaSenhaZerada,
+} from '../services/officials'
 import { abrirSessaoMesa } from '../lib/mesaSession'
 import { Button, ChampLogo, Field, SuporteLink, TeamBadge } from './ui'
 
@@ -161,6 +167,10 @@ export function Landing() {
   const [meusTimes, setMeusTimes] = useState<TeamAccess[] | null>(null)
   // Campeonatos em que o e-mail/senha é mesário, quando é mais de um.
   const [minhasMesas, setMinhasMesas] = useState<MesaAccess[] | null>(null)
+  // Mesário cuja senha o organizador zerou: cria a nova aqui mesmo.
+  const [criarSenha, setCriarSenha] = useState<MesaSenhaZerada[] | null>(null)
+  const [novaSenha, setNovaSenha] = useState('')
+  const [confirmaSenha, setConfirmaSenha] = useState('')
   const [ongoing, setOngoing] = useState<Championship[]>([])
   const [champions, setChampions] = useState<Record<string, ChampionInfo>>({})
   const [search, setSearch] = useState('')
@@ -208,15 +218,52 @@ export function Landing() {
   }
 
   /** Tenta entrar como MESÁRIO. Devolve `true` quando entrou ou abriu a lista. */
-  async function tentarComoMesario(): Promise<boolean> {
-    const mesas = await mesaLoginByEmail(email, password)
+  async function tentarComoMesario(senha = password): Promise<boolean> {
+    const mesas = await mesaLoginByEmail(email, senha)
     if (mesas.length === 0) return false
     if (mesas.length === 1) {
-      entrarComoMesario(mesas[0], password)
+      entrarComoMesario(mesas[0], senha)
       return true
     }
     setMinhasMesas(mesas)
     return true
+  }
+
+  /** O e-mail é de mesário com a senha zerada? Abre a criação da nova senha. */
+  async function tentarSenhaZerada(): Promise<boolean> {
+    const contas = await mesaSenhaZerada(email)
+    if (contas.length === 0) return false
+    setCriarSenha(contas)
+    return true
+  }
+
+  async function salvarNovaSenha(e: React.FormEvent) {
+    e.preventDefault()
+    if (!criarSenha) return
+    setError(null)
+    if (novaSenha !== confirmaSenha) {
+      setError('As senhas não conferem.')
+      return
+    }
+    setBusy(true)
+    try {
+      const res = await criarSenhaDoMesario(criarSenha, novaSenha)
+      if (!res.ok) {
+        setError(res.error ?? 'Não foi possível criar a senha.')
+        return
+      }
+      // Já entra com a senha recém-criada.
+      setCriarSenha(null)
+      setPassword(novaSenha)
+      setNovaSenha('')
+      setConfirmaSenha('')
+      if (!(await tentarComoMesario(novaSenha))) {
+        setPassword('')
+        setError('Senha criada! Entre novamente com a nova senha.')
+      }
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -236,6 +283,7 @@ export function Landing() {
       if (mode === 'demo') {
         if (await tentarComoTime()) return
         if (await tentarComoMesario()) return
+        if (await tentarSenhaZerada()) return
         const err = await signIn(email, password)
         if (err) setError(err)
         return
@@ -247,6 +295,7 @@ export function Landing() {
       if (await tentarComoTime()) return
       // Nem time: pode ser mesário.
       if (await tentarComoMesario()) return
+      if (await tentarSenhaZerada()) return
       setError(err)
     } finally {
       setBusy(false)
@@ -300,7 +349,29 @@ export function Landing() {
       </div>
 
       <div className="landing__panel">
-        {minhasMesas ? (
+        {criarSenha ? (
+          <div className="auth-card">
+            <h2 className="auth-card__title">Criar nova senha</h2>
+            <p className="muted">
+              O organizador zerou a senha de <b>{email.trim()}</b>. Defina uma nova senha para entrar.
+            </p>
+            <form onSubmit={salvarNovaSenha} className="auth-form">
+              <Field label="Nova senha">
+                <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} minLength={4} autoComplete="new-password" required />
+              </Field>
+              <Field label="Confirmar nova senha">
+                <input type="password" value={confirmaSenha} onChange={(e) => setConfirmaSenha(e.target.value)} minLength={4} autoComplete="new-password" required />
+              </Field>
+              {error && <p className="auth-error">{error}</p>}
+              <Button type="submit" disabled={busy || !novaSenha || !confirmaSenha}>
+                {busy ? 'Salvando…' : 'Criar senha e entrar'}
+              </Button>
+            </form>
+            <button className="link-btn" onClick={() => { setCriarSenha(null); setNovaSenha(''); setConfirmaSenha(''); setError(null); setPassword('') }}>
+              ← Voltar
+            </button>
+          </div>
+        ) : minhasMesas ? (
           <div className="auth-card">
             <h2 className="auth-card__title">Seus campeonatos</h2>
             <p className="muted">
@@ -411,7 +482,7 @@ export function Landing() {
           </p>
           <p className="auth-note auth-note--time">
             🧾 <b>Mesário?</b> Entre aqui com o e-mail e a senha que o organizador cadastrou —
-            você verá somente as partidas atribuídas a você.
+            você verá somente as partidas atribuídas a você. Se o organizador zerou a sua senha, informe o e-mail, digite qualquer senha e clique em Entrar para criar uma nova.
           </p>
 
           <p className="auth-note">

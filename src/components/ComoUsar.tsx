@@ -173,12 +173,12 @@ const TIME: Passo[] = [
 
 const MESARIO: Passo[] = [
   {
-    titulo: 'Receba o link da mesa e a sua senha',
+    titulo: 'Receba o seu e-mail e a sua senha',
     texto:
-      'O organizador cadastra você como mesário e envia um link do tipo tabelaco…/#/mesa/… junto com uma senha.',
+      'O organizador cadastra você como mesário e informa o e-mail e a senha. Você entra pela tela de login principal, sem link nem tela à parte.',
   },
   {
-    titulo: 'Entre e veja só os seus jogos',
+    titulo: 'Entre pela tela de login e veja só os seus jogos',
     texto:
       'O portal mostra apenas as partidas atribuídas a você. Nada do resto do campeonato fica ao seu alcance.',
   },
