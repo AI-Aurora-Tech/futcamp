@@ -27,7 +27,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
     if (!organizer) return
     let active = true
     // O administrador master enxerga os campeonatos de todos os organizadores.
-    const load = isMaster ? listAllChampionships() : listChampionships(organizer.id)
+    const load = isMaster ? listAllChampionships() : listChampionships(organizer.id, organizer.email)
     load
       .then((list) => active && setItems(list))
       .catch(() => active && setItems([]))
@@ -65,7 +65,7 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
    */
   async function handlePlanChanged() {
     if (!organizer) return
-    const list = isMaster ? await listAllChampionships() : await listChampionships(organizer.id)
+    const list = isMaster ? await listAllChampionships() : await listChampionships(organizer.id, organizer.email)
     setItems(list)
     const atual = paying ? list.find((c) => c.id === paying.id) : null
     if (!atual) {

@@ -663,6 +663,15 @@ export interface Match {
 }
 
 /** Mesário: lança dados das partidas em tempo real (login próprio). */
+/** Outro organizador do mesmo campeonato, convidado pelo e-mail. */
+export interface CoOrganizer {
+  id: string
+  championshipId: string
+  email: string
+  name: string
+  createdAt: string
+}
+
 export interface Official {
   id: string
   championshipId: string

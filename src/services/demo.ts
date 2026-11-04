@@ -7,6 +7,7 @@
 import { simpleHash } from '../lib/id'
 import type {
   Championship,
+  CoOrganizer,
   Match,
   MatchEvent,
   Official,
@@ -23,6 +24,7 @@ interface DemoData {
   matches: Match[]
   events: MatchEvent[]
   officials: Official[]
+  coOrganizers: CoOrganizer[]
 }
 
 const EMPTY: DemoData = {
@@ -32,6 +34,7 @@ const EMPTY: DemoData = {
   matches: [],
   events: [],
   officials: [],
+  coOrganizers: [],
 }
 
 function load(): DemoData {
@@ -49,6 +52,7 @@ function load(): DemoData {
     merged.matches = arr(merged.matches)
     merged.events = arr(merged.events)
     merged.officials = arr(merged.officials)
+    merged.coOrganizers = arr(merged.coOrganizers)
     return merged
   } catch {
     return structuredClone(EMPTY)
