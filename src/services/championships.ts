@@ -107,8 +107,11 @@ function toRow(c: Partial<Championship>): Record<string, unknown> {
   return row
 }
 
-/** Lista os campeonatos do organizador (ou todos, no modo demo). */
-export async function listChampionships(ownerId: string): Promise<Championship[]> {
+/**
+ * Lista os campeonatos do organizador: os que ele criou e os que administra
+ * como co-organizador (convidado pelo e-mail). `email` é o do usuário logado.
+ */
+export async function listChampionships(ownerId: string, email?: string): Promise<Championship[]> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase
       .from('championships')
@@ -116,11 +119,27 @@ export async function listChampionships(ownerId: string): Promise<Championship[]
       .eq('owner_id', ownerId)
       .order('created_at', { ascending: false })
     if (error) throw error
-    return (data ?? []).map(fromRow)
+    const proprios = (data ?? []).map(fromRow)
+
+    // Os convidados: sem a migration 0047 a RPC não existe — não derruba o painel.
+    const { data: ids, error: errIds } = await supabase.rpc('my_co_organized_championships')
+    if (errIds || !ids || (ids as string[]).length === 0) return proprios
+    const { data: extra } = await supabase
+      .from('championships')
+      .select('*')
+      .in('id', ids as string[])
+    const vistos = new Set(proprios.map((c) => c.id))
+    const todos = [...proprios, ...(extra ?? []).map(fromRow).filter((c) => !vistos.has(c.id))]
+    return todos.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
+  const mail = email?.trim().toLowerCase()
   return query((d) =>
     d.championships
-      .filter((c) => c.ownerId === ownerId)
+      .filter(
+        (c) =>
+          c.ownerId === ownerId ||
+          (!!mail && d.coOrganizers.some((o) => o.championshipId === c.id && o.email === mail)),
+      )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   )
 }

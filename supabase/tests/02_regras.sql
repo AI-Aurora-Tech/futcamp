@@ -1145,3 +1145,65 @@ select pg_temp.checa('  e apagar a negociação volta ao plano de tabela',
   (select amount_cents from championships where id = :'cs2') = 20000
   and (select negotiated_kind from championships where id = :'cs2') = 'mensal'
   and (select negotiated_months from championships where id = :'cs2') = 12);
+
+-- ===========================================================================
+-- Co-organizadores (0047): o dono convida pelo e-mail e a pessoa administra o
+-- mesmo campeonato — sem herdar o que é só do dono.
+-- ===========================================================================
+reset request.jwt.claims;
+\set dono 'd0000000-0000-0000-0000-0000000000d1'
+\set camp 'd0000000-0000-0000-0000-0000000000a1'
+insert into auth.users (id, email) values (:'dono', 'org@teste.com') on conflict do nothing;
+insert into public.championships (id, owner_id, name, sport, format, season, categories)
+values (:'camp', :'dono', 'Copa Teste', 'futebol', 'league', '2026', '[{"id":"cat1","name":"Sub-13"}]'::jsonb)
+on conflict (id) do nothing;
+\set coid 'c0000000-0000-0000-0000-0000000000c1'
+insert into auth.users (id, email) values (:'coid', 'Co@Teste.com') on conflict do nothing;
+
+set request.jwt.claim.sub = :'dono';
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select public.add_co_organizer(:'camp', ' Co@Teste.com ', 'Co Organizador') as _;
+select pg_temp.checa('o dono convida; o e-mail é guardado em minúsculas',
+  (select count(*) from championship_organizers where championship_id = :'camp' and email = 'co@teste.com') = 1);
+select pg_temp.recusa('não convida o mesmo e-mail duas vezes',
+  format('select public.add_co_organizer(%L, %L)', :'camp', 'co@teste.com'), 'já organiza');
+select pg_temp.recusa('não convida o próprio dono',
+  format('select public.add_co_organizer(%L, %L)', :'camp', 'org@teste.com'), 'dono');
+select pg_temp.recusa('recusa e-mail inválido',
+  format('select public.add_co_organizer(%L, %L)', :'camp', 'sem-arroba'), 'e-mail válido');
+
+set request.jwt.claim.sub = :'coid';
+set request.jwt.claims = '{"email":"co@teste.com"}';
+select pg_temp.checa('o co-organizador passa a administrar o campeonato', public.owns_championship(:'camp'));
+select pg_temp.checa('  e o painel dele lista o campeonato',
+  :'camp' in (select public.my_co_organized_championships()));
+select pg_temp.checa('  e enxerga a lista de organizadores',
+  (select count(*) from championship_organizers where championship_id = :'camp') = 1);
+
+update championships set name = 'Copa Renomeada' where id = :'camp';
+select pg_temp.checa('  e edita os dados do campeonato',
+  (select name from championships where id = :'camp') = 'Copa Renomeada');
+
+update championships set owner_id = :'coid' where id = :'camp';
+select pg_temp.checa('  mas não toma o campeonato do dono',
+  (select owner_id from championships where id = :'camp') = :'dono');
+
+-- Quem não é organizador fica de fora.
+set request.jwt.claim.sub = 'c0000000-0000-0000-0000-0000000000c2';
+set request.jwt.claims = '{"email":"intruso@teste.com"}';
+select pg_temp.checa('um estranho não administra o campeonato', not public.owns_championship(:'camp'));
+select pg_temp.recusa('  nem convida organizadores',
+  format('select public.add_co_organizer(%L, %L)', :'camp', 'x@teste.com'), 'Só quem organiza');
+select pg_temp.recusa('  nem remove ninguém',
+  format('select public.remove_co_organizer(%L)', (select id from championship_organizers limit 1)), 'Só o dono');
+
+-- O dono remove; o acesso acaba.
+set request.jwt.claim.sub = :'dono';
+set request.jwt.claims = '{"email":"org@teste.com"}';
+select public.remove_co_organizer((select id from championship_organizers where email = 'co@teste.com')) as _;
+set request.jwt.claim.sub = :'coid';
+set request.jwt.claims = '{"email":"co@teste.com"}';
+select pg_temp.checa('removido, o co-organizador perde o acesso', not public.owns_championship(:'camp'));
+
+reset request.jwt.claims;
+reset request.jwt.claim.sub;

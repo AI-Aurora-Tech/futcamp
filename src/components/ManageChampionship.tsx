@@ -30,6 +30,7 @@ import { TeamsPanel } from './TeamsPanel'
 import { PlayersPanel } from './PlayersPanel'
 import { MatchesPanel } from './MatchesPanel'
 import { StatsPanel } from './StatsPanel'
+import { OrganizersPanel } from './OrganizersPanel'
 import { OfficialsPanel } from './OfficialsPanel'
 import { RegistriesPanel } from './RegistriesPanel'
 import { ChampionshipForm } from './ChampionshipForm'
@@ -53,7 +54,7 @@ import {
 import { setCategoryStatus } from '../services/championships'
 import { useRealtimeChampionship } from '../lib/realtime'
 
-type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'registries' | 'stats' | 'settings'
+type Tab = 'overview' | 'teams' | 'players' | 'matches' | 'officials' | 'organizers' | 'registries' | 'stats' | 'settings'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'overview', label: 'Visão geral', icon: '📊' },
@@ -61,6 +62,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'players', label: 'Elencos', icon: '👥' },
   { id: 'matches', label: 'Partidas', icon: '📅' },
   { id: 'officials', label: 'Mesários', icon: '🧑‍⚖️' },
+  { id: 'organizers', label: 'Organizadores', icon: '🧑‍💼' },
   { id: 'registries', label: 'Cadastros', icon: '🏟️' },
   { id: 'stats', label: 'Estatísticas', icon: '🏅' },
   { id: 'settings', label: 'Ajustes', icon: '⚙️' },
@@ -342,6 +344,7 @@ export function ManageChampionship({
         )}
         {tab === 'matches' && <MatchesPanel championship={comp} teams={timesCat} players={atletasCat} matches={partidasCat} events={eventosCat} officials={officials} categoryId={varias ? catAtual : undefined} onChange={reload} />}
         {tab === 'officials' && <OfficialsPanel championship={champ} officials={officials} matches={matches} onChange={reload} />}
+        {tab === 'organizers' && <OrganizersPanel championship={champ} />}
         {tab === 'registries' && <RegistriesPanel championship={champ} onChange={reload} />}
         {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
         {tab === 'settings' && (
