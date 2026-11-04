@@ -1220,7 +1220,7 @@ select pg_temp.checa('e-mail com senha zerada é encontrado (sem diferenciar mai
   jsonb_array_length(public.mesa_senha_zerada_email(' zerada@mesa.com ')) = 1
   and public.mesa_senha_zerada_email('zerada@mesa.com') -> 0 ->> 'username' = 'Zerada@Mesa.com');
 select pg_temp.checa('  e diz em qual campeonato',
-  public.mesa_senha_zerada_email('zerada@mesa.com') -> 0 ->> 'championship_name' = 'Copa Teste');
+  public.mesa_senha_zerada_email('zerada@mesa.com') -> 0 ->> 'championship_name' = 'Copa Renomeada');
 select pg_temp.checa('mesário com senha não aparece como zerado',
   jsonb_array_length(public.mesa_senha_zerada_email('comsenha@mesa.com')) = 0);
 select pg_temp.checa('e-mail desconhecido não aparece',

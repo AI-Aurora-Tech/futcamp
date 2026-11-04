@@ -167,40 +167,49 @@ export interface MesaAccess {
  * Login do mesário pela tela de login padrão: procura, em todos os
  * campeonatos, o mesário com esse e-mail e senha.
  */
-export async function mesaLoginByEmail(email: string, password: string): Promise<MesaAccess[]> {
+export async function mesaLoginByEmail(
+  email: string,
+  password: string,
+): Promise<{ mesas: MesaAccess[]; indisponivel?: boolean }> {
   if (authMode === 'supabase' && supabase) {
     const { data, error } = await supabase.rpc('mesa_login_email', {
       p_username: email.trim(),
       p_password: password,
     })
-    // RPC ausente (migration não aplicada) ou falha: não é mesário.
-    if (error || !Array.isArray(data)) return []
-    return data.map((r: any) => ({
-      championshipId: r.championship_id,
-      championshipName: r.championship_name ?? '',
-      championshipLogo: r.championship_logo ?? undefined,
-      officialId: r.id,
-      name: r.name,
-      username: r.username,
-    }))
+    // RPC ausente (migration 0045 não aplicada) ou falha: não dá para saber se
+    // é mesário. Sinaliza, para a tela explicar em vez de dizer só "credenciais
+    // inválidas".
+    if (error || !Array.isArray(data)) return { mesas: [], indisponivel: true }
+    return {
+      mesas: data.map((r: any) => ({
+        championshipId: r.championship_id,
+        championshipName: r.championship_name ?? '',
+        championshipLogo: r.championship_logo ?? undefined,
+        officialId: r.id,
+        name: r.name,
+        username: r.username,
+      })),
+    }
   }
-  return query((d) => {
-    const uname = email.trim().toLowerCase()
-    return d.officials
-      .filter((o) => o.username.toLowerCase() === uname && o.passwordHash && o.passwordHash === hash(password))
-      .map((o) => {
-        const c = d.championships.find((x) => x.id === o.championshipId)
-        return {
-          championshipId: o.championshipId,
-          championshipName: c?.name ?? '',
-          championshipLogo: c?.logo,
-          officialId: o.id,
-          name: o.name,
-          username: o.username,
-        }
-      })
-      .filter((a) => a.championshipName)
-  })
+  return {
+    mesas: query((d) => {
+      const uname = email.trim().toLowerCase()
+      return d.officials
+        .filter((o) => o.username.toLowerCase() === uname && o.passwordHash && o.passwordHash === hash(password))
+        .map((o) => {
+          const c = d.championships.find((x) => x.id === o.championshipId)
+          return {
+            championshipId: o.championshipId,
+            championshipName: c?.name ?? '',
+            championshipLogo: c?.logo,
+            officialId: o.id,
+            name: o.name,
+            username: o.username,
+          }
+        })
+        .filter((a) => a.championshipName)
+    }),
+  }
 }
 
 /** Campeonato em que o e-mail do mesário está com a senha zerada. */

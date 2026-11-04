@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   PUBLIC_FINISHED_DAYS,
@@ -168,6 +168,8 @@ export function Landing() {
   // Campeonatos em que o e-mail/senha é mesário, quando é mais de um.
   const [minhasMesas, setMinhasMesas] = useState<MesaAccess[] | null>(null)
   // Mesário cuja senha o organizador zerou: cria a nova aqui mesmo.
+  // O login de mesário não respondeu (migration 0045 ausente no servidor).
+  const mesaIndisponivel = useRef(false)
   const [criarSenha, setCriarSenha] = useState<MesaSenhaZerada[] | null>(null)
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmaSenha, setConfirmaSenha] = useState('')
@@ -219,7 +221,8 @@ export function Landing() {
 
   /** Tenta entrar como MESÁRIO. Devolve `true` quando entrou ou abriu a lista. */
   async function tentarComoMesario(senha = password): Promise<boolean> {
-    const mesas = await mesaLoginByEmail(email, senha)
+    const { mesas, indisponivel } = await mesaLoginByEmail(email, senha)
+    mesaIndisponivel.current = !!indisponivel
     if (mesas.length === 0) return false
     if (mesas.length === 1) {
       entrarComoMesario(mesas[0], senha)
@@ -296,7 +299,11 @@ export function Landing() {
       // Nem time: pode ser mesário.
       if (await tentarComoMesario()) return
       if (await tentarSenhaZerada()) return
-      setError(err)
+      setError(
+        mesaIndisponivel.current
+          ? `${err}. Se você é mesário: o acesso de mesário pela página inicial ainda não foi liberado neste servidor (migration 0045).`
+          : err,
+      )
     } finally {
       setBusy(false)
     }

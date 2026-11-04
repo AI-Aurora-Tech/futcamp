@@ -10,6 +10,11 @@
 -- Idempotente: pode ser reexecutada com segurança.
 -- ===========================================================================
 
+-- Um banco que já tinha uma versão antiga desta função (parâmetro `p_email`)
+-- recusa o `create or replace` com "cannot change name of input parameter".
+-- O app chama com `p_username`, então a antiga precisa sair antes.
+drop function if exists public.mesa_login_email(text, text);
+
 create or replace function public.mesa_login_email(p_username text, p_password text)
 returns jsonb
 language sql
