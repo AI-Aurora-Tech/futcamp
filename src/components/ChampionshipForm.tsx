@@ -19,10 +19,11 @@ import {
   type Sport,
   type TiebreakerId,
 } from '../types'
-import { Button, ChampLogo, Field, Modal } from './ui'
+import { Button, ChampLogo, Field, Modal, SuporteLink } from './ui'
 import { uid } from '../lib/id'
 import { fileToDataUrl } from '../lib/image'
-import { PLANS, breakdown, formatBRL, planOf } from '../lib/pricing'
+import { PLANS, breakdown, diamanteCompensa, formatBRL, planOf, planoComporta, planoParaEquipes } from '../lib/pricing'
+import { LINK_DIAMANTE } from '../lib/whatsapp'
 import {
   KNOCKOUT_ORDER,
   phaseForPairs,
@@ -51,6 +52,8 @@ interface CatDraft {
   exceptionYear: string
   maxAthletes: string
   maxStaff: string
+  /** Equipes previstas na categoria (escolhe o plano; só na criação). */
+  expectedTeams: string
   /** Atletas federados: a permissão é desta categoria, não do campeonato. */
   allowFederated: boolean
   /** Vazio = sem limite. Texto para o campo aceitar ser apagado. */
@@ -122,6 +125,7 @@ function toDraft(c: Category): CatDraft {
     exceptionYear: c.exceptionYear != null ? String(c.exceptionYear) : '',
     maxAthletes: c.maxAthletes != null ? String(c.maxAthletes) : '',
     maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
+    expectedTeams: c.expectedTeams != null ? String(c.expectedTeams) : '',
     allowFederated: Boolean(c.allowFederated),
     maxFederated: c.maxFederated != null ? String(c.maxFederated) : '',
     periodMinutes: c.periodMinutes != null ? String(c.periodMinutes) : '',
@@ -159,7 +163,7 @@ function toDraft(c: Category): CatDraft {
 function emptyDraft(): CatDraft {
   return {
     id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
-    maxAthletes: '', maxStaff: '', allowFederated: false, maxFederated: '',
+    maxAthletes: '', maxStaff: '', expectedTeams: '', allowFederated: false, maxFederated: '',
     periodMinutes: '', periods: '2', substitutionMode: '', maxSubstitutions: '',
     sendOffPolicy: '',
     format: 'league', doubleRound: false, pointsWin: 3, pointsDraw: 1,
@@ -258,6 +262,8 @@ export function ChampionshipForm({
   const [name, setName] = useState(initial?.name ?? '')
   // O plano só é escolhido na criação: um campeonato já pago não troca de plano.
   const [plan, setPlan] = useState<PlanKey>(initial?.plan ?? planFromPlans ?? 'gratis')
+  // Veio da página de planos = escolha explícita; senão o plano acompanha as equipes.
+  const [planTouched, setPlanTouched] = useState<boolean>(Boolean(planFromPlans))
   const [sport, setSport] = useState<Sport>(initial?.sport ?? 'futebol')
   const [audience, setAudience] = useState<Audience>(initial?.audience ?? 'adulto')
   const [cats, setCats] = useState<CatDraft[]>(
@@ -412,6 +418,8 @@ export function ChampionshipForm({
           exceptionYear: audience === 'adulto' && c.exceptionYear ? Number(c.exceptionYear) : undefined,
           maxAthletes: c.maxAthletes ? Number(c.maxAthletes) : undefined,
           maxStaff: c.maxStaff ? Number(c.maxStaff) : undefined,
+          // Só existe em campeonato criado com equipes previstas; o antigo não ganha.
+          expectedTeams: c.expectedTeams ? Math.max(1, Number(c.expectedTeams)) : undefined,
           // Federados só existem na base.
           allowFederated: audience === 'infantil' && c.allowFederated,
           maxFederated:
@@ -442,6 +450,21 @@ export function ChampionshipForm({
   // Valor do campeonato, refeito a cada categoria digitada: é o mesmo cálculo
   // que o banco aplica na criação (plano + categorias adicionais).
   const price = breakdown(plan, Math.max(1, cats.filter((c) => c.name.trim()).length))
+
+  // Equipes previstas por categoria → plano. O limite do plano vale para CADA
+  // categoria, então o que decide é a maior delas (e quantas categorias há).
+  const nomeadas = cats.filter((c) => c.name.trim())
+  const equipesPrevistas = nomeadas.map((c) => Math.max(0, Number(c.expectedTeams) || 0))
+  const planoRecomendado = planoParaEquipes(equipesPrevistas)
+  const maiorCategoria = Math.max(0, ...equipesPrevistas)
+  const comporta = (k: PlanKey) => planoComporta(k, equipesPrevistas)
+  const semPrevisao = !initial && nomeadas.some((c) => !(Number(c.expectedTeams) >= 2))
+
+  // Enquanto o organizador não escolheu um plano à mão, o plano acompanha as equipes.
+  useEffect(() => {
+    if (initial || planTouched) return
+    setPlan(planoRecomendado)
+  }, [initial, planTouched, planoRecomendado])
 
   /* ---------------------------------------------------------------------- */
   /* Editor de disputa da categoria ABERTA (formato, grupos, chaveamento…)    */
@@ -569,6 +592,22 @@ export function ChampionshipForm({
       setError('Informe ao menos uma categoria.')
       return
     }
+    if (!initial && semPrevisao) {
+      const faltando = nomeadas.find((c) => !(Number(c.expectedTeams) >= 2))
+      if (faltando) setCatTab(faltando.id)
+      setError('Informe quantas equipes você espera em cada categoria: é com isso que escolhemos o plano.')
+      return
+    }
+    if (!initial && plan !== 'diamante') {
+      const c = comporta(plan)
+      if (!c.ok) {
+        setError(
+          `O plano escolhido não comporta o campeonato: ${c.motivo}. ` +
+            `Escolha o ${planOf(planoRecomendado).tier} ou outro maior.`,
+        )
+        return
+      }
+    }
     const limite = planOf(plan).maxCategories
     if (!initial && limite != null && categories.length > limite) {
       setError(
@@ -653,24 +692,52 @@ export function ChampionshipForm({
               <a className="link-btn" href="#/planos" target="_blank" rel="noopener noreferrer">ver detalhes dos planos</a>
             </div>
             <div className="plan-pick__opts">
-              {PLANS.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  className={`plan-pick__opt ${plan === p.key ? 'is-active' : ''}`}
-                  style={{ '--tier': p.tint } as React.CSSProperties}
-                  onClick={() => setPlan(p.key)}
-                >
-                  <span className="plan-pick__tier">{p.gem} {p.tier}</span>
-                  <span className="plan-pick__price">
-                    {p.consult ? 'sob consulta' : p.priceCents === 0 ? 'grátis' : formatBRL(p.priceCents)}
-                  </span>
-                  <span className="plan-pick__lim">
-                    {p.maxTeams == null ? 'equipes ilimitadas' : `até ${p.maxTeams} equipes`}
-                  </span>
-                </button>
-              ))}
+              {PLANS.map((p) => {
+                const cabe = p.key === 'diamante' || comporta(p.key).ok
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    disabled={!cabe}
+                    className={`plan-pick__opt ${plan === p.key ? 'is-active' : ''} ${cabe ? '' : 'is-off'}`}
+                    style={{ '--tier': p.tint, opacity: cabe ? 1 : 0.45 } as React.CSSProperties}
+                    title={cabe ? undefined : 'Não comporta as equipes previstas'}
+                    onClick={() => {
+                      setPlan(p.key)
+                      setPlanTouched(true)
+                    }}
+                  >
+                    <span className="plan-pick__tier">{p.gem} {p.tier}</span>
+                    <span className="plan-pick__price">
+                      {p.monthlyCents ? `${formatBRL(p.monthlyCents)}/mês` : p.priceCents === 0 ? 'grátis' : formatBRL(p.priceCents)}
+                    </span>
+                    <span className="plan-pick__lim">
+                      {p.maxTeams == null ? 'equipes ilimitadas' : `até ${p.maxTeams} equipes por categoria`}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
+            <p className="field__hint">
+              {semPrevisao
+                ? 'Informe as equipes previstas em cada categoria (abaixo, em Categorias): o plano é escolhido por elas.'
+                : `Para ${maiorCategoria} equipe(s) na maior categoria${nomeadas.length > 1 ? ` e ${nomeadas.length} categorias` : ''}, o plano ${planOf(planoRecomendado).tier} é o mais barato que comporta.`}
+              {!planTouched ? '' : plan !== planoRecomendado && comporta(plan).ok ? ' Você escolheu um plano maior que o necessário.' : ''}
+            </p>
+            {plan === 'diamante' ? (
+              <p className="field__hint">
+                ◆ O Diamante é fechado com a nossa equipe: crie o campeonato e{' '}
+                <SuporteLink href={LINK_DIAMANTE}>fale com o consultor no WhatsApp</SuporteLink>.
+              </p>
+            ) : (
+              diamanteCompensa(plan, Math.max(1, nomeadas.length)) && (
+                <p className="field__hint">
+                  💡 Com {nomeadas.length} categorias o campeonato sai por {formatBRL(price.totalCents)}. O{' '}
+                  <b>Diamante</b> ({formatBRL(planOf('diamante').monthlyCents ?? 0)}/mês, tudo ilimitado) pode compensar:{' '}
+                  <SuporteLink href={LINK_DIAMANTE}>fale com o consultor no WhatsApp</SuporteLink>.
+                </p>
+              )
+            )}
             <p className="field__hint">{planOf(plan).cap}</p>
           </div>
         )}
@@ -831,6 +898,22 @@ export function ChampionshipForm({
                         placeholder="Ex.: 1980"
                       />
                       <small className="mini-field__hint">até este ano de nascimento (ou antes)</small>
+                    </label>
+                  )}
+
+                  {!initial && (
+                    <label className="mini-field">
+                      <span className="mini-field__label">Equipes previstas *</span>
+                      <input
+                        type="number"
+                        min={2}
+                        max={999}
+                        value={c.expectedTeams}
+                        onChange={(e) => updateCat(c.id, { expectedTeams: e.target.value })}
+                        placeholder="ex.: 12"
+                        required
+                      />
+                      <small className="mini-field__hint">escolhe o plano; limite por categoria</small>
                     </label>
                   )}
 

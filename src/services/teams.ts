@@ -2,7 +2,8 @@ import { authMode } from './auth'
 import { supabase } from '../lib/supabase'
 import { mutate, query } from './demo'
 import { accessToken, uid } from '../lib/id'
-import { cabeMaisUmTime, motivoLimiteDeTimes } from '../lib/pricing'
+import { cabeMaisUmTime, limitePorCategoria, motivoLimiteDeTimes } from '../lib/pricing'
+import { timesDaCategoria } from '../lib/categorias'
 import type { Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -76,11 +77,20 @@ function erroDeLimite(error: { message?: string }): Error {
  * Confere o limite do plano no MODO DEMO, onde não há banco para conferir.
  * No Supabase quem recusa é o gatilho — este caminho nem chega lá.
  */
-function assertLimiteDemo(championshipId: string): void {
+function assertLimiteDemo(championshipId: string, categoryIds?: string[]): void {
   query((d) => {
     const c = d.championships.find((x) => x.id === championshipId)
-    const atuais = d.teams.filter((t) => t.championshipId === championshipId).length
-    if (c && !cabeMaisUmTime(c.plan, atuais)) {
+    if (!c) return null
+    const doCampeonato = d.teams.filter((t) => t.championshipId === championshipId)
+    if (limitePorCategoria(c)) {
+      // Campeonato novo: o limite vale em cada categoria em que o clube entra.
+      const alvo = categoryIds?.length ? categoryIds : c.categories.map((x) => x.id)
+      if (alvo.some((id) => !cabeMaisUmTime(c.plan, timesDaCategoria(doCampeonato, id).length))) {
+        throw new Error(motivoLimiteDeTimes(c.plan, true))
+      }
+      return null
+    }
+    if (!cabeMaisUmTime(c.plan, doCampeonato.length)) {
       throw new Error(motivoLimiteDeTimes(c.plan))
     }
     return null
@@ -93,17 +103,24 @@ export async function createTeam(input: NewTeam): Promise<Team> {
     if (error) throw erroDeLimite(error)
     const time = fromRow(data)
     if (input.categoryIds?.length) {
-      await setTeamCategories(
-        time.id,
-        input.championshipId,
-        input.categoryIds.map((c) => ({ categoryId: c, group: input.groupByCategory?.[c] })),
-      )
+      try {
+        await setTeamCategories(
+          time.id,
+          input.championshipId,
+          input.categoryIds.map((c) => ({ categoryId: c, group: input.groupByCategory?.[c] })),
+        )
+      } catch (err) {
+        // O limite por categoria recusa na inscrição, depois de o time existir:
+        // sem isto, ficaria um time solto, sem categoria nenhuma.
+        await supabase.from('teams').delete().eq('id', time.id)
+        throw err
+      }
       time.categoryIds = input.categoryIds
       time.groupByCategory = input.groupByCategory
     }
     return time
   }
-  assertLimiteDemo(input.championshipId)
+  assertLimiteDemo(input.championshipId, input.categoryIds)
   const team: Team = {
     ...input,
     accessToken: input.accessToken ?? accessToken(),
@@ -134,6 +151,9 @@ export async function setTeamCategories(
   inscricoes: InscricaoCategoria[],
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
+    // Guarda o que havia: se o limite do plano recusar a nova lista, o clube
+    // volta como estava em vez de ficar sem categoria.
+    const { data: antes } = await supabase.from('team_categories').select('*').eq('team_id', teamId)
     const { error: apagou } = await supabase.from('team_categories').delete().eq('team_id', teamId)
     if (apagou) throw new Error(apagou.message)
     if (!inscricoes.length) return
@@ -145,7 +165,10 @@ export async function setTeamCategories(
         group: i.group || null,
       })),
     )
-    if (error) throw new Error(error.message)
+    if (error) {
+      if (antes?.length) await supabase.from('team_categories').insert(antes)
+      throw new Error(error.message)
+    }
     return
   }
   mutate((d) => {
@@ -312,11 +335,17 @@ export async function createTeamViaLink(
 
     const escopo = dirigido ? dirigido[0].split('|') : c.categories.map((x) => x.id)
 
-    const atuais = d.teams.filter((t) => t.championshipId === championshipId).length
-    if (!cabeMaisUmTime(c.plan, atuais)) throw new Error(motivoLimiteDeTimes(c.plan))
+    const pedidas = input.categoryIds?.length ? input.categoryIds : escopo
+    const doCampeonato = d.teams.filter((t) => t.championshipId === championshipId)
+    if (limitePorCategoria(c)) {
+      if (pedidas.some((id) => !cabeMaisUmTime(c.plan, timesDaCategoria(doCampeonato, id).length))) {
+        throw new Error(motivoLimiteDeTimes(c.plan, true))
+      }
+    } else if (!cabeMaisUmTime(c.plan, doCampeonato.length)) {
+      throw new Error(motivoLimiteDeTimes(c.plan))
+    }
     const tok = accessToken()
 
-    const pedidas = input.categoryIds?.length ? input.categoryIds : escopo
     // O escopo do link é a palavra final: escolher fora dele é o que o banco
     // recusa, e aqui não pode ser diferente.
     const foraDoEscopo = pedidas.filter((x) => !escopo.includes(x))

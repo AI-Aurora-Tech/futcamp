@@ -9,7 +9,7 @@
 //
 // Valores em CENTAVOS — dinheiro nunca em ponto flutuante.
 // ---------------------------------------------------------------------------
-import type { PlanKey } from '../types'
+import type { Category, PlanKey } from '../types'
 
 export interface PlanInfo {
   key: PlanKey
@@ -223,13 +223,66 @@ export function cabeMaisUmTime(key: PlanKey | undefined, atuais: number): boolea
 /**
  * A frase que explica por que não cabe mais. Igual à do banco, para o
  * organizador ler a mesma coisa venha o bloqueio de onde vier.
+ *
+ * `porCategoria`: campeonato novo, cujo limite vale para cada categoria.
  */
-export function motivoLimiteDeTimes(key: PlanKey | undefined): string {
+export function motivoLimiteDeTimes(key: PlanKey | undefined, porCategoria = false): string {
   const plan = planOf(key)
   return (
-    `O plano ${plan.tier} permite até ${plan.maxTeams} equipe(s) neste campeonato. ` +
+    `O plano ${plan.tier} permite até ${plan.maxTeams} equipe(s) ${porCategoria ? 'por categoria' : 'neste campeonato'}. ` +
     'Troque de plano para inscrever mais.'
   )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Plano pelo número de equipes de cada categoria                             */
+/*                                                                            */
+/* O limite do plano vale POR CATEGORIA: o Bronze comporta 16 equipes em cada  */
+/* categoria, não 16 no campeonato. Quem cria o campeonato informa quantas     */
+/* equipes espera em cada categoria e o plano sai daqui.                       */
+/* -------------------------------------------------------------------------- */
+
+/** Planos cobrados por campeonato, do mais barato ao mais caro. O Diamante é à parte. */
+const PLANOS_POR_CAMPEONATO: PlanKey[] = ['gratis', 'bronze', 'prata', 'ouro']
+
+/** Campeonato cujo limite de equipes vale por categoria (criado com equipes previstas). */
+export function limitePorCategoria(c: { categories?: Pick<Category, 'expectedTeams'>[] } | null | undefined): boolean {
+  return Boolean(c?.categories?.some((x) => x.expectedTeams != null))
+}
+
+/** O plano comporta este número de categorias e de equipes em cada uma? */
+export function planoComporta(
+  key: PlanKey,
+  equipesPorCategoria: number[],
+): { ok: true } | { ok: false; motivo: string } {
+  const plan = planOf(key)
+  if (plan.maxCategories != null && equipesPorCategoria.length > plan.maxCategories) {
+    return { ok: false, motivo: `o plano ${plan.tier} permite ${plan.maxCategories} categoria(s)` }
+  }
+  const maior = Math.max(0, ...equipesPorCategoria)
+  if (plan.maxTeams != null && maior > plan.maxTeams) {
+    return { ok: false, motivo: `o plano ${plan.tier} permite até ${plan.maxTeams} equipes por categoria` }
+  }
+  return { ok: true }
+}
+
+/**
+ * O plano mais barato que comporta o campeonato. `equipesPorCategoria` tem um
+ * número por categoria (o tamanho da lista é o número de categorias).
+ */
+export function planoParaEquipes(equipesPorCategoria: number[]): PlanKey {
+  const lista = equipesPorCategoria.length ? equipesPorCategoria : [0]
+  return PLANOS_POR_CAMPEONATO.find((k) => planoComporta(k, lista).ok) ?? 'ouro'
+}
+
+/**
+ * Vale lembrar do Diamante? Quando o campeonato sai por R$ 200,00 ou mais, a
+ * mensalidade do Diamante (campeonatos, categorias e equipes ilimitados) já
+ * cobre. É só uma sugestão: o Diamante é fechado pelo WhatsApp.
+ */
+export function diamanteCompensa(key: PlanKey, categorias: number): boolean {
+  const mensal = planOf('diamante').monthlyCents ?? 0
+  return key !== 'diamante' && mensal > 0 && totalCents(key, categorias) >= mensal
 }
 
 /** Formata centavos como moeda brasileira: 10990 → "R$ 109,90". */

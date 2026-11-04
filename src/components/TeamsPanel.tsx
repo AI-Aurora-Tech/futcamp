@@ -16,7 +16,7 @@ import { eliminateTeam } from '../services/matches'
 import type { Championship, Match, Team } from '../types'
 import { planejarEliminacao, timesEliminados, WO_GOLS } from '../lib/eliminacao'
 import { fileToDataUrl } from '../lib/image'
-import { limiteDeTimes, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
+import { limiteDeTimes, limitePorCategoria, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
 import { competicaoDaCategoria, elencoDeTimes } from '../lib/categorias'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
 
@@ -50,7 +50,9 @@ export function TeamsPanel({
   const daCategoria = elencoDeTimes(teams, categoryId)
   const catNome = championship.categories.find((c) => c.id === categoryId)?.name
   const limite = limiteDeTimes(championship.plan)
-  const vagas = vagasDeTime(championship.plan, teams.length)
+  // Campeonato novo: o limite vale para cada categoria. O antigo segue contando tudo.
+  const porCategoria = limitePorCategoria(championship)
+  const vagas = vagasDeTime(championship.plan, porCategoria ? daCategoria.length : teams.length)
   const semVagas = vagas <= 0
   const grouped = championship.format === 'groups_knockout'
   const eliminados = useMemo(() => timesEliminados(matches), [matches])
@@ -212,7 +214,7 @@ export function TeamsPanel({
 
       {semVagas && (
         <p className="plano-cheio">
-          🚫 {motivoLimiteDeTimes(championship.plan)}{' '}
+          🚫 {motivoLimiteDeTimes(championship.plan, porCategoria)}{' '}
           <a href="#/planos" target="_blank" rel="noopener noreferrer">Ver planos</a>
         </p>
       )}

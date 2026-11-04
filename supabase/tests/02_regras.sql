@@ -1229,3 +1229,61 @@ select public.mesa_set_password('d0000000-0000-0000-0000-0000000000a1', 'Zerada@
 select pg_temp.checa('criada a nova senha, o mesário entra pelo e-mail',
   jsonb_array_length(public.mesa_login_email('zerada@mesa.com', 'nova1234')) = 1
   and jsonb_array_length(public.mesa_senha_zerada_email('zerada@mesa.com')) = 0);
+
+-- ===========================================================================
+-- Limite de equipes por categoria (0050) — só para campeonato novo.
+-- ===========================================================================
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
+\set lim_dono 'e1000000-0000-0000-0000-0000000000d1'
+insert into auth.users (id, email) values (:'lim_dono', 'limite@teste.com') on conflict do nothing;
+
+-- Campeonato ANTIGO (sem equipes previstas): segue contando o campeonato inteiro.
+\set lim_velho 'e1000000-0000-0000-0000-0000000000a1'
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'lim_velho', :'lim_dono', 'Velho', 'futebol', 'league', '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb);
+insert into public.teams (championship_id, name) select :'lim_velho', 'V' || g from generate_series(1, 8) g;
+select pg_temp.checa('campeonato antigo: não é por categoria', not public.limite_por_categoria(:'lim_velho'));
+select pg_temp.recusa('  e continua parando nas 8 equipes do campeonato',
+  format($q$ insert into public.teams (championship_id, name) values (%L, 'V9') $q$, :'lim_velho'),
+  'neste campeonato');
+
+-- Campeonato NOVO, Bronze com duas categorias: 16 em cada, 32 no total.
+\set lim_novo 'e1000000-0000-0000-0000-0000000000a2'
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'lim_novo', :'lim_dono', 'Novo', 'futebol', 'league', '2026', 'bronze',
+        '[{"id":"a","name":"A","expectedTeams":16},{"id":"b","name":"B","expectedTeams":16}]'::jsonb);
+select pg_temp.checa('campeonato novo: conta por categoria', public.limite_por_categoria(:'lim_novo'));
+
+insert into public.teams (id, championship_id, name)
+select ('e2000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, :'lim_novo', 'N' || g from generate_series(1, 33) g;
+insert into public.team_categories (team_id, championship_id, category_id)
+select ('e2000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, :'lim_novo', 'a' from generate_series(1, 16) g;
+insert into public.team_categories (team_id, championship_id, category_id)
+select ('e2000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, :'lim_novo', 'b' from generate_series(17, 32) g;
+select pg_temp.checa('Bronze comporta 16 em cada categoria (32 no campeonato)',
+  (select count(*) from public.team_categories where championship_id = :'lim_novo') = 32);
+select pg_temp.recusa('  mas a 17ª equipe da categoria A é recusada',
+  format($q$ insert into public.team_categories (team_id, championship_id, category_id) values (%L, %L, 'a') $q$,
+         'e2000000-0000-0000-0000-000000000033', :'lim_novo'),
+  'por categoria');
+select pg_temp.recusa('  e a 17ª da categoria B também',
+  format($q$ insert into public.team_categories (team_id, championship_id, category_id) values (%L, %L, 'b') $q$,
+         'e2000000-0000-0000-0000-000000000033', :'lim_novo'),
+  'por categoria');
+select pg_temp.checa('  e a equipe recusada não fica inscrita em categoria nenhuma',
+  not exists (select 1 from public.team_categories where team_id = 'e2000000-0000-0000-0000-000000000033'));
+
+-- Grátis novo: 1 categoria, 8 equipes.
+\set lim_gratis 'e1000000-0000-0000-0000-0000000000a3'
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'lim_gratis', :'lim_dono', 'Gratis Novo', 'futebol', 'league', '2026', 'gratis',
+        '[{"id":"a","name":"A","expectedTeams":8}]'::jsonb);
+insert into public.teams (id, championship_id, name)
+select ('e3000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, :'lim_gratis', 'G' || g from generate_series(1, 9) g;
+insert into public.team_categories (team_id, championship_id, category_id)
+select ('e3000000-0000-0000-0000-' || lpad(g::text, 12, '0'))::uuid, :'lim_gratis', 'a' from generate_series(1, 8) g;
+select pg_temp.recusa('Grátis novo para na 9ª equipe da categoria',
+  format($q$ insert into public.team_categories (team_id, championship_id, category_id) values (%L, %L, 'a') $q$,
+         'e3000000-0000-0000-0000-000000000009', :'lim_gratis'),
+  'por categoria');

@@ -196,6 +196,19 @@ pagamento.
 O valor já inclui a primeira categoria. Ex.: Ouro com 3 categorias =
 `109,90 + 2 × 59,90 = R$ 229,70`.
 
+**O plano é escolhido pelas equipes de cada categoria.** Ao criar o
+campeonato, o organizador informa as *equipes previstas* em cada categoria e o
+formulário seleciona o plano mais barato que comporta (a maior categoria e o
+número de categorias decidem). O limite de equipes vale **por categoria**: o
+Bronze comporta 16 em cada uma, não 16 no campeonato. Planos pequenos demais
+ficam desabilitados; dá para escolher um maior. O Diamante fica sempre
+disponível e leva o cliente ao WhatsApp do consultor (`pricing.ts`:
+`planoParaEquipes`).
+
+O limite por categoria vale **só para campeonatos criados assim** (migration
+`0050`, marcados por `expectedTeams` nas categorias). Os campeonatos em
+andamento não são alterados: seguem com a contagem do campeonato inteiro.
+
 O **Diamante é o único cobrado por mês**, e da **conta** — não do campeonato:
 R$ 200,00/mês dão campeonatos, categorias e equipes ilimitados, com
 compromisso de 12 meses, no **cartão de crédito** (débito recorrente, não
