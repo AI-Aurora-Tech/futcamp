@@ -203,6 +203,53 @@ export async function mesaLoginByEmail(email: string, password: string): Promise
   })
 }
 
+/** Campeonato em que o e-mail do mesário está com a senha zerada. */
+export interface MesaSenhaZerada {
+  championshipId: string
+  championshipName: string
+  username: string
+}
+
+/**
+ * O e-mail é de mesário com a senha zerada pelo organizador? Devolve onde — a
+ * tela de login oferece então a criação de uma nova senha.
+ */
+export async function mesaSenhaZerada(email: string): Promise<MesaSenhaZerada[]> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('mesa_senha_zerada_email', { p_username: email.trim() })
+    // RPC ausente (migration 0048 não aplicada) ou falha: segue como login comum.
+    if (error || !Array.isArray(data)) return []
+    return data.map((r: any) => ({
+      championshipId: r.championship_id,
+      championshipName: r.championship_name ?? '',
+      username: r.username,
+    }))
+  }
+  return query((d) => {
+    const uname = email.trim().toLowerCase()
+    return d.officials
+      .filter((o) => o.username.toLowerCase() === uname && !o.passwordHash)
+      .map((o) => ({
+        championshipId: o.championshipId,
+        championshipName: d.championships.find((c) => c.id === o.championshipId)?.name ?? '',
+        username: o.username,
+      }))
+      .filter((a) => a.championshipName)
+  })
+}
+
+/** Cria a nova senha em todos os campeonatos em que o e-mail está zerado. */
+export async function criarSenhaDoMesario(
+  contas: MesaSenhaZerada[],
+  novaSenha: string,
+): Promise<{ ok: boolean; error?: string }> {
+  for (const c of contas) {
+    const r = await setOfficialPassword(c.championshipId, c.username, novaSenha)
+    if (!r.ok) return r
+  }
+  return { ok: true }
+}
+
 /**
  * Define uma nova senha do mesário quando a conta está com a senha zerada
  * (recuperação iniciada pelo administrador). Não exige a senha antiga.

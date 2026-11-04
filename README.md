@@ -30,7 +30,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🪪 **Um CPF, um time**: inscrito por uma equipe, o atleta **não** pode ser inscrito por outra do mesmo campeonato — em nenhuma categoria. Pela **mesma** equipe ele pode entrar em outra categoria, desde que se enquadre nela. A regra vale no painel, no link de inscrição e na importação, e é garantida também no banco (índice + gatilho).
 - 📄 **Súmula**: gere e exporte (imprimir/PDF ou HTML) a súmula do jogo quando as inscrições encerram.
 - 🔴 **Ao vivo**: o organizador lança gols/cartões durante o jogo e a **classificação e estatísticas** atualizam em tempo real.
-- 🧑‍⚖️ **Mesários**: logins próprios (vários mesários) que lançam os dados **em tempo real**; o administrador define **quais jogos** cada mesário pode preencher. Portal em `#/mesa/<id>`.
+- 🧑‍⚖️ **Mesários**: logins próprios (vários mesários) que lançam os dados **em tempo real**; o administrador define **quais jogos** cada mesário pode preencher. O mesário entra pela **tela de login principal** (e-mail e senha) — não há tela de login própria; o portal `#/mesa/<id>` só abre com a sessão iniciada ali.
 - 📊 **Importar atletas por planilha**: arquivo `.xlsx` ou `.csv` (também `.tsv`, `.txt` ou colar direto do Excel) com as colunas **Nome**, **CPF** e **Data de nascimento** — cabeçalho reconhecido em qualquer ordem, datas do Excel convertidas sozinhas, prévia e validação (CPF, idade, limites) antes de importar, e um modelo pronto para baixar.
 - 🚫 **Suspensão automática**: alerta quando um atleta acumula **3 amarelos** na fase de grupos / pontos corridos ou leva **cartão vermelho** (qualquer fase).
 - 🎲 **Sorteio automático dos grupos**: distribui os times nos grupos de forma equilibrada com um clique.

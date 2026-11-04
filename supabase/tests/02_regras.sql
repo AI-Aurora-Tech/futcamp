@@ -1207,3 +1207,25 @@ select pg_temp.checa('removido, o co-organizador perde o acesso', not public.own
 
 reset request.jwt.claims;
 reset request.jwt.claim.sub;
+
+-- ===========================================================================
+-- Mesário com senha zerada pela tela de login padrão (0048).
+-- ===========================================================================
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
+insert into public.officials (championship_id, name, username, password_hash)
+values ('d0000000-0000-0000-0000-0000000000a1', 'Mesa Zerada', 'Zerada@Mesa.com', ''),
+       ('d0000000-0000-0000-0000-0000000000a1', 'Mesa Com Senha', 'comsenha@mesa.com', extensions.crypt('1234', extensions.gen_salt('bf')));
+select pg_temp.checa('e-mail com senha zerada é encontrado (sem diferenciar maiúsculas)',
+  jsonb_array_length(public.mesa_senha_zerada_email(' zerada@mesa.com ')) = 1
+  and public.mesa_senha_zerada_email('zerada@mesa.com') -> 0 ->> 'username' = 'Zerada@Mesa.com');
+select pg_temp.checa('  e diz em qual campeonato',
+  public.mesa_senha_zerada_email('zerada@mesa.com') -> 0 ->> 'championship_name' = 'Copa Teste');
+select pg_temp.checa('mesário com senha não aparece como zerado',
+  jsonb_array_length(public.mesa_senha_zerada_email('comsenha@mesa.com')) = 0);
+select pg_temp.checa('e-mail desconhecido não aparece',
+  jsonb_array_length(public.mesa_senha_zerada_email('ninguem@mesa.com')) = 0);
+select public.mesa_set_password('d0000000-0000-0000-0000-0000000000a1', 'Zerada@Mesa.com', 'nova1234') as _;
+select pg_temp.checa('criada a nova senha, o mesário entra pelo e-mail',
+  jsonb_array_length(public.mesa_login_email('zerada@mesa.com', 'nova1234')) = 1
+  and jsonb_array_length(public.mesa_senha_zerada_email('zerada@mesa.com')) = 0);

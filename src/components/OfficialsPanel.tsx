@@ -17,14 +17,6 @@ export function OfficialsPanel({
   const [adding, setAdding] = useState(false)
   const assignedCount = (id: string) => matches.filter((m) => m.officialId === id).length
 
-  function copyPortalLink() {
-    const url = `${location.origin}${location.pathname}#/mesa/${championship.id}`
-    navigator.clipboard?.writeText(url).then(
-      () => alert('Link do portal do mesário copiado!\n\n' + url),
-      () => prompt('Copie o link do portal do mesário:', url),
-    )
-  }
-
   async function remove(o: Official) {
     if (!confirm(`Remover o mesário "${o.name}"? Os jogos atribuídos a ele ficarão sem mesário.`)) return
     await deleteOfficial(o.id)
@@ -47,10 +39,9 @@ export function OfficialsPanel({
       <div className="panel__head">
         <div>
           <h2>Mesários ({officials.length})</h2>
-          <p className="muted">Cada mesário faz login no portal e lança os dados dos jogos atribuídos a ele.</p>
+          <p className="muted">Cada mesário entra pela tela de login principal, com o e-mail e a senha, e lança os dados dos jogos atribuídos a ele.</p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={copyPortalLink}>🔗 Link do portal</Button>
           <Button onClick={() => setAdding(true)}>＋ Novo mesário</Button>
         </div>
       </div>
@@ -88,8 +79,9 @@ export function OfficialsPanel({
       )}
 
       <p className="hint">
-        Portal do mesário: <code>#/mesa/{championship.id}</code> — cada um entra com o próprio e-mail e senha.
-        Use 🔑 para <b>zerar a senha</b>: o mesário criará uma nova ao entrar com o e-mail.
+        O mesário não tem tela de login própria: entra pela <b>tela de login principal</b>, com o e-mail e a senha
+        cadastrados aqui, e vê só os jogos atribuídos a ele. Use 🔑 para <b>zerar a senha</b>: na próxima entrada,
+        ele cria uma nova.
       </p>
 
       {adding && (
