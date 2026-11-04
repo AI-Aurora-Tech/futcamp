@@ -416,6 +416,11 @@ export interface Championship {
   /** Valor cobrado (centavos): plano + categorias adicionais. */
   amountCents?: number
   /**
+   * O que falta pagar AGORA (centavos). Upgrade de plano cobra só a diferença
+   * para o que já foi pago; ausente = vale o `amountCents` inteiro.
+   */
+  dueCents?: number
+  /**
    * Valor combinado com o consultor para o plano Diamante, em centavos.
    * Indefinido = ainda a combinar. Só o master grava, pela RPC
    * `set_negotiated_price` — o app não escreve neste campo.

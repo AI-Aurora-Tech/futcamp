@@ -36,7 +36,9 @@ export function PaymentPanel({
   onChanged?: () => void
 }) {
   const b = breakdown(champ.plan, champ.categories.length)
-  const total = champ.amountCents ?? b.totalCents
+  // Upgrade de plano: paga-se só a diferença para o que já foi pago.
+  const total = champ.dueCents ?? champ.amountCents ?? b.totalCents
+  const abatido = champ.dueCents != null ? Math.max(0, (champ.amountCents ?? 0) - champ.dueCents) : 0
 
   const { isMaster } = useAuth()
   const [busy, setBusy] = useState(false)
@@ -194,8 +196,22 @@ export function PaymentPanel({
             )}
           </>
         )}
+        {abatido > 0 && !diamante && (
+          <>
+            <li>
+              <span>Total do plano {b.plan.tier}</span>
+              <span>{formatBRL(champ.amountCents ?? 0)}</span>
+            </li>
+            <li>
+              <span>
+                Já pago no plano {champ.planChange?.plan ? planOf(champ.planChange.plan).tier : 'anterior'}
+              </span>
+              <span>− {formatBRL(abatido)}</span>
+            </li>
+          </>
+        )}
         <li className="pay__total">
-          <span>{mensal ? 'Por mês' : 'Total'}</span>
+          <span>{mensal ? 'Por mês' : abatido > 0 ? 'Diferença a pagar' : 'Total'}</span>
           <span>
             {aCombinar ? 'a combinar' : formatBRL(mensal || diamante ? combinado : total)}
           </span>

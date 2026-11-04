@@ -205,6 +205,17 @@ ficam desabilitados; dá para escolher um maior. O Diamante fica sempre
 disponível e leva o cliente ao WhatsApp do consultor (`pricing.ts`:
 `planoParaEquipes`).
 
+**Subir de plano durante o campeonato cobra só a diferença.** Se o número de
+equipes passa do limite do plano, o organizador troca em *Ajustes › Plano*: o
+valor devido é o total do plano novo menos o que já foi pago (Bronze pago
+R$ 59,90 → Prata R$ 79,90 cobra R$ 20,00). O banco guarda o total em
+`amount_cents` e o que falta pagar em `due_cents` (migration `0051`); o
+checkout e a conferência do webhook leem `due_cents`. Trocar de ideia antes de
+pagar mantém o abatimento, e dá para desfazer. Descer de plano vale na hora e
+não devolve dinheiro. O Diamante é assinatura mensal e não abate o plano
+anterior. As funções `asaas-checkout`, `asaas-status` e `asaas-webhook` precisam
+ser publicadas de novo (`supabase functions deploy`).
+
 O limite por categoria vale **só para campeonatos criados assim** (migration
 `0050`, marcados por `expectedTeams` nas categorias). Os campeonatos em
 andamento não são alterados: seguem com a contagem do campeonato inteiro.

@@ -214,7 +214,8 @@ export function TeamsPanel({
 
       {semVagas && (
         <p className="plano-cheio">
-          🚫 {motivoLimiteDeTimes(championship.plan, porCategoria)}{' '}
+          🚫 {motivoLimiteDeTimes(championship.plan, porCategoria)} Em <b>Ajustes › Plano</b> você sobe de
+          plano pagando só a diferença.{' '}
           <a href="#/planos" target="_blank" rel="noopener noreferrer">Ver planos</a>
         </p>
       )}

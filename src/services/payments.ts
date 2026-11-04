@@ -65,6 +65,9 @@ export async function startCheckout(championshipId: string): Promise<CheckoutRes
         paymentStatus: 'paid',
         paidAt: new Date().toISOString(),
         paymentRef: 'demo',
+        // Pago: quita o devido e encerra a troca de plano pendente.
+        dueCents: undefined,
+        planChange: undefined,
       }
     }
   })
