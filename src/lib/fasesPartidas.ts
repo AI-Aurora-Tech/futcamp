@@ -8,8 +8,9 @@
 // À medida que as fases terminam, a tela reduz as encerradas e destaca a fase
 // em disputa. Este arquivo só decide QUEM é quem; o desenho fica na tela.
 // ---------------------------------------------------------------------------
-import type { Match } from '../types'
+import type { Match, MatchPhase } from '../types'
 import { matchStage } from './groupStages'
+import { KNOCKOUT_ORDER } from './knockout'
 
 /** O mínimo que a tela guarda de cada seção. */
 export interface SecaoDePartidas {
@@ -79,4 +80,42 @@ export function agruparFases<S extends SecaoDePartidas>(
     f.estado = terminou(f) ? 'encerrada' : i === idxAtual ? 'atual' : 'futura'
   })
   return fases
+}
+
+/** Fases do mata-mata em ordem, com a disputa de 3º lugar por último. */
+const ORDEM_DO_MATA_MATA: MatchPhase[] = [...KNOCKOUT_ORDER, 'third_place']
+
+/**
+ * As fases do campeonato montadas direto dos jogos: cada fase de grupos (pelo
+ * número da fase) e cada fase do mata-mata. É a versão para telas que não
+ * listam rodada por rodada (a Visão geral); na aba Partidas as seções já vêm
+ * prontas e vão direto para `agruparFases`.
+ */
+export function fasesDoCampeonato(
+  matches: Match[],
+  tituloDaEtapa: (etapa: number) => string,
+): Fase[] {
+  const secoes: SecaoDePartidas[] = []
+
+  const etapas = [...new Set(matches.filter((m) => m.phase === 'group').map(matchStage))].sort((a, b) => a - b)
+  for (const etapa of etapas) {
+    secoes.push({
+      key: `etapa-${etapa}`,
+      title: tituloDaEtapa(etapa),
+      isKnockout: false,
+      matches: matches.filter((m) => m.phase === 'group' && matchStage(m) === etapa),
+    })
+  }
+  for (const phase of ORDEM_DO_MATA_MATA) {
+    const jogos = matches.filter((m) => m.phase === phase)
+    if (jogos.length) secoes.push({ key: phase, title: phase, isKnockout: true, matches: jogos })
+  }
+  return agruparFases(secoes, tituloDaEtapa)
+}
+
+/** Estado de cada fase do mata-mata, pelo nome da fase (para destacar a coluna do chaveamento). */
+export function estadosDoMataMata(fases: Fase[]): Partial<Record<MatchPhase, EstadoDaFase>> {
+  const out: Partial<Record<MatchPhase, EstadoDaFase>> = {}
+  for (const f of fases) if (f.isKnockout) out[f.key as MatchPhase] = f.estado
+  return out
 }

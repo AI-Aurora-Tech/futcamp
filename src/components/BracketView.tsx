@@ -1,5 +1,6 @@
 import { KNOCKOUT_ORDER, winnerOf } from '../lib/knockout'
-import { PHASE_LABELS, type Match, type Team } from '../types'
+import type { EstadoDaFase } from '../lib/fasesPartidas'
+import { PHASE_LABELS, type Match, type MatchPhase, type Team } from '../types'
 import { TeamBadge } from './ui'
 
 /**
@@ -15,10 +16,16 @@ export function BracketView({
   matches,
   teams,
   onMatchClick,
+  estados,
 }: {
   matches: Match[]
   teams: Team[]
   onMatchClick?: (m: Match) => void
+  /**
+   * Situação de cada fase: a encerrada fica compacta, a em disputa ganha
+   * destaque. Sem isto o chaveamento aparece todo igual, como antes.
+   */
+  estados?: Partial<Record<MatchPhase, EstadoDaFase>>
 }) {
   const ko = matches.filter((m) => m.phase !== 'group')
   const fases = KNOCKOUT_ORDER.filter((p) => ko.some((m) => m.phase === p))
@@ -32,17 +39,18 @@ export function BracketView({
       {fases.map((fase, i) => {
         const jogos = ko.filter((m) => m.phase === fase).sort(porPos)
         const ultima = i === fases.length - 1
+        const estado = estados?.[fase]
         return (
-          <div key={fase} className="bracket__col">
-            <h4 className="bracket__title">{PHASE_LABELS[fase]}</h4>
+          <div key={fase} className={`bracket__col ${estado ? `bracket__col--${estado}` : ''}`}>
+            <h4 className="bracket__title">{PHASE_LABELS[fase]}{seloDaFase(estado)}</h4>
             <div className="bracket__games">
               {jogos.map((m) => (
                 <BracketGame key={m.id} match={m} teams={teams} onClick={onMatchClick} />
               ))}
             </div>
             {ultima && terceiro.length > 0 && (
-              <div className="bracket__third">
-                <h4 className="bracket__title">{PHASE_LABELS.third_place}</h4>
+              <div className={`bracket__third ${estados?.third_place ? `bracket__third--${estados.third_place}` : ''}`}>
+                <h4 className="bracket__title">{PHASE_LABELS.third_place}{seloDaFase(estados?.third_place)}</h4>
                 {terceiro.map((m) => (
                   <BracketGame key={m.id} match={m} teams={teams} onClick={onMatchClick} />
                 ))}
@@ -53,6 +61,13 @@ export function BracketView({
       })}
     </div>
   )
+}
+
+/** O selinho do título da coluna: só a fase em disputa e a encerrada têm. */
+function seloDaFase(estado?: EstadoDaFase) {
+  if (estado === 'atual') return <span className="bracket__selo bracket__selo--atual">● Em disputa</span>
+  if (estado === 'encerrada') return <span className="bracket__selo">✅</span>
+  return null
 }
 
 function BracketGame({

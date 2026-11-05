@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Fases da tela de Partidas (src/lib/fasesPartidas.ts → agruparFases).
 // ---------------------------------------------------------------------------
-import { agruparFases, type SecaoDePartidas } from '../src/lib/fasesPartidas'
+import { agruparFases, estadosDoMataMata, fasesDoCampeonato, type SecaoDePartidas } from '../src/lib/fasesPartidas'
 import { ok } from './ajuda'
 
 let n = 0
@@ -61,3 +61,30 @@ ok('liga/rodadas de uma fase só: uma fase com as duas rodadas', f.length === 1 
 f = agruparFases([mata('semi', 'Semifinal', 'finished'), mata('final', 'Final', 'finished', 1), mata('third_place', 'Disputa de 3º lugar', 'scheduled', 1)], titulo)
 ok('final encerrada e 3º lugar pendente: o 3º lugar é a fase em disputa', f[2].estado === 'atual' && f[1].estado === 'encerrada')
 ok('sem seções: nenhuma fase', agruparFases([], titulo).length === 0)
+
+// ---------------------------------------------------------------------------
+// Fases montadas direto dos jogos (Visão geral) e estados do chaveamento.
+// ---------------------------------------------------------------------------
+const J = (phase: string, status: 'finished' | 'scheduled' | 'live', extra: Record<string, unknown> = {}) => jogo(phase, status, extra)
+const jogos = [
+  J('group', 'finished', { stage: 1, group: 'A' }), J('group', 'finished', { stage: 1, group: 'B' }),
+  J('quarter', 'finished'), J('quarter', 'finished'),
+  J('semi', 'live'), J('semi', 'scheduled'),
+  J('final', 'scheduled'), J('third_place', 'scheduled'),
+]
+const doCampeonato = fasesDoCampeonato(jogos, titulo)
+ok('Visão geral: grupos, quartas, semifinal, final e 3º lugar, nessa ordem',
+  doCampeonato.map((x) => x.key).join(',') === 'etapa-1,quarter,semi,final,third_place')
+ok('  com estados: encerrada, encerrada, em disputa, a seguir, a seguir',
+  doCampeonato.map((x) => x.estado).join(',') === 'encerrada,encerrada,atual,futura,futura')
+const st = estadosDoMataMata(doCampeonato)
+ok('estados do chaveamento por fase (a fase de grupos não entra)',
+  st.quarter === 'encerrada' && st.semi === 'atual' && st.final === 'futura' && st.third_place === 'futura' && !('group' in st) && Object.keys(st).length === 4)
+
+const duasEtapas = fasesDoCampeonato([
+  J('group', 'finished', { stage: 1 }), J('group', 'scheduled', { stage: 2 }), J('final', 'scheduled'),
+], titulo)
+ok('duas fases de grupos: títulos "Fase de grupos" e "2ª fase de grupos"', duasEtapas.map((x) => x.titulo).slice(0, 2).join(' | ') === 'Fase de grupos | 2ª fase de grupos')
+ok('  2ª fase de grupos em disputa', duasEtapas[1].estado === 'atual' && duasEtapas[0].estado === 'encerrada')
+ok('só pontos corridos (sem mata-mata): uma fase só', fasesDoCampeonato([J('group', 'live', { stage: 1 })], titulo).length === 1)
+ok('sem jogos: nenhuma fase', fasesDoCampeonato([], titulo).length === 0)
