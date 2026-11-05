@@ -1914,3 +1914,23 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 @media (max-width: 640px) {
   .modal__body { padding-bottom: calc(1.35rem + env(safe-area-inset-bottom)); }
 }
+
+/* Celular — segunda passada (varredura de telas de 360 e 390px). */
+@media (max-width: 640px) {
+  .auth-tabs button { min-height: 44px; }
+  .auth-plans-link, .plan-btn__consultor, .suporte-link { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .view-switch__btn { min-height: 40px; }
+  .status-btn { min-height: 40px; }
+  .modal__close { width: 40px; height: 40px; }
+  /* O campo de busca é uma caixa com ícone: o campo de dentro ocupa a altura toda. */
+  .search-field input { min-height: 40px; font-size: 16px; }
+  /* Etiquetas miúdas: lidas a um palmo de distância, não de um monitor. */
+  .finished-tag, .plan-card__badge, .live-dot { font-size: 0.7rem; }
+}
+@media (max-width: 400px) {
+  /* Topo estreito: sem isto o "Sair" passava da borda em telas de 360px. */
+  .topbar { gap: 0.35rem; padding-left: 0.7rem; padding-right: 0.7rem; }
+  .topbar__right { gap: 0.3rem; }
+  .topbar__suporte { min-width: 34px; }
+  .mode-tag { padding-left: 0.4rem; padding-right: 0.4rem; letter-spacing: 0; }
+}
