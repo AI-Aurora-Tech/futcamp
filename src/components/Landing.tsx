@@ -320,7 +320,7 @@ export function Landing() {
       if (!password.trim()) {
         if (await tentarPrimeiroAcesso()) return
         if (await tentarSenhaZerada()) return
-        setError('Informe a senha. Se você foi convidado como organizador, use o e-mail do convite.')
+        setError('Informe a senha. Se foi convidado como organizador ou mesário, entre só com o e-mail do convite.')
         return
       }
 

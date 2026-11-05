@@ -39,7 +39,7 @@ export function OfficialsPanel({
       <div className="panel__head">
         <div>
           <h2>Mesários ({officials.length})</h2>
-          <p className="muted">Cada mesário entra pela tela de login principal, com o e-mail e a senha, e lança os dados dos jogos atribuídos a ele.</p>
+          <p className="muted">Cada mesário entra pela tela de login principal e lança os dados dos jogos atribuídos a ele.</p>
         </div>
         <div className="panel__head-actions">
           <Button onClick={() => setAdding(true)}>＋ Novo mesário</Button>
@@ -56,7 +56,7 @@ export function OfficialsPanel({
             <thead>
               <tr>
                 <th>Mesário</th>
-                <th>E-mail (usuário)</th>
+                <th>E-mail</th>
                 <th>Jogos atribuídos</th>
                 <th className="col-actions"></th>
               </tr>
@@ -79,18 +79,23 @@ export function OfficialsPanel({
       )}
 
       <p className="hint">
-        O mesário não tem tela de login própria: entra pela <b>tela de login principal</b>, com o e-mail e a senha
-        cadastrados aqui, e vê só os jogos atribuídos a ele. Use 🔑 para <b>zerar a senha</b>: na próxima entrada,
-        ele cria uma nova.
+        Cadastre só o <b>nome e o e-mail</b>. No <b>primeiro acesso</b>, o mesário abre a tela de login principal,
+        digita <b>só o e-mail</b> e cria a senha. Se o e-mail já é de mesário em outro campeonato, ele usa a
+        senha de sempre e este campeonato é adicionado. Use 🔑 para <b>zerar a senha</b>.
       </p>
 
       {adding && (
         <OfficialForm
           championshipId={championship.id}
           onClose={() => setAdding(false)}
-          onSaved={() => {
+          onSaved={(jaTinhaSenha) => {
             setAdding(false)
             onChange()
+            alert(
+              jaTinhaSenha
+                ? 'Mesário adicionado. Ele já tem acesso com a senha de sempre — o campeonato aparece ao entrar.'
+                : 'Mesário adicionado. No primeiro acesso, ele entra pela tela principal só com o e-mail e cria a senha.',
+            )
           }}
         />
       )}
@@ -105,11 +110,10 @@ function OfficialForm({
 }: {
   championshipId: string
   onClose: () => void
-  onSaved: () => void
+  onSaved: (jaTinhaSenha: boolean) => void
 }) {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -117,9 +121,9 @@ function OfficialForm({
     e.preventDefault()
     setError(null)
     setBusy(true)
-    const res = await createOfficial(championshipId, name, username, password)
+    const res = await createOfficial(championshipId, name, username)
     setBusy(false)
-    if (res.ok) onSaved()
+    if (res.ok) onSaved(!!res.jaTinhaSenha)
     else setError(res.error ?? 'Não foi possível criar o mesário.')
   }
 
@@ -129,17 +133,14 @@ function OfficialForm({
         <Field label="Nome do mesário">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" required />
         </Field>
-        <Field label="E-mail (usuário)" hint="O mesário usa o e-mail para entrar no portal.">
+        <Field label="E-mail" hint="No primeiro acesso, a pessoa entra só com o e-mail e cria a senha. Se já é mesário em outro campeonato, usa a senha que já tem.">
           <input type="email" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="mesa@exemplo.com" autoComplete="off" required />
-        </Field>
-        <Field label="Senha">
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={4} required />
         </Field>
         {error && <p className="auth-error">{error}</p>}
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" disabled={busy || !name.trim() || !username.trim() || !password}>
-            {busy ? 'Salvando…' : 'Criar mesário'}
+          <Button type="submit" disabled={busy || !name.trim() || !username.trim()}>
+            {busy ? 'Salvando…' : 'Adicionar mesário'}
           </Button>
         </div>
       </form>
