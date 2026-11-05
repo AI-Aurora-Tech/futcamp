@@ -1,13 +1,10 @@
 // ---------------------------------------------------------------------------
 // Regras de "quem já está eliminado" (src/lib/eliminacao.ts → timesForaDaDisputa).
 //
-// Rodar:  npm run test:regras
-// Sem framework: o projeto não tem um — o esbuild (que já vem com o Vite)
-// empacota este arquivo e o Node o executa. Sai com código 1 se algo falhar.
+// Rodar:  npm run test:regras   (roda todos os arquivos de tests/)
 // ---------------------------------------------------------------------------
 import { timesForaDaDisputa, WO_ELIMINACAO } from '../src/lib/eliminacao'
-let falhas = 0
-const ok = (r: string, t: boolean) => { if (!t) falhas++; console.log(t ? '✅' : '❌', r) }
+import { ok } from './ajuda'
 const T = (id: string) => ({ id, name: id.toUpperCase(), championshipId: 'c' } as any)
 const times = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map(T)
 const camp: any = { id: 'c', format: 'groups_knockout', categories: [], autoKnockout: true }
@@ -52,5 +49,3 @@ ok('montagem à mão: quem não está no chaveamento NÃO é bloqueado', !fora(q
 const escalonado = { ...camp, format: 'league', leagueEntries: [{ from: 1, to: 2, phase: 'semi' }] }
 ok('entrada escalonada: quem não está no chaveamento NÃO é bloqueado', !fora(quartas, 'semi', escalonado).has('i'))
 ok('sem mata-mata criado ainda: só W.O. e perdedores contam (i livre)', !fora([wo], 'quarter').has('i'))
-console.log(falhas ? `\n${falhas} FALHA(S)` : '\ntodos passaram')
-process.exit(falhas ? 1 : 0)

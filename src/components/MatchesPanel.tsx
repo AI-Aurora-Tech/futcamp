@@ -42,6 +42,7 @@ import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
 import { planejarTabela } from '../lib/tabela'
 import { timesForaDaDisputa } from '../lib/eliminacao'
+import { agruparFases } from '../lib/fasesPartidas'
 
 export function MatchesPanel({
   championship,
@@ -225,6 +226,25 @@ export function MatchesPanel({
   )
   const closedRounds = new Set(championship.closedRounds ?? [])
 
+  // Fases do campeonato (cada fase de grupos e cada fase do mata-mata): as já
+  // encerradas ficam reduzidas e a que está em disputa ganha destaque.
+  const fases = useMemo(
+    () =>
+      agruparFases(sections, (etapa) => {
+        const cfg = stages[etapa - 1]
+        if (cfg) return stageName(cfg, etapa - 1, stages.length)
+        return championship.format === 'league' ? 'Pontos corridos' : 'Fase de classificação'
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sections, championship],
+  )
+  const comFases = fases.length > 1
+  const todasEncerradas = fases.length > 0 && fases.every((f) => f.estado === 'encerrada')
+  /** Fases que a pessoa abriu/fechou à mão; o resto segue o padrão (encerrada = reduzida). */
+  const [aberturaManual, setAberturaManual] = useState<Record<string, boolean>>({})
+  const faseAberta = (f: (typeof fases)[number], i: number) =>
+    aberturaManual[f.key] ?? (f.estado !== 'encerrada' || (todasEncerradas && i === fases.length - 1))
+
   async function toggleRound(round: number) {
     const set = new Set(championship.closedRounds ?? [])
     if (set.has(round)) set.delete(round)
@@ -322,46 +342,88 @@ export function MatchesPanel({
               </button>
             </div>
           )}
-          {sections.map((sec) => {
-            const roundNo = sec.byGroup ? undefined : sec.matches[0]?.round
-            const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
-            return (
-              <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
-                <div className="round__head">
-                  <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
-                  {!sec.isKnockout && roundNo != null && (
-                    <button
-                      type="button"
-                      className="round__toggle"
-                      onClick={() => void toggleRound(roundNo)}
-                      title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
-                    >
-                      {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
-                    </button>
+          {(() => {
+            const renderSecao = (sec: Section, semTitulo = false) => {
+              const roundNo = sec.byGroup ? undefined : sec.matches[0]?.round
+              const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
+              return (
+                <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
+                  {!semTitulo && (
+                    <div className="round__head">
+                      <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
+                      {!sec.isKnockout && roundNo != null && (
+                        <button
+                          type="button"
+                          className="round__toggle"
+                          onClick={() => void toggleRound(roundNo)}
+                          title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
+                        >
+                          {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <div className="round__matches">
+                    {sec.matches.map((m) => (
+                      <MatchRow
+                        key={m.id}
+                        match={m}
+                        teams={teams}
+                        onClick={() => setEditing(m)}
+                        showSchedule
+                        venues={championship.venues}
+                        // Na visão por grupo os jogos vêm pela situação, não
+                        // pela rodada — então a rodada vai no próprio jogo.
+                        roundLabel={
+                          sec.byGroup
+                            ? `Rodada ${m.round}${closedRounds.has(m.round) ? ' · 🔒 inscrições encerradas' : ''}`
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+
+            // Uma fase só (liga, ou grupos ainda sem mata-mata): lista como sempre.
+            if (!comFases) return sections.map((sec) => renderSecao(sec))
+
+            return fases.map((f, i) => {
+              const aberta = faseAberta(f, i)
+              const pct = f.total ? Math.round((f.encerrados / f.total) * 100) : 0
+              const jogos = `${f.encerrados} de ${f.total} jogo${f.total === 1 ? '' : 's'} encerrado${f.total === 1 ? '' : 's'}`
+              return (
+                <div key={f.key} className={`fase fase--${f.estado} ${aberta ? 'is-aberta' : 'is-reduzida'}`}>
+                  <button
+                    type="button"
+                    className="fase__head"
+                    aria-expanded={aberta}
+                    onClick={() => setAberturaManual((m) => ({ ...m, [f.key]: !aberta }))}
+                    title={aberta ? 'Reduzir esta fase' : 'Mostrar os jogos desta fase'}
+                  >
+                    <span className="fase__chevron" aria-hidden>{aberta ? '▾' : '▸'}</span>
+                    <span className="fase__titulo">{f.titulo}</span>
+                    {f.estado === 'atual' && <span className="fase__selo fase__selo--atual">● Em disputa</span>}
+                    {f.estado === 'encerrada' && <span className="fase__selo fase__selo--ok">✅ Encerrada</span>}
+                    {f.estado === 'futura' && <span className="fase__selo">A seguir</span>}
+                    <span className="fase__contagem">{f.estado === 'encerrada' ? `${f.total} jogo${f.total === 1 ? '' : 's'}` : jogos}</span>
+                  </button>
+                  {f.estado === 'atual' && (
+                    <div className="fase__barra" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${f.titulo}: ${jogos}`}>
+                      <span style={{ width: `${pct}%` }} />
+                    </div>
+                  )}
+                  {aberta && (
+                    <div className="fase__corpo">
+                      {/* No mata-mata a fase É a seção: o título já está no cabeçalho. */}
+                      {f.sections.map((sec) => renderSecao(sec, f.isKnockout))}
+                    </div>
                   )}
                 </div>
-                <div className="round__matches">
-                  {sec.matches.map((m) => (
-                    <MatchRow
-                      key={m.id}
-                      match={m}
-                      teams={teams}
-                      onClick={() => setEditing(m)}
-                      showSchedule
-                      venues={championship.venues}
-                      // Na visão por grupo os jogos vêm pela situação, não
-                      // pela rodada — então a rodada vai no próprio jogo.
-                      roundLabel={
-                        sec.byGroup
-                          ? `Rodada ${m.round}${closedRounds.has(m.round) ? ' · 🔒 inscrições encerradas' : ''}`
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+              )
+            })
+          })()}
         </div>
       )}
 
