@@ -55,35 +55,40 @@ export async function listOfficials(championshipId: string): Promise<Official[]>
   return query((d) => d.officials.filter((o) => o.championshipId === championshipId))
 }
 
+/**
+ * Cadastra o mesário só com nome e e-mail. Sem senha: se o e-mail é novo, a
+ * pessoa cria a senha no primeiro acesso; se já é mesário em outro campeonato,
+ * mantém a senha que já usa e o campeonato só passa a aparecer para ela.
+ * `jaTinhaSenha` diz qual dos dois casos aconteceu.
+ */
 export async function createOfficial(
   championshipId: string,
   name: string,
   username: string,
-  password: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; jaTinhaSenha?: boolean; error?: string }> {
   if (authMode === 'supabase' && supabase) {
-    const { error } = await supabase.rpc('create_official', {
+    const { data, error } = await supabase.rpc('add_official', {
       p_champ: championshipId,
       p_name: name.trim(),
       p_username: username.trim(),
-      p_password: password,
     })
-    return error ? { ok: false, error: error.message } : { ok: true }
+    return error ? { ok: false, error: error.message } : { ok: true, jaTinhaSenha: data === true }
   }
   return mutate((d) => {
     const uname = username.trim().toLowerCase()
     if (d.officials.some((o) => o.championshipId === championshipId && o.username.toLowerCase() === uname)) {
-      return { ok: false, error: 'Já existe um mesário com esse usuário.' }
+      return { ok: false, error: 'Já existe um mesário com esse e-mail neste campeonato.' }
     }
+    const existente = d.officials.find((o) => o.username.toLowerCase() === uname && o.passwordHash)
     d.officials.push({
       id: uid('mesa'),
       championshipId,
       name: name.trim(),
-      username: username.trim(),
-      passwordHash: hash(password),
+      username: uname,
+      passwordHash: existente?.passwordHash ?? '', // '' = cria a senha no primeiro acesso
       createdAt: new Date().toISOString(),
     })
-    return { ok: true }
+    return { ok: true, jaTinhaSenha: !!existente }
   })
 }
 

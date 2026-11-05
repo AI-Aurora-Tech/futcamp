@@ -1469,3 +1469,19 @@ select pg_temp.checa('quem sai por conta própria também leva os avisos embora'
   not exists (select 1 from push_subscriptions where championship_id = :'rm_c2' and endpoint = 'https://push/co'));
 reset request.jwt.claims;
 reset request.jwt.claim.sub;
+
+-- ===========================================================================
+-- Mesário só com nome e e-mail (0054)
+-- ===========================================================================
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claim.sub  = :'rm_dono';
+select public.add_official(:'rm_c', 'Maria Mesa', 'Maria.Mesa@Teste.com') as ja_tinha \gset
+select pg_temp.checa('mesário novo nasce com a senha zerada e não avisa "já tinha senha"',
+  :'ja_tinha' = 'f' and exists (select 1 from officials where championship_id = :'rm_c' and username = 'maria.mesa@teste.com' and password_hash = ''));
+select pg_temp.checa('a senha zerada aparece para o primeiro acesso',
+  jsonb_array_length(public.mesa_senha_zerada_email('maria.mesa@teste.com')) >= 1);
+select public.mesa_set_password(:'rm_c', 'maria.mesa@teste.com', 'minhasenha') as _;
+select public.add_official(:'rm_c2', 'Maria Mesa', 'maria.mesa@teste.com') as ja_tinha2 \gset
+select pg_temp.checa('mesário que já tem senha em outro campeonato entra no novo sem criar senha',
+  :'ja_tinha2' = 't' and public.mesa_login_email('maria.mesa@teste.com', 'minhasenha')::text like '%' || :'rm_c2' || '%');
+reset request.jwt.claim.sub;
