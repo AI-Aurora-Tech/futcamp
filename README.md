@@ -45,7 +45,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🔔 **Notificações push**: o responsável do time recebe aviso de **gol no grupo em que seu time joga**; o organizador recebe aviso quando **um time altera o elenco** ou os próprios dados.
 - 📱 **100% responsivo**: layout adaptado para celular, tablet e desktop.
 - 🔐 **Autenticação de organizadores** via Supabase, com **RLS** garantindo que cada um edite apenas os próprios campeonatos.
-- 🧑‍💼 **Organizadores do campeonato**: o dono convida outras pessoas pelo e-mail na aba *Organizadores* (migration `0047`). O convidado entra pela **tela de login principal digitando só o e-mail**, com a senha em branco, e cria a senha no **primeiro acesso** (migration `0052`, só para e-mail que ainda não tem conta). Plano, pagamento e exclusão continuam com o dono.
+- 🧑‍💼 **Organizadores do campeonato**: o dono convida outras pessoas pelo e-mail na aba *Organizadores* (migration `0047`). O convidado entra pela **tela de login principal digitando só o e-mail**, com a senha em branco, e cria a senha no **primeiro acesso** (migration `0052`, só para e-mail que ainda não tem conta). Remover (ou sair) apaga os dados da pessoa ligados ao campeonato — o convite e os avisos no celular (migration `0053`); a conta dela e o que ela cadastrou no campeonato permanecem. Plano, pagamento e exclusão continuam com o dono.
 - 👑 **Administrador master**: perfil único que administra **qualquer** campeonato e é o **único que pode excluir** um campeonato — nem mesmo o dono pode.
 - 🟩 **Jogo encerrado muda de cor** na lista do administrador e no portal do mesário.
 - 🔒 **Tabela protegida**: com jogos já encerrados, **regerar a tabela fica bloqueado** — placares, gols, cartões e súmulas não se perdem por engano.
