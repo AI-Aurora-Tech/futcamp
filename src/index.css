@@ -1974,3 +1974,12 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 @media (max-width: 420px) { .topbar .mode-tag { display: none; } }
 
 @media (max-width: 900px) { .tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; } }
+
+/* ---------- Times por grupo ---------- */
+.team-groups { display: flex; flex-direction: column; gap: 1.6rem; }
+.team-group__title {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+  font-size: 1.02rem; margin: 0 0 0.7rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--brand);
+}
+.team-group__count { font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+.team-group__vazio { margin: 0; padding: 0.9rem; border: 1px dashed var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: 0.85rem; text-align: center; }
