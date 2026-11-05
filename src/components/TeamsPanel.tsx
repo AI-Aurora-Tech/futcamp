@@ -18,6 +18,8 @@ import { planejarEliminacao, timesEliminados, WO_GOLS } from '../lib/eliminacao'
 import { fileToDataUrl } from '../lib/image'
 import { limiteDeTimes, limitePorCategoria, motivoLimiteDeTimes, planOf, vagasDeTime } from '../lib/pricing'
 import { competicaoDaCategoria, elencoDeTimes } from '../lib/categorias'
+import { agruparTimesPorGrupo } from '../lib/gruposDosTimes'
+import { stageGroupLetters } from '../lib/groupStages'
 import { Button, EmptyState, Field, Modal, SearchField, Spinner, TeamBadge } from './ui'
 
 export function TeamsPanel({
@@ -54,10 +56,11 @@ export function TeamsPanel({
   const porCategoria = limitePorCategoria(championship)
   const vagas = vagasDeTime(championship.plan, porCategoria ? daCategoria.length : teams.length)
   const semVagas = vagas <= 0
-  const grouped = championship.format === 'groups_knockout'
+  // A forma de disputa pode ser própria da categoria: o que vale é a competição dela.
+  const competicao = competicaoDaCategoria(championship, categoryId)
+  const grouped = competicao.format === 'groups_knockout'
   const eliminados = useMemo(() => timesEliminados(matches), [matches])
-  const numGroups = Math.max(1, championship.numGroups ?? 2)
-
+  const numGroups = Math.max(1, competicao.numGroups ?? 2)
   // Busca por nome do time, responsável ou grupo ("grupo b" / "b").
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -68,6 +71,11 @@ export function TeamsPanel({
         .some((v) => (v as string).toLowerCase().includes(q)),
     )
   }, [daCategoria, search])
+  const secoes = useMemo(
+    () => (grouped ? agruparTimesPorGrupo(visible, stageGroupLetters(numGroups), !search.trim()) : []),
+    [grouped, visible, numGroups, search],
+  )
+
 
   /**
    * Sorteia os grupos DESTA categoria.
@@ -167,6 +175,28 @@ export function TeamsPanel({
     }
   }
 
+  const cartao = (t: Team) => (
+    <div key={t.id} className="team-item">
+      <span className="team-item__badge"><TeamBadge team={t} size={44} /></span>
+      <div className="team-item__info">
+        <strong title={t.name}>{t.name}</strong>
+        <span className="team-item__meta">
+          {t.coach ? `Resp. ${t.coach}` : 'Sem responsável'}
+          {t.phone ? ` · ${t.phone}` : ''}
+        </span>
+        
+        {eliminados.has(t.id) && <span className="team-item__group team-item__group--out">Eliminado</span>}
+      </div>
+      <div className="team-item__actions">
+        <button className="icon-btn" title="Copiar link de inscrição" onClick={() => void copyInviteLink(t)}>🔗</button>
+        <button className="icon-btn" title="Gestores e senhas" onClick={() => setManaging(t)}>🔑</button>
+        <button className="icon-btn" title="Editar" onClick={() => setEditing(t)}>✎</button>
+        <button className="icon-btn icon-btn--danger" title="Eliminar do campeonato (W.O.)" onClick={() => setEliminating(t)}>🚫</button>
+        <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(t)}>🗑</button>
+      </div>
+    </div>
+  )
+
   return (
     <section className="panel">
       <div className="panel__head">
@@ -241,29 +271,28 @@ export function TeamsPanel({
           <Button variant="soft" onClick={() => setSearch('')}>Limpar busca</Button>
         </EmptyState>
       ) : (
-        <div className="team-grid">
-          {visible.map((t) => (
-            <div key={t.id} className="team-item">
-              <span className="team-item__badge"><TeamBadge team={t} size={44} /></span>
-              <div className="team-item__info">
-                <strong title={t.name}>{t.name}</strong>
-                <span className="team-item__meta">
-                  {t.coach ? `Resp. ${t.coach}` : 'Sem responsável'}
-                  {t.phone ? ` · ${t.phone}` : ''}
-                </span>
-                {grouped && t.group && <span className="team-item__group">Grupo {t.group}</span>}
-                {eliminados.has(t.id) && <span className="team-item__group team-item__group--out">Eliminado</span>}
-              </div>
-              <div className="team-item__actions">
-                <button className="icon-btn" title="Copiar link de inscrição" onClick={() => void copyInviteLink(t)}>🔗</button>
-                <button className="icon-btn" title="Gestores e senhas" onClick={() => setManaging(t)}>🔑</button>
-                <button className="icon-btn" title="Editar" onClick={() => setEditing(t)}>✎</button>
-                <button className="icon-btn icon-btn--danger" title="Eliminar do campeonato (W.O.)" onClick={() => setEliminating(t)}>🚫</button>
-                <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(t)}>🗑</button>
-              </div>
-            </div>
-          ))}
-        </div>
+        grouped ? (
+          <div className="team-groups">
+            {secoes.map((sec) => (
+              <section key={sec.grupo ?? 'sem'} className="team-group">
+                <h3 className="team-group__title">
+                  {sec.grupo ? `Grupo ${sec.grupo}` : 'Sem grupo'}
+                  <span className="team-group__count">
+                    {sec.times.length} {sec.times.length === 1 ? 'time' : 'times'}
+                    {sec.grupo && competicao.teamsPerGroup ? ` de ${competicao.teamsPerGroup}` : ''}
+                  </span>
+                </h3>
+                {sec.times.length === 0 ? (
+                  <p className="team-group__vazio">Nenhum time neste grupo ainda.</p>
+                ) : (
+                  <div className="team-grid">{sec.times.map((t) => cartao(t))}</div>
+                )}
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="team-grid">{visible.map((t) => cartao(t))}</div>
+        )
       )}
 
       {(adding || editing) && (
