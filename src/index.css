@@ -1787,3 +1787,35 @@ button.bracket__game:hover { border-color: var(--brand); }
 .ko-setup__fase { margin-top: 0.75rem; }
 .ko-setup__fase .bracket__title { text-align: left; }
 
+
+/* ---------- Fases na tela de Partidas ---------- */
+/* Encerradas ficam reduzidas a uma linha; a fase em disputa ganha destaque. */
+.fase { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; }
+.fase__head {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; width: 100%; text-align: left;
+  padding: 0.6rem 0.85rem; background: none; border: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.fase__head:hover { background: var(--surface-2); }
+.fase__chevron { color: var(--muted); width: 1rem; }
+.fase__titulo { font-weight: 700; font-size: 0.95rem; }
+.fase__contagem { margin-left: auto; font-size: 0.78rem; color: var(--muted); }
+.fase__selo {
+  font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem; border-radius: 999px; background: var(--surface-2); color: var(--muted);
+}
+.fase__selo--ok { background: #f0fdf4; color: var(--brand-dark); }
+.fase__selo--atual { background: var(--brand); color: #fff; }
+/* A fase ocupa a linha inteira da grade de rodadas e repete a mesma grade por dentro. */
+.fase { grid-column: 1 / -1; }
+.fase__corpo {
+  padding: 0.5rem 0.85rem 0.85rem; display: grid; align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem;
+}
+.fase__barra { height: 4px; background: var(--surface-2); }
+.fase__barra span { display: block; height: 100%; background: var(--brand); transition: width 0.3s; }
+
+.fase--atual { border-color: var(--brand); border-width: 2px; box-shadow: 0 2px 10px rgba(22, 163, 74, 0.12); }
+.fase--atual .fase__titulo { font-size: 1.05rem; }
+.fase--encerrada { background: var(--surface-2); }
+.fase--encerrada.is-reduzida .fase__titulo { font-weight: 600; color: var(--ink-soft); }
+.fase--futura { border-style: dashed; }
