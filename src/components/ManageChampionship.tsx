@@ -39,6 +39,7 @@ import { PaymentPanel } from './PaymentPanel'
 import { masterRelease } from '../services/payments'
 import { RegulamentoButton } from './RegulamentoButton'
 import { PlanoBlock } from './PlanoBlock'
+import { souOrganizadorDe } from '../services/coorganizers'
 import { formatBRL, isLocked, limitePorCategoria } from '../lib/pricing'
 import {
   atletaDaCategoria,
@@ -90,11 +91,20 @@ export function ManageChampionship({
   /** Categoria escolhida nas abas. Nula = ainda não escolheu; abre na sugerida. */
   const [catId, setCatId] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(true)
+  // O organizador foi removido enquanto a tela estava aberta: a administração sai da tela.
+  const [semAcesso, setSemAcesso] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editingCat, setEditingCat] = useState(false)
   const [liberando, setLiberando] = useState(false)
 
   const reload = useCallback(async () => {
+    // Antes de tudo: quem abriu ainda organiza este campeonato? Roda a cada
+    // atualização (abrir, tempo real, voltar para a aba), então a remoção
+    // aparece sozinha, sem precisar recarregar a página.
+    const acesso = await souOrganizadorDe(championshipId).catch(() => true)
+    setSemAcesso(!acesso)
+    if (!acesso) return
+
     // Carrega o campeonato (crítico) e os demais dados de forma resiliente:
     // a falha de uma consulta secundária (ex.: mesários sem a migration 0006)
     // não pode "derrubar" a tela inteira nem esconder o campeonato.
@@ -220,6 +230,19 @@ export function ManageChampionship({
   }
 
   if (loading) return <div className="container"><Spinner /></div>
+  if (semAcesso) {
+    return (
+      <div className="container pad-lg center">
+        <div className="empty__icon">🚫</div>
+        <h2>Você não organiza mais este campeonato</h2>
+        <p className="muted">
+          O acesso de organizador a este campeonato foi removido. A administração não está mais disponível
+          para você; a página pública do campeonato continua aberta a todos.
+        </p>
+        <button className="btn btn--primary" onClick={onBack}>Voltar para Meus campeonatos</button>
+      </div>
+    )
+  }
   if (!champ) {
     return (
       <div className="container">

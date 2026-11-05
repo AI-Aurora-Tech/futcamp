@@ -27,12 +27,21 @@ export function Dashboard({ onOpen }: { onOpen: (id: string) => void }) {
     if (!organizer) return
     let active = true
     // O administrador master enxerga os campeonatos de todos os organizadores.
-    const load = isMaster ? listAllChampionships() : listChampionships(organizer.id, organizer.email)
-    load
-      .then((list) => active && setItems(list))
-      .catch(() => active && setItems([]))
+    const carregar = (silencioso = false) =>
+      (isMaster ? listAllChampionships() : listChampionships(organizer.id, organizer.email))
+        .then((list) => active && setItems(list))
+        // Ao voltar para a aba, uma falha de rede não esvazia a lista.
+        .catch(() => active && !silencioso && setItems([]))
+    void carregar()
+    // Voltou para a aba: refaz a lista. Quem foi removido de um campeonato
+    // deixa de vê-lo sem precisar recarregar a página.
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') void carregar(true)
+    }
+    document.addEventListener('visibilitychange', aoVoltar)
     return () => {
       active = false
+      document.removeEventListener('visibilitychange', aoVoltar)
     }
   }, [organizer, isMaster])
 

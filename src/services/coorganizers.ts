@@ -120,3 +120,24 @@ export async function convitesSemConta(email: string): Promise<ConviteOrganizado
       .filter((c) => c.championshipName),
   )
 }
+
+/**
+ * Quem está logado ainda organiza este campeonato (dono, co-organizador ou
+ * master)? É o que decide se o painel de administração pode ficar na tela.
+ *
+ * O banco já recusa toda escrita de quem foi removido; isto cuida da TELA, que
+ * ficava aberta com o painel inteiro até a pessoa recarregar, e dava a
+ * impressão de que o acesso continuava.
+ *
+ * Só um "não" explícito do banco tira o acesso: se a consulta falhar, o painel
+ * segue (as escritas continuam protegidas pelo banco de qualquer jeito).
+ */
+export async function souOrganizadorDe(championshipId: string): Promise<boolean> {
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('owns_championship', { cid: championshipId })
+    if (error || typeof data !== 'boolean') return true
+    return data
+  }
+  // Demo: há um organizador só, e ele é dono de tudo.
+  return true
+}
