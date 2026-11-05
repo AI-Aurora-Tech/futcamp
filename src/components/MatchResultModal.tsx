@@ -3,6 +3,7 @@ import { defaultMatchWriter, deleteMatch, type MatchWriter, type NewEvent } from
 import { buildSumulaHtml, buildSumulaPdf, nomeArquivoSumula, openSumula } from '../lib/sumula'
 import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { timesDaCategoria } from '../lib/categorias'
+import { timesForaDaDisputa } from '../lib/eliminacao'
 import { suspensosNaPartida, type Suspensao } from '../lib/suspensao'
 import { flushPush } from '../services/push'
 import { cancelMatchWhatsapp, flushWhatsapp } from '../services/whatsapp'
@@ -78,6 +79,20 @@ export function MatchResultModal({
   const teamsChanged = homeId !== (match.homeTeamId ?? '') || awayId !== (match.awayTeamId ?? '')
   const sameTeam = !!homeId && homeId === awayId
   const teamOptions = timesDaCategoria(teams, match.categoryId)
+  // Jogo de mata-mata: equipes já eliminadas não podem ser escolhidas. As que já
+  // estão neste jogo continuam na lista, para o campo não perder o valor.
+  const foraDaDisputa = useMemo(
+    () =>
+      match.phase === 'group'
+        ? new Set<string>()
+        : timesForaDaDisputa({ championship, teams: teamOptions, matches: allMatches, fase: match.phase }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [championship, teams, allMatches, match.phase, match.categoryId],
+  )
+  const opcoesTimes = (atualId: string) =>
+    teamOptions.filter(
+      (t) => !foraDaDisputa.has(t.id) || t.id === match.homeTeamId || t.id === match.awayTeamId || t.id === atualId,
+    )
   const [homeScore, setHomeScore] = useState<string>(match.homeScore != null ? String(match.homeScore) : '')
   const [awayScore, setAwayScore] = useState<string>(match.awayScore != null ? String(match.awayScore) : '')
   const [status, setStatus] = useState<MatchStatus>(match.status)
@@ -343,7 +358,7 @@ export function MatchResultModal({
             <span className="field__label">Mandante</span>
             <select value={homeId} onChange={(e) => setHomeId(e.target.value)}>
               <option value="">— a definir —</option>
-              {teamOptions.map((t) => (
+              {opcoesTimes(homeId).map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
@@ -352,12 +367,15 @@ export function MatchResultModal({
             <span className="field__label">Visitante</span>
             <select value={awayId} onChange={(e) => setAwayId(e.target.value)}>
               <option value="">— a definir —</option>
-              {teamOptions.map((t) => (
+              {opcoesTimes(awayId).map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
           </label>
           {sameTeam && <span className="field__hint">Escolha equipes diferentes.</span>}
+          {isKnockoutMatch && teamOptions.some((t) => foraDaDisputa.has(t.id)) && (
+            <span className="field__hint">🚫 Equipes eliminadas do campeonato não podem ser escolhidas.</span>
+          )}
         </div>
       )}
 
