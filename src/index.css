@@ -351,7 +351,7 @@ a.btn { text-decoration: none; cursor: pointer; }
 .manage__actions .btn--soft { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .manage__actions .btn--soft:hover { background: rgba(255, 255, 255, 0.26); }
 
-.tabs { display: flex; gap: 0.25rem; overflow-x: auto; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0 0.25rem; }
 .tab {
   background: none; border: none; color: rgba(255, 255, 255, 0.8); font-weight: 600; font-size: 0.9rem;
   padding: 0.8rem 1rem; border-bottom: 3px solid transparent; white-space: nowrap; display: flex; align-items: center; gap: 0.4rem;
@@ -406,7 +406,7 @@ a.btn { text-decoration: none; cursor: pointer; }
 .chip.is-active { border-color: var(--brand); background: rgba(22, 163, 74, 0.1); color: var(--brand-dark); }
 
 /* ---------- Tables ---------- */
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: visible; }
 table { border-collapse: collapse; width: 100%; }
 .standings, .roster { font-size: 0.9rem; }
 .standings th, .roster th { text-align: center; font-size: 0.75rem; color: var(--muted); font-weight: 700; padding: 0.6rem 0.4rem; border-bottom: 2px solid var(--line); text-transform: uppercase; }
@@ -804,7 +804,7 @@ table { border-collapse: collapse; width: 100%; }
    abas de seção, porque a categoria é o recorte maior — trocar de categoria
    troca o conteúdo de todas as seções. */
 .cat-tabs {
-  display: flex; gap: 0.4rem; overflow-x: auto; padding: 0.15rem 0 0;
+  display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.15rem 0 0;
   margin-bottom: 0.35rem; scrollbar-width: thin;
 }
 .cat-tab {
@@ -964,7 +964,7 @@ table { border-collapse: collapse; width: 100%; }
 
 /* ---------- Responsive ---------- */
 /* Nunca deixar a página rolar horizontalmente. */
-html, body { max-width: 100%; overflow-x: hidden; }
+html, body { max-width: 100%; overflow-x: clip; }
 .table-wrap { -webkit-overflow-scrolling: touch; }
 @media (max-width: 900px) {
   .landing { grid-template-columns: 1fr; }
@@ -1709,16 +1709,6 @@ img, video, svg, canvas { max-width: 100%; }
 /* Tablet: as abas rolam de lado; esconde a barra de rolagem e dá um
    degradê na borda para indicar que há mais abas à direita. */
 @media (max-width: 1024px) {
-  .tabs {
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
-    padding-right: 1.5rem;
-  }
-  .tabs::-webkit-scrollbar { display: none; }
-  .tab { scroll-snap-align: start; }
   .modal--form { max-width: 100%; }
 }
 
@@ -1743,10 +1733,9 @@ img, video, svg, canvas { max-width: 100%; }
 
 /* ---------- Organograma do mata-mata ---------- */
 .bracket {
-  display: flex; gap: 1.25rem; overflow-x: auto; padding: 0.25rem 0.1rem 0.75rem;
-  scroll-snap-type: x proximity;
+  display: flex; flex-wrap: wrap; gap: 1.25rem; padding: 0.25rem 0.1rem 0.75rem;
 }
-.bracket__col { display: flex; flex-direction: column; min-width: 190px; flex: 1 0 190px; scroll-snap-align: start; }
+.bracket__col { display: flex; flex-direction: column; min-width: min(190px, 100%); flex: 1 1 190px; }
 .bracket__title {
   margin: 0 0 0.5rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--muted); text-align: center;
@@ -1831,7 +1820,7 @@ button.bracket__game:hover { border-color: var(--brand); }
   padding: 0.1rem 0.4rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); vertical-align: middle;
 }
 .bracket__selo--atual { background: var(--brand); color: #fff; }
-.bracket__col--encerrada { min-width: 150px; flex: 0 0 150px; opacity: 0.85; }
+.bracket__col--encerrada { min-width: min(150px, 100%); flex: 1 1 150px; opacity: 0.85; }
 .bracket__col--encerrada .bracket__game { padding: 0.25rem 0.4rem; }
 .bracket__col--encerrada .bracket__team { font-size: 0.75rem; }
 .bracket__col--atual {
@@ -1933,4 +1922,19 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   .topbar__right { gap: 0.3rem; }
   .topbar__suporte { min-width: 34px; }
   .mode-tag { padding-left: 0.4rem; padding-right: 0.4rem; letter-spacing: 0; }
+}
+
+
+/* ---------- Sem rolagem lateral, em nenhuma tela ---------- */
+.table-wrap table th, .table-wrap table td { overflow-wrap: anywhere; min-width: 0; }
+.modal, .modal__body, .modal__head { min-width: 0; max-width: 100%; }
+.modal__body * { min-width: 0; }
+@media (max-width: 640px) {
+  .table-wrap table:not(.standings) th, .table-wrap table:not(.standings) td { padding-left: 0.35rem; padding-right: 0.35rem; font-size: 0.82rem; }
+  .tab { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Nome do time nunca é cortado: em telas estreitas quebra em quantas linhas precisar. */
+@media (max-width: 400px) {
+  .match-row__name { display: block; overflow: visible; -webkit-line-clamp: unset; }
 }
