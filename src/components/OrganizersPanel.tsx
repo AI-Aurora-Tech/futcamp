@@ -31,8 +31,8 @@ export function OrganizersPanel({ championship }: { championship: Championship }
   async function remove(o: CoOrganizer) {
     const self = o.email === myMail
     const msg = self
-      ? 'Sair da organização deste campeonato? Você perde o acesso a ele.'
-      : `Remover ${o.name || o.email} da organização? A pessoa perde o acesso ao campeonato.`
+      ? 'Sair da organização deste campeonato? Você perde o acesso a ele e os seus avisos neste campeonato são apagados.'
+      : `Remover ${o.name || o.email} da organização?\n\nA pessoa perde o acesso ao campeonato e os dados dela ligados a ele (convite e avisos no celular) são apagados. Times, jogos e demais dados do campeonato permanecem.`
     if (!confirm(msg)) return
     try {
       await removeCoOrganizer(o.id)
@@ -112,9 +112,11 @@ export function OrganizersPanel({ championship }: { championship: Championship }
       )}
 
       <p className="hint">
-        A pessoa precisa <b>criar uma conta de organizador com o e-mail convidado</b> (ou entrar, se já tiver).
-        Ao entrar, o campeonato aparece no painel dela. Plano, pagamento e exclusão do campeonato continuam
-        com o dono.
+        No <b>primeiro acesso</b>, a pessoa abre a tela de login principal, digita <b>só o e-mail do convite</b>,
+        deixa a senha em branco e clica em Entrar: o sistema pede para ela criar a senha e já a leva ao painel,
+        onde o campeonato aparece. Quem já tem conta entra com a senha de sempre. Ao <b>remover</b> alguém, os dados
+        dela ligados ao campeonato (convite e avisos no celular) são apagados; a conta dela e o que ela ajudou a
+        cadastrar no campeonato permanecem. Plano, pagamento e exclusão do campeonato continuam com o dono.
       </p>
 
       {adding && (
@@ -161,7 +163,7 @@ function InviteForm({
         <Field label="Nome">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome (opcional)" />
         </Field>
-        <Field label="E-mail" hint="O mesmo e-mail com que a pessoa entra no Tabelaço.">
+        <Field label="E-mail" hint="A pessoa entra com este e-mail e cria a senha no primeiro acesso.">
           <input
             type="email"
             value={email}

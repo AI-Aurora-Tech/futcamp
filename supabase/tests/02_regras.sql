@@ -1378,3 +1378,94 @@ select public.change_championship_plan(:'dif_g', 'bronze') as _;
 select pg_temp.checa('Grátis → Bronze cobra o valor cheio (R$ 59,90)',
   (select due_cents from championships where id = :'dif_g') = 5990);
 reset request.jwt.claim.sub;
+
+-- ===========================================================================
+-- Primeiro acesso do organizador convidado (0052).
+-- ===========================================================================
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
+\set pa_dono 'f2000000-0000-0000-0000-0000000000d1'
+\set pa_c 'f2000000-0000-0000-0000-0000000000a1'
+insert into auth.users (id, email) values (:'pa_dono', 'primeiro-dono@teste.com') on conflict do nothing;
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'pa_c', :'pa_dono', 'Copa Primeiro Acesso', 'futebol', 'league', '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb);
+insert into public.championship_organizers (championship_id, email, name)
+values (:'pa_c', 'novo.org@teste.com', 'Novo Org');
+
+select pg_temp.checa('convite sem conta: o e-mail é reconhecido (sem diferenciar maiúsculas)',
+  jsonb_array_length(public.organizador_convidado_sem_conta(' Novo.Org@Teste.com ')) = 1
+  and public.organizador_convidado_sem_conta('novo.org@teste.com') -> 0 ->> 'championship_name' = 'Copa Primeiro Acesso');
+select pg_temp.checa('  e devolve só nome do campeonato e da pessoa',
+  (select count(*) from jsonb_object_keys(public.organizador_convidado_sem_conta('novo.org@teste.com') -> 0)) = 2);
+select pg_temp.checa('e-mail sem convite não é reconhecido',
+  jsonb_array_length(public.organizador_convidado_sem_conta('ninguem@teste.com')) = 0);
+
+insert into auth.users (id, email) values ('f2000000-0000-0000-0000-0000000000e1', 'novo.org@teste.com');
+select pg_temp.checa('depois de criar a conta, o caminho do primeiro acesso fecha',
+  jsonb_array_length(public.organizador_convidado_sem_conta('novo.org@teste.com')) = 0);
+select pg_temp.checa('  e o convite já vale: ele passa a administrar o campeonato',
+  (select count(*) from championship_organizers where championship_id = :'pa_c' and email = 'novo.org@teste.com') = 1);
+
+-- ===========================================================================
+-- Remover organizador apaga os dados dele no campeonato (0053).
+-- ===========================================================================
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
+\set rm_dono 'f3000000-0000-0000-0000-0000000000d1'
+\set rm_co   'f3000000-0000-0000-0000-0000000000c1'
+\set rm_c    'f3000000-0000-0000-0000-0000000000a1'
+\set rm_c2   'f3000000-0000-0000-0000-0000000000a2'
+insert into auth.users (id, email) values (:'rm_dono', 'rm-dono@teste.com'), (:'rm_co', 'rm-co@teste.com') on conflict do nothing;
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'rm_c',  :'rm_dono', 'Copa Remoção',  'futebol', 'league', '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb),
+       (:'rm_c2', :'rm_dono', 'Outra Copa',    'futebol', 'league', '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb);
+
+-- O dono convida dois: o co-organizador (que já tem conta) e uma pessoa que ele mesmo vai convidar.
+set request.jwt.claim.sub = :'rm_dono';
+set request.jwt.claims = '{"email":"rm-dono@teste.com"}';
+select public.add_co_organizer(:'rm_c',  'rm-co@teste.com', 'Co') as _;
+select public.add_co_organizer(:'rm_c2', 'rm-co@teste.com', 'Co') as _;
+select public.push_subscribe(:'rm_c', 'organizer', null, null, 'https://push/dono', 'p', 'a');
+
+-- O co-organizador ativa avisos nos dois campeonatos e convida alguém.
+set request.jwt.claim.sub = :'rm_co';
+set request.jwt.claims = '{"email":"rm-co@teste.com"}';
+select public.push_subscribe(:'rm_c',  'organizer', null, null, 'https://push/co', 'p', 'a');
+select public.push_subscribe(:'rm_c2', 'organizer', null, null, 'https://push/co', 'p', 'a');
+select public.add_co_organizer(:'rm_c', 'rm-convidado@teste.com', 'Convidado') as _;
+select pg_temp.checa('a inscrição de push do organizador guarda quem assinou',
+  (select user_id from push_subscriptions where endpoint = 'https://push/co' and championship_id = :'rm_c') = :'rm_co');
+
+-- O dono remove o co-organizador de UM campeonato.
+set request.jwt.claim.sub = :'rm_dono';
+set request.jwt.claims = '{"email":"rm-dono@teste.com"}';
+select public.remove_co_organizer((select id from championship_organizers where championship_id = :'rm_c' and email = 'rm-co@teste.com')) as _;
+select pg_temp.checa('removido: o convite some',
+  not exists (select 1 from championship_organizers where championship_id = :'rm_c' and email = 'rm-co@teste.com'));
+select pg_temp.checa('  e os avisos no celular dele neste campeonato somem',
+  not exists (select 1 from push_subscriptions where championship_id = :'rm_c' and endpoint = 'https://push/co'));
+select pg_temp.checa('  mas os avisos do dono ficam',
+  exists (select 1 from push_subscriptions where championship_id = :'rm_c' and endpoint = 'https://push/dono'));
+select pg_temp.checa('  e os avisos dele em OUTRO campeonato ficam',
+  exists (select 1 from push_subscriptions where championship_id = :'rm_c2' and endpoint = 'https://push/co'));
+select pg_temp.checa('  e quem ele convidou continua, sem o vínculo com ele',
+  exists (select 1 from championship_organizers where championship_id = :'rm_c' and email = 'rm-convidado@teste.com' and invited_by is null));
+select pg_temp.checa('  e a conta dele continua existindo',
+  exists (select 1 from auth.users where id = :'rm_co'));
+select pg_temp.checa('  e os times e dados do campeonato continuam',
+  exists (select 1 from championships where id = :'rm_c'));
+
+-- Quem nunca criou conta: remover não dá erro.
+select public.add_co_organizer(:'rm_c', 'rm-sem-conta@teste.com', '') as _;
+select public.remove_co_organizer((select id from championship_organizers where email = 'rm-sem-conta@teste.com')) as _;
+select pg_temp.checa('remover convite de quem nunca criou conta funciona',
+  not exists (select 1 from championship_organizers where email = 'rm-sem-conta@teste.com'));
+
+-- Sair por conta própria apaga o mesmo.
+set request.jwt.claim.sub = :'rm_co';
+set request.jwt.claims = '{"email":"rm-co@teste.com"}';
+select public.remove_co_organizer((select id from championship_organizers where championship_id = :'rm_c2' and email = 'rm-co@teste.com')) as _;
+select pg_temp.checa('quem sai por conta própria também leva os avisos embora',
+  not exists (select 1 from push_subscriptions where championship_id = :'rm_c2' and endpoint = 'https://push/co'));
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
