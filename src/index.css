@@ -421,7 +421,7 @@ table { border-collapse: collapse; width: 100%; }
 .roster .col-actions { width: 80px; text-align: right; }
 
 /* ---------- Matches / Rounds ---------- */
-.rounds { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem; }
+.rounds { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1.25rem; }
 .round__head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
 .round__sub { display: block; font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.5rem 0 0.1rem; }
 .round__sub:first-child { margin-top: 0; }
@@ -1809,7 +1809,7 @@ button.bracket__game:hover { border-color: var(--brand); }
 .fase { grid-column: 1 / -1; }
 .fase__corpo {
   padding: 0.5rem 0.85rem 0.85rem; display: grid; align-items: start;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 1.25rem;
 }
 .fase__barra { height: 4px; background: var(--surface-2); }
 .fase__barra span { display: block; height: 100%; background: var(--brand); transition: width 0.3s; }
@@ -1840,3 +1840,77 @@ button.bracket__game:hover { border-color: var(--brand); }
 }
 .bracket__third--atual { border: 2px solid var(--brand); border-radius: var(--radius-sm); padding: 0.4rem 0.5rem; background: rgba(22, 163, 74, 0.05); }
 .bracket__col--futura .bracket__game { border-style: dashed; }
+
+
+/* ==========================================================================
+   Celular
+   Itens de grade não podem forçar a largura da tela; o que se toca com o dedo
+   tem tamanho de dedo; o que se lê tem tamanho de leitura.
+   ========================================================================== */
+
+/* Sem isto, a coluna da Visão geral crescia com o chaveamento (colunas de
+   190px) e a página inteira era cortada à direita, escondendo placares. */
+.overview__cols > * { min-width: 0; }
+
+/* Zoom de texto automático do iOS na horizontal; toque sem espera nem zoom duplo. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, a, summary, select, input, label, [role=button], [role=tab] { touch-action: manipulation; }
+
+/* Tela com "notch" (viewport-fit=cover): nada fica embaixo do recorte. */
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+/* A linha de dados do atleta que só aparece no celular (ver .roster abaixo). */
+.athlete-meta { display: none; }
+
+@media (max-width: 640px) {
+  /* --- Grupos de botões do alto das telas: dois por linha, e o principal
+        ocupa a linha inteira. Antes viravam bolhas com o texto quebrado. --- */
+  .panel__head-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; width: 100%; }
+  .panel__head-actions .btn {
+    width: 100%; min-height: 44px; white-space: normal; line-height: 1.2; text-align: center;
+    justify-content: center; padding-left: 0.75rem; padding-right: 0.75rem;
+  }
+  .panel__head-actions .btn--primary:last-child,
+  .panel__head-actions > :last-child:nth-child(odd),
+  .panel__head-actions > .btn--primary:last-child ~ *,
+  .panel__head-actions > :nth-last-child(2):nth-child(odd) { grid-column: 1 / -1; }
+
+  /* --- Elenco: cada atleta vira um cartão (número · nome + dados · ações),
+        em vez de uma tabela de cinco colunas que espremia o nome e jogava os
+        botões de editar/remover para fora da tela. --- */
+  .roster, .roster tbody { display: block; }
+  .roster thead { display: none; }
+  .roster tr {
+    display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; align-items: center; column-gap: 0.6rem;
+    padding: 0.6rem 0; border-bottom: 1px solid var(--line);
+  }
+  .roster td { display: block; border: 0; padding: 0; text-align: left; }
+  .roster td.col-num { width: auto; text-align: center; }
+  .roster td:nth-child(n + 3):not(.col-actions) { display: none; }
+  .roster td.col-actions { width: auto; display: flex; gap: 0.1rem; }
+  .athlete-meta { display: block; font-size: 0.78rem; color: var(--muted); }
+
+  /* --- Alvos de toque (mínimo de ~40px) --- */
+  .icon-btn { width: 40px; height: 40px; }
+  .btn--sm { min-height: 40px; }
+  .chip { min-height: 40px; }
+  .topbar__brand, .topbar__suporte, .back-link, .landing__plans, .link-btn {
+    min-height: 44px; display: inline-flex; align-items: center;
+  }
+  .topbar__suporte { min-width: 40px; justify-content: center; }
+  .back-link { margin-bottom: 0.25rem; }
+  .landing__plans { margin-top: 0.4rem; }
+
+  /* --- Texto pequeno demais para ler no celular --- */
+  .mode-tag, .fase__selo, .bracket__selo { font-size: 0.7rem; }
+
+  /* iOS dá zoom na página ao tocar num campo com fonte menor que 16px. */
+  input, select, textarea { font-size: 16px; }
+
+  .overview__main { padding: 1rem; }
+}
+
+/* A folha de baixo (modal) respeita a barra do sistema do iPhone. */
+@media (max-width: 640px) {
+  .modal__body { padding-bottom: calc(1.35rem + env(safe-area-inset-bottom)); }
+}

@@ -226,6 +226,16 @@ export function PlayersPanel({
                           )}
                         </span>
                         {p.cpf && <span className="athlete-cpf">{formatCpf(p.cpf)}</span>}
+                        {/* No celular a tabela vira cartão: nascimento, categoria e posição vêm aqui. */}
+                        <span className="athlete-meta">
+                          {[
+                            p.birthdate ? p.birthdate.split('-').reverse().join('/') : '',
+                            championship.categories.length > 1 && !nomeCat ? catById.get(p.categoryId ?? '')?.name : '',
+                            labelDaPosicao(p.position),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
                       </span>
                     </span>
                   </td>

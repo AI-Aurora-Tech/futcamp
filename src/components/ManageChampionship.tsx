@@ -150,6 +150,13 @@ export function ManageChampionship({
     reload().finally(() => setLoading(false))
   }, [reload])
 
+  // No celular as abas rolam para o lado: a escolhida tem que ficar visível.
+  useEffect(() => {
+    document
+      .querySelector<HTMLElement>('nav.tabs .tab.is-active')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  }, [tab, loading])
+
   // Tempo real: placares lançados pelos mesários e alterações dos times
   // aparecem sem recarregar a janela.
   useRealtimeChampionship(championshipId, () => void reload().catch(() => {}))
