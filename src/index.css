@@ -1938,8 +1938,8 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   .match-row__name { display: block; overflow: visible; -webkit-line-clamp: unset; }
 }
 
-/* ---------- Abas da campanha: grade em celular e tablet, sem rolagem ---------- */
-@media (max-width: 1100px) {
+/* ---------- Abas da campanha: grade de botões em todas as telas (3×3 no celular) ---------- */
+@media all {
   .tabs { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 0.35rem; padding: 0.15rem 0 0.7rem; }
   .tab {
     flex-direction: column; justify-content: center; align-items: center; gap: 0.15rem;
