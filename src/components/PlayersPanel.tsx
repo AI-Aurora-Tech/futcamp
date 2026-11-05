@@ -24,6 +24,8 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
+import { baixarBytesPdf } from '../lib/pdfDesenho'
+import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
 
 export function PlayersPanel({
   championship,
@@ -92,6 +94,22 @@ export function PlayersPanel({
     ? championship.categories.find((c) => c.id === categoryId)?.name
     : undefined
 
+  /**
+   * Relação de elenco em PDF (atletas + comissão técnica): do time aberto ou de
+   * todos os times desta categoria. Baixa o arquivo como "Time - Categoria.pdf".
+   * Baixar (e não abrir numa aba) é o que garante o nome: o leitor de PDF do
+   * navegador escolhe o próprio nome para o que abre em aba.
+   */
+  function imprimirElenco(todos: boolean) {
+    const categoria =
+      championship.categories.find((c) => c.id === categoryId) ??
+      (championship.categories.length === 1 ? championship.categories[0] : undefined)
+    const lista = todos ? teams : team ? [team] : []
+    if (lista.length === 0) return
+    const pdf = buildElencoPdf({ championship, category: categoria, teams: lista, players })
+    baixarBytesPdf(pdf, nomeArquivoElenco(todos ? undefined : team?.name, categoria?.name))
+  }
+
   async function remove(p: Player) {
     if (!confirm(`Remover ${p.name} do elenco?`)) return
     await deletePlayer(p.id)
@@ -136,6 +154,8 @@ export function PlayersPanel({
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
+          <Button variant="soft" onClick={() => imprimirElenco(false)} disabled={!selectedTeam} title="Baixa o PDF com os atletas e a comissão técnica do time aberto">⬇ PDF do time</Button>
+          <Button variant="soft" onClick={() => imprimirElenco(true)} title="Baixa o PDF com os atletas e a comissão técnica de todos os times (um time por página)">⬇ PDF de todos os times</Button>
           <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
         </div>
