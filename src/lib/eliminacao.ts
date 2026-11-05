@@ -8,9 +8,9 @@
 //    em curso (ou nos pontos corridos) são criados já com o W.O. aplicado, para
 //    a classificação dos adversários ficar completa.
 // ---------------------------------------------------------------------------
-import type { Championship, Match, Team } from '../types'
+import type { Championship, Match, MatchPhase, Team } from '../types'
 import { groupStagesOf, matchStage } from './groupStages'
-import { KNOCKOUT_ROUND_BASE } from './knockout'
+import { KNOCKOUT_ROUND_BASE, loserOf, usesStaggeredEntry } from './knockout'
 
 /** Placar do W.O.: gols do vencedor. */
 export const WO_GOLS = 3
@@ -181,4 +181,65 @@ export function timesEliminados(matches: Match[]): Set<string> {
     if (m.awayScore === 0 && m.homeScore === WO_GOLS && m.awayTeamId) ids.add(m.awayTeamId)
   }
   return ids
+}
+
+/**
+ * Equipes que NÃO podem ser escolhidas para um jogo da fase eliminatória `fase`:
+ * as que já estão eliminadas do campeonato.
+ *
+ * Está eliminada a equipe que:
+ *  1. foi eliminada pelo organizador (W.O. — `timesEliminados`);
+ *  2. perdeu um jogo de mata-mata já encerrado. Os perdedores das SEMIFINAIS
+ *     seguem valendo para a disputa de 3º lugar — e, nela, só eles valem;
+ *  3. ficou de fora do mata-mata montado a partir da classificação: com a
+ *     criação automática ligada, o chaveamento sai completo da tabela da
+ *     primeira fase, então quem não aparece em nenhum jogo dele não se
+ *     classificou. Só vale quando isso é certo: com a montagem à mão, ou com
+ *     entrada escalonada por colocação, o chaveamento pode estar incompleto e
+ *     "não aparecer" não prova nada — bloquear uma equipe que devia entrar é
+ *     pior do que deixar passar.
+ *
+ * `teams` e `matches` são os DA CATEGORIA (cada categoria tem o seu chaveamento).
+ */
+export function timesForaDaDisputa(params: {
+  championship: Championship
+  teams: Team[]
+  matches: Match[]
+  fase: MatchPhase
+}): Set<string> {
+  const { championship, teams, matches, fase } = params
+  if (fase === 'group') return new Set() // a regra é só para as fases seguintes
+
+  const fora = new Set<string>(timesEliminados(matches))
+  const mataMata = matches.filter((m) => m.phase !== 'group')
+
+  // Disputa de 3º lugar: só os perdedores das semifinais, quando já se sabe quem são.
+  if (fase === 'third_place') {
+    const semis = mataMata.filter((m) => m.phase === 'semi')
+    const perdedores = semis.map(loserOf)
+    if (semis.length > 0 && perdedores.every((id): id is string => !!id)) {
+      const podem = new Set(perdedores)
+      for (const t of teams) if (!podem.has(t.id)) fora.add(t.id)
+    }
+  }
+
+  // Perdeu um jogo de mata-mata encerrado (as semifinais só eliminam da final).
+  for (const m of mataMata) {
+    if (m.status !== 'finished') continue
+    if (fase === 'third_place' && m.phase === 'semi') continue
+    const perdedor = loserOf(m)
+    if (perdedor) fora.add(perdedor)
+  }
+
+  // Ficou de fora do chaveamento montado pela classificação.
+  if (championship.autoKnockout !== false && !usesStaggeredEntry(championship) && mataMata.length > 0) {
+    const noChaveamento = new Set<string>()
+    for (const m of mataMata) {
+      if (m.homeTeamId) noChaveamento.add(m.homeTeamId)
+      if (m.awayTeamId) noChaveamento.add(m.awayTeamId)
+    }
+    for (const t of teams) if (!noChaveamento.has(t.id)) fora.add(t.id)
+  }
+
+  return fora
 }

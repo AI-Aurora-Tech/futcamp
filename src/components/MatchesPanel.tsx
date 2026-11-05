@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createKnockoutStage,
   applyFixturePlan,
@@ -41,6 +41,7 @@ import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
 import { planejarTabela } from '../lib/tabela'
+import { timesForaDaDisputa } from '../lib/eliminacao'
 
 export function MatchesPanel({
   championship,
@@ -436,9 +437,25 @@ function AddMatchModal({
   const isGroupPhase = phase === 'group'
   const nomeTime = (id: string) => teams.find((t) => t.id === id)?.name ?? ''
 
-  // Na fase de grupos, só entram no confronto os times do grupo escolhido.
+  // Equipes já eliminadas não entram nos jogos das fases seguintes (mata-mata).
+  const foraDaDisputa = useMemo(
+    () => timesForaDaDisputa({ championship, teams, matches, fase: phase }),
+    [championship, teams, matches, phase],
+  )
+  const eliminadasNaFase = isGroupPhase ? [] : teams.filter((t) => foraDaDisputa.has(t.id))
+
+  // Na fase de grupos, só entram no confronto os times do grupo escolhido; nas
+  // fases seguintes, só as equipes que ainda estão na disputa.
   const timesDisponiveis =
-    isGroupPhase && group ? teams.filter((t) => t.group === group) : teams
+    isGroupPhase && group
+      ? teams.filter((t) => t.group === group)
+      : teams.filter((t) => !foraDaDisputa.has(t.id))
+
+  // Trocou para uma fase em que o time escolhido já está eliminado: limpa a escolha.
+  useEffect(() => {
+    if (home && foraDaDisputa.has(home)) setHome('')
+    if (away && foraDaDisputa.has(away)) setAway('')
+  }, [foraDaDisputa, home, away])
 
   // Jogos de cada time na 1ª fase de grupos — é o que define a rodada.
   const jogosPorTime = useMemo(() => {
@@ -480,6 +497,9 @@ function AddMatchModal({
     setErro(null)
     if (!home || !away) return setErro('Escolha o time mandante e o visitante.')
     if (home === away) return setErro('O mandante e o visitante devem ser times diferentes.')
+    if (foraDaDisputa.has(home) || foraDaDisputa.has(away)) {
+      return setErro('Uma das equipes escolhidas já está eliminada do campeonato.')
+    }
     // Fase eliminatória entra fora da numeração das rodadas da 1ª fase.
     const koIdx = KNOCKOUT_ORDER.indexOf(phase)
     const rodada = isGroupPhase
@@ -549,6 +569,13 @@ function AddMatchModal({
               <input type="number" value={round} readOnly disabled />
             </Field>
           </div>
+        )}
+
+        {eliminadasNaFase.length > 0 && (
+          <p className="field__hint">
+            🚫 Equipes eliminadas não podem ser escolhidas:{' '}
+            {eliminadasNaFase.map((t) => t.name).join(', ')}.
+          </p>
         )}
 
         <div className="form-row">
