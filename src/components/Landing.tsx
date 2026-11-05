@@ -13,6 +13,7 @@ import { vitrine } from '../lib/vitrine'
 import { statusEfetivo } from '../lib/categorias'
 import { teamLoginByEmail, type TeamAccess } from '../services/registration'
 import { abrirSessaoTime } from '../lib/teamSession'
+import { convitesSemConta, type ConviteOrganizador } from '../services/coorganizers'
 import {
   criarSenhaDoMesario,
   mesaLoginByEmail,
@@ -171,6 +172,8 @@ export function Landing() {
   // O login de mesário não respondeu (migration 0045 ausente no servidor).
   const mesaIndisponivel = useRef(false)
   const [criarSenha, setCriarSenha] = useState<MesaSenhaZerada[] | null>(null)
+  // Organizador convidado que ainda não tem conta: cria a senha no primeiro acesso.
+  const [primeiroAcesso, setPrimeiroAcesso] = useState<ConviteOrganizador[] | null>(null)
   const [novaSenha, setNovaSenha] = useState('')
   const [confirmaSenha, setConfirmaSenha] = useState('')
   const [ongoing, setOngoing] = useState<Championship[]>([])
@@ -240,6 +243,38 @@ export function Landing() {
     return true
   }
 
+  /** O e-mail é de organizador convidado sem conta? Abre a criação da senha. */
+  async function tentarPrimeiroAcesso(): Promise<boolean> {
+    const convites = await convitesSemConta(email)
+    if (convites.length === 0) return false
+    setPrimeiroAcesso(convites)
+    return true
+  }
+
+  async function criarContaConvidado(e: React.FormEvent) {
+    e.preventDefault()
+    if (!primeiroAcesso) return
+    setError(null)
+    if (novaSenha.length < 6) {
+      setError('A senha precisa ter ao menos 6 caracteres.')
+      return
+    }
+    if (novaSenha !== confirmaSenha) {
+      setError('As senhas não conferem.')
+      return
+    }
+    setBusy(true)
+    try {
+      // O convite vale pelo e-mail: ao criar a conta com ele, o campeonato já
+      // aparece no painel. O nome vem do convite (ou do começo do e-mail).
+      const nome = primeiroAcesso.find((c) => c.name.trim())?.name.trim() || email.split('@')[0]
+      const err = await signUp(nome, email, novaSenha)
+      if (err) setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function salvarNovaSenha(e: React.FormEvent) {
     e.preventDefault()
     if (!criarSenha) return
@@ -280,6 +315,15 @@ export function Landing() {
         return
       }
 
+      // Sem senha: só serve para quem está no primeiro acesso — organizador
+      // convidado (cria a conta) ou mesário cuja senha foi zerada.
+      if (!password.trim()) {
+        if (await tentarPrimeiroAcesso()) return
+        if (await tentarSenhaZerada()) return
+        setError('Informe a senha. Se você foi convidado como organizador, use o e-mail do convite.')
+        return
+      }
+
       // A mesma caixa de login serve para o organizador e para o gestor do
       // time. A ordem muda com o modo porque no demo o login de organizador
       // aceita qualquer e-mail (é conta de brinquedo) e engoliria o do time.
@@ -287,6 +331,7 @@ export function Landing() {
         if (await tentarComoTime()) return
         if (await tentarComoMesario()) return
         if (await tentarSenhaZerada()) return
+        if (await tentarPrimeiroAcesso()) return
         const err = await signIn(email, password)
         if (err) setError(err)
         return
@@ -299,6 +344,7 @@ export function Landing() {
       // Nem time: pode ser mesário.
       if (await tentarComoMesario()) return
       if (await tentarSenhaZerada()) return
+      if (await tentarPrimeiroAcesso()) return
       setError(
         mesaIndisponivel.current
           ? `${err}. Se você é mesário: o acesso de mesário pela página inicial ainda não foi liberado neste servidor (migration 0045).`
@@ -356,7 +402,31 @@ export function Landing() {
       </div>
 
       <div className="landing__panel">
-        {criarSenha ? (
+        {primeiroAcesso ? (
+          <div className="auth-card">
+            <h2 className="auth-card__title">Primeiro acesso</h2>
+            <p className="muted">
+              Você foi convidado para organizar{' '}
+              <b>{primeiroAcesso.map((c) => c.championshipName).join(', ')}</b>. Crie uma senha para
+              entrar com <b>{email.trim()}</b>.
+            </p>
+            <form onSubmit={criarContaConvidado} className="auth-form">
+              <Field label="Nova senha">
+                <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} minLength={6} autoComplete="new-password" required />
+              </Field>
+              <Field label="Confirmar nova senha">
+                <input type="password" value={confirmaSenha} onChange={(e) => setConfirmaSenha(e.target.value)} minLength={6} autoComplete="new-password" required />
+              </Field>
+              {error && <p className="auth-error">{error}</p>}
+              <Button type="submit" disabled={busy || !novaSenha || !confirmaSenha}>
+                {busy ? 'Criando…' : 'Criar senha e entrar'}
+              </Button>
+            </form>
+            <button className="link-btn" onClick={() => { setPrimeiroAcesso(null); setNovaSenha(''); setConfirmaSenha(''); setError(null); setPassword('') }}>
+              ← Voltar
+            </button>
+          </div>
+        ) : criarSenha ? (
           <div className="auth-card">
             <h2 className="auth-card__title">Criar nova senha</h2>
             <p className="muted">
@@ -464,8 +534,9 @@ export function Landing() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 // Senha de mesário pode ter 4 caracteres; o mínimo de 6 vale só para criar conta.
-                minLength={tab === 'up' ? 6 : 4}
-                required
+                // No login pode ficar em branco: é como o convidado faz o primeiro acesso.
+                minLength={tab === 'up' ? 6 : undefined}
+                required={tab === 'up'}
               />
             </Field>
 
@@ -482,6 +553,10 @@ export function Landing() {
             🚀 Entrar no modo demonstração
           </Button>
 
+          <p className="auth-note auth-note--time">
+            🤝 <b>Convidado como organizador?</b> Digite só o seu e-mail, deixe a senha em branco e
+            clique em Entrar: você cria a senha no primeiro acesso.
+          </p>
           <p className="auth-note auth-note--time">
             🛡️ <b>Dono de time?</b> Entre aqui com o mesmo e-mail e senha que você criou
             pelo link do organizador. A conta do time nasce sempre daquele link — depois

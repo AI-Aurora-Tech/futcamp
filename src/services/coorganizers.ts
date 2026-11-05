@@ -83,3 +83,40 @@ export async function removeCoOrganizer(id: string): Promise<void> {
     d.coOrganizers = d.coOrganizers.filter((o) => o.id !== id)
   })
 }
+
+/** Convite de organizador de quem ainda não tem conta (primeiro acesso). */
+export interface ConviteOrganizador {
+  championshipName: string
+  /** Nome que o convidante deu à pessoa; pode vir vazio. */
+  name: string
+}
+
+/**
+ * O e-mail tem convite de organizador e AINDA NÃO tem conta? Então a tela
+ * principal oferece criar a senha ali mesmo, sem pedir a senha antes.
+ *
+ * Quem já tem conta nunca aparece aqui — entra com a própria senha.
+ */
+export async function convitesSemConta(email: string): Promise<ConviteOrganizador[]> {
+  const mail = email.trim().toLowerCase()
+  if (!mail) return []
+
+  if (authMode === 'supabase' && supabase) {
+    const { data, error } = await supabase.rpc('organizador_convidado_sem_conta', { p_email: mail })
+    // RPC ausente (migration 0052 não aplicada) ou falha: segue como login comum.
+    if (error || !Array.isArray(data)) return []
+    return data.map((r: any) => ({
+      championshipName: r.championship_name ?? '',
+      name: r.name ?? '',
+    }))
+  }
+  return query((d) =>
+    d.coOrganizers
+      .filter((o) => o.email === mail)
+      .map((o) => ({
+        championshipName: d.championships.find((c) => c.id === o.championshipId)?.name ?? '',
+        name: o.name,
+      }))
+      .filter((c) => c.championshipName),
+  )
+}

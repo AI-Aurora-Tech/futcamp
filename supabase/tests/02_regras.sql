@@ -1378,3 +1378,30 @@ select public.change_championship_plan(:'dif_g', 'bronze') as _;
 select pg_temp.checa('Grátis → Bronze cobra o valor cheio (R$ 59,90)',
   (select due_cents from championships where id = :'dif_g') = 5990);
 reset request.jwt.claim.sub;
+
+-- ===========================================================================
+-- Primeiro acesso do organizador convidado (0052).
+-- ===========================================================================
+reset request.jwt.claims;
+reset request.jwt.claim.sub;
+\set pa_dono 'f2000000-0000-0000-0000-0000000000d1'
+\set pa_c 'f2000000-0000-0000-0000-0000000000a1'
+insert into auth.users (id, email) values (:'pa_dono', 'primeiro-dono@teste.com') on conflict do nothing;
+insert into public.championships (id, owner_id, name, sport, format, season, plan, categories)
+values (:'pa_c', :'pa_dono', 'Copa Primeiro Acesso', 'futebol', 'league', '2026', 'gratis', '[{"id":"a","name":"A"}]'::jsonb);
+insert into public.championship_organizers (championship_id, email, name)
+values (:'pa_c', 'novo.org@teste.com', 'Novo Org');
+
+select pg_temp.checa('convite sem conta: o e-mail é reconhecido (sem diferenciar maiúsculas)',
+  jsonb_array_length(public.organizador_convidado_sem_conta(' Novo.Org@Teste.com ')) = 1
+  and public.organizador_convidado_sem_conta('novo.org@teste.com') -> 0 ->> 'championship_name' = 'Copa Primeiro Acesso');
+select pg_temp.checa('  e devolve só nome do campeonato e da pessoa',
+  (select count(*) from jsonb_object_keys(public.organizador_convidado_sem_conta('novo.org@teste.com') -> 0)) = 2);
+select pg_temp.checa('e-mail sem convite não é reconhecido',
+  jsonb_array_length(public.organizador_convidado_sem_conta('ninguem@teste.com')) = 0);
+
+insert into auth.users (id, email) values ('f2000000-0000-0000-0000-0000000000e1', 'novo.org@teste.com');
+select pg_temp.checa('depois de criar a conta, o caminho do primeiro acesso fecha',
+  jsonb_array_length(public.organizador_convidado_sem_conta('novo.org@teste.com')) = 0);
+select pg_temp.checa('  e o convite já vale: ele passa a administrar o campeonato',
+  (select count(*) from championship_organizers where championship_id = :'pa_c' and email = 'novo.org@teste.com') = 1);
