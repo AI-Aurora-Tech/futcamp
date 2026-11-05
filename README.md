@@ -17,7 +17,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 - 🏆 **Campeonatos** em três formatos: **pontos corridos**, **grupos + mata-mata** e **mata-mata**.
 - 🛡️ **Times** com escudo (imagem ou cor), responsável e telefone, além de busca por nome/responsável/grupo.
 - 👥 **Elencos** com número, posição e jogadores por time.
-- 🖨 **Relação de elenco em PDF**: na aba *Elencos*, "PDF do time" ou "PDF de todos os times" gera a lista de atletas (ordem alfabética) e da comissão técnica, com nascimento, CPF e posição/função, um time por página, da categoria aberta. Abre numa aba para imprimir (`src/lib/elencoPdf.ts`).
+- ⬇ **Relação de elenco em PDF**: na aba *Elencos*, "PDF do time" ou "PDF de todos os times" gera a lista de atletas (ordem alfabética) e da comissão técnica, com nascimento, CPF e posição/função, um time por página, da categoria aberta. Baixa o arquivo como `Nome do Time - Categoria.pdf` (`src/lib/elencoPdf.ts`).
 - 📅 **Geração automática de rodadas** (todos contra todos) com turno e returno opcional.
 - ⚽ **Registro de resultados** com eventos por jogador (gols, gols contra, assistências, cartões).
 - 📊 **Classificação automática** com critérios de desempate (pontos, saldo, gols pró, vitórias).

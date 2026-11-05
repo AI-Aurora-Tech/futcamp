@@ -201,16 +201,28 @@ export function buildElencoPdf(params: {
     p.texto(`Página ${i + 1} de ${paginas.length}`, M + W, A4_ALTURA - 22, { tamanho: 8, cor: 0.4, alinhar: 'd' })
   })
 
-  return gerarPdfPaginas(paginas, `Relação de elenco - ${championship.name}`)
+  // O título do PDF é o nome do arquivo (sem a extensão): é o que o leitor mostra na aba.
+  const titulo = nomeArquivoElenco(teams.length === 1 ? teams[0].name : undefined, category?.name).replace(/\.pdf$/, '')
+  return gerarPdfPaginas(paginas, titulo)
 }
 
-/** "Elenco - Categoria - Time.pdf" (sem caracteres proibidos em nome de arquivo). */
-export function nomeArquivoElenco(categoryName: string | undefined, teamName?: string): string {
-  const base = ['Elenco', categoryName, teamName || 'Todos os times']
+/**
+ * Nome do arquivo: "Nome do Time - Categoria.pdf". Sem time (relação de todos
+ * os times), "Todos os times - Categoria.pdf". Caracteres proibidos em nome de
+ * arquivo viram espaço.
+ */
+export function nomeArquivoElenco(teamName: string | undefined, categoryName: string | undefined): string {
+  const limpo = (t: string) =>
+    t
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const base = [teamName?.trim() || 'Todos os times', categoryName?.trim()]
+    .filter(Boolean)
+    .map((t) => limpo(t as string))
     .filter(Boolean)
     .join(' - ')
-    .replace(/[\\/:*?"<>|]+/g, ' ')
-    .replace(/\s+/g, ' ')
+    .slice(0, 120)
     .trim()
-  return `${base}.pdf`
+  return `${base || 'Elenco'}.pdf`
 }

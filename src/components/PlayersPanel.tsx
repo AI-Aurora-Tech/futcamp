@@ -24,7 +24,7 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
-import { abrirBytesPdf } from '../lib/pdfDesenho'
+import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
 
 export function PlayersPanel({
@@ -96,7 +96,9 @@ export function PlayersPanel({
 
   /**
    * Relação de elenco em PDF (atletas + comissão técnica): do time aberto ou de
-   * todos os times desta categoria. Abre numa aba, de onde se imprime.
+   * todos os times desta categoria. Baixa o arquivo como "Time - Categoria.pdf".
+   * Baixar (e não abrir numa aba) é o que garante o nome: o leitor de PDF do
+   * navegador escolhe o próprio nome para o que abre em aba.
    */
   function imprimirElenco(todos: boolean) {
     const categoria =
@@ -105,7 +107,7 @@ export function PlayersPanel({
     const lista = todos ? teams : team ? [team] : []
     if (lista.length === 0) return
     const pdf = buildElencoPdf({ championship, category: categoria, teams: lista, players })
-    abrirBytesPdf(pdf, nomeArquivoElenco(categoria?.name, todos ? undefined : team?.name))
+    baixarBytesPdf(pdf, nomeArquivoElenco(todos ? undefined : team?.name, categoria?.name))
   }
 
   async function remove(p: Player) {
@@ -152,8 +154,8 @@ export function PlayersPanel({
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => imprimirElenco(false)} disabled={!selectedTeam} title="Atletas e comissão técnica do time aberto, em PDF">🖨 PDF do time</Button>
-          <Button variant="soft" onClick={() => imprimirElenco(true)} title="Atletas e comissão técnica de todos os times, em PDF (um time por página)">🖨 PDF de todos os times</Button>
+          <Button variant="soft" onClick={() => imprimirElenco(false)} disabled={!selectedTeam} title="Baixa o PDF com os atletas e a comissão técnica do time aberto">⬇ PDF do time</Button>
+          <Button variant="soft" onClick={() => imprimirElenco(true)} title="Baixa o PDF com os atletas e a comissão técnica de todos os times (um time por página)">⬇ PDF de todos os times</Button>
           <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
         </div>

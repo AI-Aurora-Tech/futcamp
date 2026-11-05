@@ -142,20 +142,3 @@ export function baixarBytesPdf(bytes: Uint8Array, nomeArquivo: string): void {
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
-
-/**
- * Abre o PDF numa aba nova — de onde se imprime com um clique (Ctrl+P) ou se
- * baixa pelo próprio leitor do navegador. Se o navegador barrar a aba nova
- * (bloqueador de pop-up), cai no download, para o botão nunca parecer morto.
- */
-export function abrirBytesPdf(bytes: Uint8Array, nomeArquivo: string): void {
-  const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: 'application/pdf' }))
-  const aba = window.open(url, '_blank')
-  if (!aba) {
-    URL.revokeObjectURL(url)
-    baixarBytesPdf(bytes, nomeArquivo)
-    return
-  }
-  // Fica de pé tempo suficiente para o leitor de PDF carregar e imprimir.
-  setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000)
-}
