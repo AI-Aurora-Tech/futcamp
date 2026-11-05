@@ -15,7 +15,7 @@ tempo real. Cada campeonato tem uma **página pública** compartilhável.
 ## ✨ Funcionalidades
 
 - 🏆 **Campeonatos** em três formatos: **pontos corridos**, **grupos + mata-mata** e **mata-mata**.
-- 🛡️ **Times** com escudo (imagem ou cor), responsável e telefone, além de busca por nome/responsável/grupo.
+- 🛡️ **Times** com escudo (imagem ou cor), responsável e telefone, além de busca por nome/responsável/grupo. Em competições com fase de grupos, a aba *Times* separa os times **por grupo** (A, B…), em ordem alfabética, com os grupos vazios e o "Sem grupo" visíveis; vale a competição de cada categoria (`src/lib/gruposDosTimes.ts`).
 - 👥 **Elencos** com número, posição e jogadores por time.
 - 🎯 **Partidas por fase**: com mais de uma fase (grupos + mata-mata), a tela agrupa os jogos por fase. As encerradas ficam **reduzidas a uma linha** (clique para abrir), a **fase em disputa** ganha destaque, com selo e barra de progresso, e as seguintes ficam como "A seguir" (`src/lib/fasesPartidas.ts`). A **Visão geral** segue o mesmo andamento: a classificação de uma fase encerrada vira um resumo de uma linha com os classificados (clique abre as tabelas), e no chaveamento as colunas encerradas ficam compactas e a fase em disputa em destaque — inclusive na página pública.
 - 🚫 **Equipes eliminadas não entram nos jogos das fases seguintes**: ao adicionar um jogo de mata-mata (ou trocar as equipes de um já criado), a lista não mostra quem foi eliminado por W.O., perdeu um confronto, ou ficou fora do chaveamento montado pela classificação. Na disputa de 3º lugar só aparecem os perdedores das semifinais (`timesForaDaDisputa`, com testes em `npm run test:regras`).
