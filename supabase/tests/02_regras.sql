@@ -1519,3 +1519,68 @@ select pg_temp.checa('prazo 0: nenhum lembrete de inscrições encerrando',
 update championships set registration_cutoff_hours = 3 where id = :'pz_champ';
 select pg_temp.checa('prazo 3 h: o lembrete continua saindo',
   public.wa_gerar_lembretes_inscricao() >= 1);
+
+-- ===========================================================================
+-- Inscrição pelo time com prazo 0, num banco com a trava dos ramos antigos (0057)
+-- ===========================================================================
+reset role;
+reset request.jwt.claim.sub;
+-- Recria o que as migrations de fora da main deixaram em produção.
+create or replace function public.registration_closed(p_champ uuid) returns boolean
+language sql stable as $$
+  select exists (select 1 from public.matches m where m.championship_id = p_champ and m.status in ('live','finished'))
+$$;
+create or replace function public.players_block_closed_registration() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.owns_championship(new.championship_id) and public.registration_closed(new.championship_id) then
+    raise exception 'As inscrições deste campeonato estão encerradas. Só o organizador pode inscrever atletas agora.';
+  end if;
+  return new;
+end $$;
+create trigger players_block_closed_registration before insert on public.players
+  for each row execute function public.players_block_closed_registration();
+drop function if exists public.reg_update_player(uuid, text, uuid, text, text, date, text, int, text, text, text, boolean, text);
+drop function if exists public.reg_delete_player(uuid, text, uuid);
+
+-- Um time com um jogo já encerrado e outro daqui a 1 hora.
+select i.team_id as z_team, i.token as z_tok, t.championship_id as z_champ
+  from team_invites i join teams t on t.id = i.team_id order by i.team_id limit 1 \gset
+insert into matches (championship_id, round, phase, home_team_id, away_team_id, status, scheduled_at)
+select :'z_champ', 1, 'league', :'z_team', t.id, 'finished', now() - interval '2 days'
+  from teams t where t.championship_id = :'z_champ' and t.id <> :'z_team' limit 1;
+insert into matches (championship_id, round, phase, home_team_id, away_team_id, status, scheduled_at)
+select :'z_champ', 2, 'league', :'z_team', t.id, 'scheduled', now() + interval '1 hour'
+  from teams t where t.championship_id = :'z_champ' and t.id <> :'z_team' limit 1;
+update championships set registration_cutoff_hours = 0, closed_rounds = '[2]'::jsonb where id = :'z_champ';
+
+\i :raiz/supabase/migrations/0057_inscricao_aberta_com_prazo_zero.sql
+
+select pg_temp.checa('0057 tira o gatilho que travava o campeonato inteiro',
+  not exists (select 1 from pg_trigger where tgname = 'players_block_closed_registration'));
+select pg_temp.checa('0057 devolve ao portal editar e remover atleta',
+  to_regprocedure('public.reg_delete_player(uuid,text,uuid)') is not null
+  and (select count(*) from pg_proc where proname = 'reg_update_player') = 1);
+select pg_temp.checa('a 0055 continua valendo: uma versão só de reg_add_player',
+  (select count(*) from pg_proc where proname = 'reg_add_player') = 1);
+
+set role anon;
+select public.reg_add_player(:'z_team', :'z_tok', 'Prazo Zero', null, '2012-01-01', null, null, null, null, 'comissao');
+reset role;
+select pg_temp.checa('prazo 0: o time inscreve com jogo já disputado, jogo daqui a 1 h e rodada fechada',
+  exists (select 1 from players where name = 'Prazo Zero' and team_id = :'z_team'));
+
+update championships set registration_cutoff_hours = 3, closed_rounds = '[]'::jsonb where id = :'z_champ';
+set role anon;
+select pg_temp.recusa('prazo 3 h: o time não inscreve com o próprio jogo daqui a 1 h',
+  format($q$ select public.reg_add_player(%L, %L, 'Fora do Prazo', null, '2012-01-01', null, null, null, null, 'comissao') $q$, :'z_team', :'z_tok'),
+  'encerradas para a próxima partida');
+reset role;
+update matches set status = 'finished' where home_team_id = :'z_team' and round = 2 and championship_id = :'z_champ';
+set role anon;
+select public.reg_add_player(:'z_team', :'z_tok', 'Depois do Jogo', null, '2012-01-01', null, null, null, null, 'comissao');
+reset role;
+select pg_temp.checa('prazo 3 h: terminado o jogo, a inscrição reabre',
+  exists (select 1 from players where name = 'Depois do Jogo'));
+select pg_temp.checa('o portal recebe as partidas do time',
+  jsonb_array_length(public.team_registration(:'z_team', :'z_tok')->'matches') >= 2);
