@@ -80,8 +80,37 @@ export interface PlayerInput {
  * migration 0025 ainda não foi aplicada.
  */
 function semMigration0025(error: { message?: string; code?: string }): boolean {
+  // Só "a função com esses parâmetros não existe". Um "does not exist" genérico
+  // (tabela, coluna, outra função) é outro problema — tentar de novo sem os
+  // parâmetros de federado só esconderia o erro verdadeiro.
   const m = (error?.message ?? '').toLowerCase()
-  return error?.code === 'PGRST202' || m.includes('does not exist') || m.includes('p_federated')
+  return error?.code === 'PGRST202' || m.includes('p_federated')
+}
+
+/**
+ * O Supabase devolve o erro como objeto simples — não como `Error`. Lançado
+ * assim, a tela do time não o reconhece e mostra só "Não foi possível
+ * inscrever o atleta.", sem dizer por quê (CPF já inscrito, categoria que não
+ * aceita federado, link trocado…). Aqui ele vira `Error` com uma mensagem que
+ * o gestor entende. É o mesmo cuidado que o painel do organizador já tem.
+ */
+function erroDoPortal(
+  error: { message?: string; code?: string; details?: string },
+  acao: string,
+): Error {
+  const msg = error?.message ?? ''
+  if (error?.code === '23505' && /players_cpf_category_unique/.test(msg + (error.details ?? ''))) {
+    return new Error('Este CPF já está inscrito nesta categoria.')
+  }
+  if (/^link inválido/i.test(msg)) {
+    return new Error('O acesso deste time mudou. Peça ao organizador o link novo e entre de novo.')
+  }
+  if (error?.code === 'PGRST203' || /is not unique|best candidate function/i.test(msg)) {
+    return new Error(
+      'O servidor está com duas versões da função de inscrição. Avise o organizador: falta aplicar a migration 0055.',
+    )
+  }
+  return new Error(msg || `Não foi possível ${acao}.`)
 }
 
 /** A RPC de login por e-mail não existe? Migration 0028 ainda não aplicada. */
@@ -508,7 +537,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
       p_coach: patch.coach ?? null,
       p_phone: patch.phone ?? null,
     })
-    if (error) throw error
+    if (error) throw erroDoPortal(error, 'salvar os dados do time')
     return
   }
   assertTokenDemo(teamId, token)
@@ -617,10 +646,10 @@ export async function addRegPlayer(teamId: string, token: string, input: PlayerI
     // Inscrever sem a marcação é melhor do que não inscrever.
     if (error && semMigration0025(error)) {
       const { error: e2 } = await supabase.rpc('reg_add_player', base)
-      if (e2) throw e2
+      if (e2) throw erroDoPortal(e2, 'inscrever o atleta')
       return
     }
-    if (error) throw error
+    if (error) throw erroDoPortal(error, 'inscrever o atleta')
     return
   }
   assertTokenDemo(teamId, token)
@@ -674,10 +703,10 @@ export async function updateRegPlayer(
     })
     if (error && semMigration0025(error)) {
       const { error: e2 } = await supabase.rpc('reg_update_player', base)
-      if (e2) throw e2
+      if (e2) throw erroDoPortal(e2, 'salvar o atleta')
       return
     }
-    if (error) throw error
+    if (error) throw erroDoPortal(error, 'salvar o atleta')
     return
   }
   assertTokenDemo(teamId, token)
@@ -709,7 +738,7 @@ export async function removeRegPlayer(teamId: string, token: string, playerId: s
       p_token: token,
       p_player: playerId,
     })
-    if (error) throw error
+    if (error) throw erroDoPortal(error, 'remover o atleta')
     return
   }
   assertTokenDemo(teamId, token)

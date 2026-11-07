@@ -1485,3 +1485,20 @@ select public.add_official(:'rm_c2', 'Maria Mesa', 'maria.mesa@teste.com') as ja
 select pg_temp.checa('mesário que já tem senha em outro campeonato entra no novo sem criar senha',
   :'ja_tinha2' = 't' and public.mesa_login_email('maria.mesa@teste.com', 'minhasenha')::text like '%' || :'rm_c2' || '%');
 reset request.jwt.claim.sub;
+
+-- ===========================================================================
+-- Portal do time: uma versão só das RPCs de inscrição (0055)
+-- ===========================================================================
+select pg_temp.checa('reg_add_player tem uma versão só',
+  (select count(*) from pg_proc where proname = 'reg_add_player' and pronamespace = 'public'::regnamespace) = 1);
+select pg_temp.checa('reg_update_player tem uma versão só',
+  (select count(*) from pg_proc where proname = 'reg_update_player' and pronamespace = 'public'::regnamespace) = 1);
+-- A chamada de reserva do app (sem os parâmetros de federado) não fica ambígua.
+select i.team_id as nf_team, i.token as nf_tok
+  from team_invites i order by i.team_id limit 1 \gset
+select public.reg_add_player(
+  p_team => :'nf_team', p_token => :'nf_tok',
+  p_name => 'Sem Federado', p_cpf => null, p_birthdate => '2012-01-01', p_photo => null,
+  p_number => null, p_position => null, p_category => null, p_role => 'comissao');
+select pg_temp.checa('inscrever sem os parâmetros de federado funciona',
+  exists (select 1 from players where name = 'Sem Federado' and not federated));

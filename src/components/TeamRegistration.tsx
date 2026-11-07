@@ -541,7 +541,12 @@ function RosterCard({
 
   async function remove(p: Player) {
     if (!confirm(`Remover ${p.name} do elenco?`)) return
-    await removeRegPlayer(teamId, token, p.id)
+    try {
+      await removeRegPlayer(teamId, token, p.id)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Não foi possível remover o atleta.')
+      return
+    }
     await onChanged()
   }
 
