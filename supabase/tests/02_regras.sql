@@ -1502,3 +1502,20 @@ select public.reg_add_player(
   p_number => null, p_position => null, p_category => null, p_role => 'comissao');
 select pg_temp.checa('inscrever sem os parâmetros de federado funciona',
   exists (select 1 from players where name = 'Sem Federado' and not federated));
+
+-- ===========================================================================
+-- Prazo de inscrição 0: sem lembrete de "inscrições encerrando" (0056)
+-- ===========================================================================
+reset role;
+reset request.jwt.claim.sub;
+select m.id as pz_match, m.championship_id as pz_champ
+  from matches m order by m.id limit 1 \gset
+update matches set status = 'scheduled', scheduled_at = now() + interval '15 hours' where id = :'pz_match';
+update championships set registration_cutoff_hours = 0;
+delete from whatsapp_outbox where dedupe_key like 'prazo:%';
+select pg_temp.checa('prazo 0: nenhum lembrete de inscrições encerrando',
+  public.wa_gerar_lembretes_inscricao() = 0
+  and not exists (select 1 from whatsapp_outbox where dedupe_key = 'prazo:' || :'pz_match'));
+update championships set registration_cutoff_hours = 3 where id = :'pz_champ';
+select pg_temp.checa('prazo 3 h: o lembrete continua saindo',
+  public.wa_gerar_lembretes_inscricao() >= 1);

@@ -15,6 +15,9 @@ export interface RegistrationLock {
  *  • encerramento MANUAL de uma rodada pelo organizador (closedRounds), ou
  *  • proximidade de jogo: `cutoffHours` antes de cada partida não finalizada.
  * Em ambos os casos, ao finalizar a partida/rodada as inscrições reabrem.
+ *
+ * Prazo 0 = SEM prazo: o time inscreve a qualquer momento, e nem uma rodada
+ * encerrada à mão trava (o organizador escolheu não limitar).
  */
 export function registrationLockForTeam(
   teamId: string,
@@ -23,6 +26,8 @@ export function registrationLockForTeam(
   closedRounds: number[] = [],
   now: Date = new Date(),
 ): RegistrationLock {
+  if (!cutoffHours || cutoffHours <= 0) return { locked: false }
+
   const mine = matches.filter(
     (m) => (m.homeTeamId === teamId || m.awayTeamId === teamId) && m.status !== 'finished',
   )
@@ -35,17 +40,15 @@ export function registrationLockForTeam(
   }
 
   // 2) Prazo por proximidade do jogo.
-  if (cutoffHours && cutoffHours > 0) {
-    const ms = cutoffHours * 3600_000
-    const candidates = mine
-      .filter((m) => !!m.scheduledAt)
-      .map((m) => ({ m, at: new Date(m.scheduledAt as string) }))
-      .filter(({ at }) => !Number.isNaN(at.getTime()))
-      .sort((a, b) => a.at.getTime() - b.at.getTime())
-    for (const { m, at } of candidates) {
-      if (now.getTime() >= at.getTime() - ms) {
-        return { locked: true, reason: 'time', match: m, matchAt: m.scheduledAt }
-      }
+  const ms = cutoffHours * 3600_000
+  const candidates = mine
+    .filter((m) => !!m.scheduledAt)
+    .map((m) => ({ m, at: new Date(m.scheduledAt as string) }))
+    .filter(({ at }) => !Number.isNaN(at.getTime()))
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+  for (const { m, at } of candidates) {
+    if (now.getTime() >= at.getTime() - ms) {
+      return { locked: true, reason: 'time', match: m, matchAt: m.scheduledAt }
     }
   }
 
@@ -64,8 +67,10 @@ export function matchRegistrationClosed(
   now: Date = new Date(),
 ): boolean {
   if (match.status === 'live' || match.status === 'finished') return true
+  // Prazo 0 = sem prazo: nem rodada encerrada à mão fecha.
+  if (!cutoffHours || cutoffHours <= 0) return false
   if (closedRounds.includes(match.round)) return true
-  if (!cutoffHours || cutoffHours <= 0 || !match.scheduledAt) return false
+  if (!match.scheduledAt) return false
   const at = new Date(match.scheduledAt)
   if (Number.isNaN(at.getTime())) return false
   return now.getTime() >= at.getTime() - cutoffHours * 3600_000

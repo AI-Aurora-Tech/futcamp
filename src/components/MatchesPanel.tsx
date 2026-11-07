@@ -224,7 +224,10 @@ export function MatchesPanel({
     () => (verPorGrupo ? matchSectionsByGroup(matches, teams) : matchSections(matches)),
     [matches, teams, verPorGrupo],
   )
-  const closedRounds = new Set(championship.closedRounds ?? [])
+  // Prazo 0 = inscrições abertas o tempo todo: encerrar rodada não teria efeito,
+  // então o botão e o cadeado nem aparecem.
+  const temPrazo = (championship.registrationCutoffHours ?? 0) > 0
+  const closedRounds = new Set(temPrazo ? championship.closedRounds ?? [] : [])
 
   // Fases do campeonato (cada fase de grupos e cada fase do mata-mata): as já
   // encerradas ficam reduzidas e a que está em disputa ganha destaque.
@@ -351,7 +354,7 @@ export function MatchesPanel({
                   {!semTitulo && (
                     <div className="round__head">
                       <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
-                      {!sec.isKnockout && roundNo != null && (
+                      {temPrazo && !sec.isKnockout && roundNo != null && (
                         <button
                           type="button"
                           className="round__toggle"
