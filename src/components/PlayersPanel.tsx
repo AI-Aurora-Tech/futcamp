@@ -22,7 +22,7 @@ import {
   type Position,
   type Team,
 } from '../types'
-import { Button, EmptyState, Field, Modal, SearchField, TeamBadge } from './ui'
+import { Button, EmptyState, Field, Modal, SearchField, TeamBadge, VerifiedTag } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
@@ -219,6 +219,7 @@ export function PlayersPanel({
                       <span>
                         <span className="strong">
                           {p.name}
+                          {p.cpfVerified && <VerifiedTag />}
                           {p.federated && (
                             <span className="fed-tag" title="Atleta federado">
                               FEDERADO{p.federatedIn ? ` · ${MODALIDADE_LABELS[p.federatedIn]}` : ''}

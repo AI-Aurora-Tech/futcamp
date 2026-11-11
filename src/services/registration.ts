@@ -142,6 +142,7 @@ function playerFromRow(r: any): Player {
     role: r.role ?? undefined,
     federated: r.federated ?? false,
     federatedIn: r.federated_in ?? undefined,
+    cpfVerified: Boolean(r.cpf_verified),
     createdAt: r.created_at,
   }
 }

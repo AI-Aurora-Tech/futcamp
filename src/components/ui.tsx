@@ -331,3 +331,12 @@ export function SuporteLink({
     </a>
   )
 }
+
+/** Selo do atleta cujo CPF, nascimento e nome foram conferidos na Receita. */
+export function VerifiedTag() {
+  return (
+    <span className="verified-tag" title="CPF, data de nascimento e nome conferidos na Receita Federal">
+      ✓ VALIDADO
+    </span>
+  )
+}

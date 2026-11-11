@@ -37,7 +37,8 @@ import {
   type Position,
 } from '../types'
 import { RegulamentoButton } from './RegulamentoButton'
-import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
+import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge, VerifiedTag } from './ui'
+import { validateAthlete } from '../services/validation'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
@@ -655,6 +656,7 @@ function RosterCard({
                       <span>
                         <span className="strong">
                           {p.name}
+                          {p.cpfVerified && <VerifiedTag />}
                           {p.federated && (
                             <span className="fed-tag" title="Atleta federado">
                               FEDERADO{p.federatedIn ? ` · ${MODALIDADE_LABELS[p.federatedIn]}` : ''}
@@ -765,6 +767,43 @@ export function AthleteDialog({
   const fileRef = useRef<HTMLInputElement>(null)
   const isAthlete = role === 'atleta'
 
+  // Consulta à Receita: o time informa CPF + nascimento e a Receita devolve o
+  // nome. Se algo não bater, o time decide se cadastra manualmente.
+  //   idle    → ainda não consultou (atleta novo vê só CPF e data)
+  //   ok      → Receita confirmou; o nome vem dela e fica travado
+  //   failed  → algo deu errado; pergunta se quer cadastrar manualmente
+  //   manual  → cadastro manual, sem a marca de validado
+  const [lookup, setLookup] = useState<'idle' | 'loading' | 'ok' | 'failed' | 'manual'>(
+    initial ? (initial.cpfVerified ? 'ok' : 'manual') : 'idle',
+  )
+  const [lookupMsg, setLookupMsg] = useState('')
+  const [lookupFixable, setLookupFixable] = useState(false)
+  const precisaConsultar = isAthlete && !initial && (lookup === 'idle' || lookup === 'loading' || lookup === 'failed')
+
+  // Mexeu no CPF ou na data depois da consulta: o nome da Receita não vale mais.
+  function onDocChange(apply: () => void) {
+    apply()
+    if (lookup === 'ok' && !initial) setName('')
+    if (lookup === 'ok' || lookup === 'failed') setLookup(initial ? 'manual' : 'idle')
+  }
+
+  async function consultar() {
+    setError(null)
+    setLookup('loading')
+    const r = await validateAthlete(cpf, birthdate)
+    if (r.ok && r.officialName) {
+      setName(r.officialName)
+      setLookup('ok')
+      setLookupMsg(r.message)
+      return
+    }
+    // CPF com dígito errado ou data vazia: é só corrigir, não cabe cadastro manual.
+    if (!initial) setName('')
+    setLookupFixable(r.status === 'invalid_cpf' || r.status === 'invalid_birthdate')
+    setLookupMsg(r.message)
+    setLookup('failed')
+  }
+
   const category = categories.find((c) => c.id === categoryId)
   const ruleHint = category?.birthYear
     ? category.birthYearMode === 'min'
@@ -806,6 +845,10 @@ export function AthleteDialog({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (precisaConsultar) {
+      if (lookup !== 'loading') await consultar()
+      return
+    }
     setError(null)
     setBusy(true)
     try {
@@ -850,19 +893,65 @@ export function AthleteDialog({
           </div>
         </Field>
 
-        <Field label="Nome completo">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required />
-        </Field>
-
         <div className="form-row">
           <Field label={isAthlete ? 'CPF' : 'CPF (opcional)'}>
-            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} />
+            <input value={cpf} onChange={(e) => onDocChange(() => setCpf(formatCpf(e.target.value)))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} />
           </Field>
           <Field label={isAthlete ? 'Data de nascimento' : 'Data de nascimento (opcional)'}>
-            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} />
+            <input type="date" value={birthdate} onChange={(e) => onDocChange(() => setBirthdate(e.target.value))} required={isAthlete} />
           </Field>
         </div>
 
+        {isAthlete && precisaConsultar && lookup !== 'failed' && (
+          <p className="muted small">
+            Informe o CPF e a data de nascimento do atleta. O nome é buscado na Receita Federal.
+          </p>
+        )}
+
+        {isAthlete && lookup === 'failed' && (
+          <div className="lookup-box lookup-box--warn" role="alert">
+            <p>⚠️ {lookupMsg}</p>
+            {!lookupFixable && (
+              <>
+                <p className="strong">Deseja cadastrar este atleta manualmente?</p>
+                <div className="lookup-box__actions">
+                  <Button type="button" onClick={() => setLookup('manual')}>Sim, cadastrar manualmente</Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {isAthlete && initial && lookup === 'manual' && (
+          <button type="button" className="link-btn" onClick={() => void consultar()}>
+            🔎 Consultar CPF na Receita
+          </button>
+        )}
+
+        {!precisaConsultar && (
+          isAthlete && lookup === 'ok' ? (
+            <Field label="Nome completo (Receita Federal)">
+              <div className="lookup-name">
+                <input value={name} readOnly />
+                <VerifiedTag />
+              </div>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => setLookup('manual')}
+              >
+                editar o nome manualmente (o atleta deixa de ser validado)
+              </button>
+            </Field>
+          ) : (
+            <Field label="Nome completo">
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required />
+            </Field>
+          )
+        )}
+
+        {!precisaConsultar && (
+          <>
         {categories.length > 1 && (
           <Field label="Categoria">
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -931,12 +1020,20 @@ export function AthleteDialog({
             </select>
           </Field>
         </div>
+          </>
+        )}
 
         {error && <p className="auth-error">{error}</p>}
 
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Validando…' : 'Salvar'}</Button>
+          {precisaConsultar ? (
+            <Button type="submit" disabled={lookup === 'loading' || !cpf || !birthdate}>
+              {lookup === 'loading' ? 'Consultando a Receita…' : '🔎 Consultar na Receita'}
+            </Button>
+          ) : (
+            <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>
+          )}
         </div>
       </form>
     </Modal>
