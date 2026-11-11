@@ -79,34 +79,40 @@ const NAO_CONFERE = 'A Receita não confirmou este CPF com esta data de nascimen
 // ---------------------------------------------------------------------------
 
 /** Infosimples — consulta "receita-federal/cpf" (CPF + data de nascimento). */
-async function infosimples(cpf: string, birthdate: string): Promise<Result> {
+// deno-lint-ignore no-explicit-any
+async function infosimplesCall(cpf: string, birthdate: string): Promise<any> {
   const token = Deno.env.get('CPF_API_TOKEN') ?? ''
   const res = await fetch('https://api.infosimples.com/api/v2/consultas/receita-federal/cpf', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ token, cpf, birthdate: toBR(birthdate), timeout: '60' }),
+    body: new URLSearchParams({ token, cpf, birthdate, timeout: '60' }),
   })
-  if (!res.ok) return { ok: false, status: 'error', message: `Receita indisponível agora (HTTP ${res.status}).` }
+  const data = await res.json().catch(() => ({ code: res.status, code_message: `HTTP ${res.status}` }))
+  // Só código e motivo no log — nada de nome ou documento.
+  console.log('infosimples:', birthdate.includes('/') ? 'dd/mm/aaaa' : 'aaaa-mm-dd', data?.code, data?.code_message, data?.errors)
+  return data
+}
 
-  // deno-lint-ignore no-explicit-any
-  const data: any = await res.json().catch(() => ({}))
-  if (data.code !== 200) {
-    // 6xx: a Receita não achou o CPF ou a data não confere (ou erro do provedor).
-    const motivo = [data.code_message, ...(Array.isArray(data.errors) ? data.errors : [])]
+async function infosimples(cpf: string, birthdate: string): Promise<Result> {
+  // A data vai no formato ISO; se o provedor recusar o pedido (qualquer coisa
+  // que não seja "achou" ou "não achou"), tenta de novo com dd/mm/aaaa.
+  let data = await infosimplesCall(cpf, birthdate)
+  if (data?.code !== 200 && data?.code !== 612) data = await infosimplesCall(cpf, toBR(birthdate))
+
+  if (data?.code !== 200) {
+    const motivo = [data?.code_message, ...(Array.isArray(data?.errors) ? data.errors : [])]
       .filter(Boolean)
-      .join(' ')
-    const naoConfere = [606, 607, 608, 611, 612].includes(Number(data.code))
-    return {
-      ok: false,
-      status: naoConfere ? 'mismatch' : 'error',
-      message: naoConfere ? NAO_CONFERE : `Não foi possível consultar a Receita agora${motivo ? ` (${motivo})` : ''}.`,
-    }
+      .join(' — ')
+    const detalhe = `código ${data?.code ?? '?'}${motivo ? `: ${motivo}` : ''}`
+    if (data?.code === 612) return { ok: false, status: 'mismatch', message: `${NAO_CONFERE} (${detalhe})` }
+    return { ok: false, status: 'error', message: `Não foi possível consultar a Receita agora (${detalhe}).` }
   }
   const r = Array.isArray(data.data) ? data.data[0] : data.data
-  const name = String(r?.nome ?? '').trim()
+  const name = String(r?.nome ?? r?.name ?? '').trim()
   if (!name) return { ok: false, status: 'error', message: 'A Receita respondeu sem o nome do titular.' }
-  if (r?.data_nascimento && !sameDate(r.data_nascimento, birthdate)) {
-    return { ok: false, status: 'mismatch', message: NAO_CONFERE }
+  const nasc = r?.data_nascimento ?? r?.nascimento
+  if (nasc && !sameDate(nasc, birthdate)) {
+    return { ok: false, status: 'mismatch', message: `${NAO_CONFERE} (a Receita informa ${nasc})` }
   }
   return { ok: true, status: 'valid', message: CONFIRMADO, name }
 }
@@ -201,6 +207,8 @@ serve(async (req) => {
   try {
     const r = await consultar(cpf, birthdate)
     if (r.ok && r.name) await registrar(cpf, birthdate, r.name)
+    // Na recusa, diz qual provedor respondeu — ajuda a achar configuração errada.
+    if (!r.ok) r.message = `${r.message} [${consultar.name}]`
     return json(r)
   } catch (e) {
     console.error('validate-athlete:', e)
