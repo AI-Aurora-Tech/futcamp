@@ -24,6 +24,7 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge, VerifiedTag } from './ui'
 import { useReceitaLookup } from './ReceitaLookup'
+import { ConferirReceitaModal } from './ConferirReceitaModal'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
@@ -70,6 +71,7 @@ export function PlayersPanel({
     if (!teams.some((t) => t.id === selectedTeam)) setSelectedTeam(teams[0].id)
   }, [teams, selectedTeam])
   const [editing, setEditing] = useState<Player | null>(null)
+  const [conferindo, setConferindo] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const [search, setSearch] = useState('')
@@ -247,6 +249,9 @@ export function PlayersPanel({
                   )}
                   <td>{labelDaPosicao(p.position) || '—'}</td>
                   <td className="col-actions">
+                    {!p.cpfVerified && (
+                      <button className="icon-btn" title="Conferir na Receita" onClick={() => setConferindo(p)}>🔎</button>
+                    )}
                     <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
                     <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
                   </td>
@@ -273,6 +278,17 @@ export function PlayersPanel({
           onSaved={() => {
             setAdding(false)
             setEditing(null)
+            onChange()
+          }}
+        />
+      )}
+
+      {conferindo && (
+        <ConferirReceitaModal
+          player={conferindo}
+          onClose={() => setConferindo(null)}
+          onValidated={() => {
+            setConferindo(null)
             onChange()
           }}
         />

@@ -23,6 +23,7 @@ export function useReceitaLookup(initial: Player | undefined, isAthlete: boolean
   )
   const [msg, setMsg] = useState('')
   const [fixable, setFixable] = useState(false)
+  const [semConsulta, setSemConsulta] = useState(false)
 
   /** Atleta novo ainda sem consulta (ou com consulta recusada): o resto do formulário espera. */
   const precisaConsultar = isAthlete && !initial && lookup !== 'ok' && lookup !== 'manual'
@@ -43,6 +44,13 @@ export function useReceitaLookup(initial: Player | undefined, isAthlete: boolean
       return
     }
     if (!initial) setName('')
+    // Sem consulta automática configurada: nada a perguntar, segue no manual.
+    if (r.status === 'unverified') {
+      setMsg('')
+      setLookup('manual')
+      setSemConsulta(true)
+      return
+    }
     // CPF com dígito errado ou data vazia: é só corrigir, não cabe cadastro manual.
     setFixable(r.status === 'invalid_cpf' || r.status === 'invalid_birthdate')
     setMsg(r.message)
@@ -97,6 +105,12 @@ export function useReceitaLookup(initial: Player | undefined, isAthlete: boolean
               </>
             )}
           </div>
+        )}
+
+        {isAthlete && !initial && semConsulta && lookup === 'manual' && (
+          <p className="muted small">
+            ℹ️ Digite o nome completo. O organizador pode validar o atleta depois, conferindo na Receita.
+          </p>
         )}
 
         {isAthlete && initial && lookup === 'manual' && (

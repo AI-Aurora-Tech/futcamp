@@ -14,6 +14,13 @@ função grava a consulta confirmada em `cpf_verifications` e um gatilho em
 `players` só marca o atleta se CPF + nascimento + nome baterem com ela. O
 navegador não consegue forjar o selo, e trocar nome/CPF/data depois o remove.
 
+## Sem provedor pago (gratuito)
+
+Sem `CPF_PROVIDER`, a função responde `unverified` e a tela vai direto para o
+cadastro manual. O organizador valida depois no painel de atletas: botão 🔎
+**Conferir na Receita** → abre o site oficial "Situação Cadastral do CPF"
+(captcha resolvido por uma pessoa) → **Validar atleta** (migration `0059`).
+
 ## Deploy
 
 ```bash
