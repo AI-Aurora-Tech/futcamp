@@ -1,27 +1,27 @@
 -- ===========================================================================
 -- 0058 — Atleta validado na Receita Federal
 -- ===========================================================================
--- Na inscrição, o time digita CPF + data de nascimento e a Edge Function
--- `validate-athlete` consulta a Receita (via provedor). Se tudo bater, ela
--- devolve o nome oficial e grava a consulta em `cpf_verifications`.
+-- O organizador confere o atleta no site "Situação Cadastral do CPF" da
+-- Receita e confirma no app (RPC da 0059). A confirmação fica gravada em
+-- `cpf_verifications`.
 --
 -- A marcação `players.cpf_verified` é decidida AQUI, pelo banco, e não pela
 -- tela: o gatilho confere se aquele CPF + nascimento + nome foram mesmo
--- confirmados pela função. Assim ninguém marca um atleta como "validado"
--- mandando `true` do navegador, e a regra vale para todos os caminhos de
--- inscrição (portal do time, painel do organizador, importação).
+-- confirmados. Assim ninguém marca um atleta como "validado" mandando `true`
+-- do navegador, e a regra vale para todos os caminhos de inscrição (portal do
+-- time, painel do organizador, importação).
 --
 -- Se depois alguém trocar o nome, o CPF ou a data, a marcação cai sozinha.
 --
 -- Idempotente: pode ser reexecutada com segurança.
 -- ===========================================================================
 
--- 1. Consultas confirmadas. Só a Edge Function (service role) escreve e lê.
+-- 1. Confirmações. Ninguém lê nem escreve direto: só a RPC da 0059.
 create table if not exists public.cpf_verifications (
   cpf         text not null,
   birthdate   date not null,
   name        text not null,
-  source      text not null default 'receita',
+  source      text not null default 'manual',
   verified_at timestamptz not null default now(),
   primary key (cpf, birthdate)
 );

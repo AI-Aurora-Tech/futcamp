@@ -38,7 +38,6 @@ import {
 } from '../types'
 import { RegulamentoButton } from './RegulamentoButton'
 import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge, VerifiedTag } from './ui'
-import { useReceitaLookup } from './ReceitaLookup'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
@@ -751,6 +750,9 @@ export function AthleteDialog({
   onSaved: () => Promise<void>
 }) {
   const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
+  const [name, setName] = useState(initial?.name ?? '')
+  const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
+  const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
   const [number, setNumber] = useState(initial?.number != null ? String(initial.number) : '')
   const [position, setPosition] = useState<Position>(
     initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
@@ -763,9 +765,6 @@ export function AthleteDialog({
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const isAthlete = role === 'atleta'
-
-  const receita = useReceitaLookup(initial, isAthlete)
-  const { name, cpf, birthdate, precisaConsultar } = receita
 
   const category = categories.find((c) => c.id === categoryId)
   const ruleHint = category?.birthYear
@@ -808,10 +807,6 @@ export function AthleteDialog({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (precisaConsultar) {
-      if (receita.lookup !== 'loading') await receita.consultar()
-      return
-    }
     setError(null)
     setBusy(true)
     try {
@@ -856,10 +851,19 @@ export function AthleteDialog({
           </div>
         </Field>
 
-        {receita.campos({ cpfLabel: isAthlete ? 'CPF' : 'CPF (opcional)', cpfRequired: isAthlete })}
+        <Field label="Nome completo">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" required />
+        </Field>
 
-        {!precisaConsultar && (
-          <>
+        <div className="form-row">
+          <Field label={isAthlete ? 'CPF' : 'CPF (opcional)'}>
+            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" required={isAthlete} />
+          </Field>
+          <Field label={isAthlete ? 'Data de nascimento' : 'Data de nascimento (opcional)'}>
+            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} required={isAthlete} />
+          </Field>
+        </div>
+
         {categories.length > 1 && (
           <Field label="Categoria">
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -928,18 +932,12 @@ export function AthleteDialog({
             </select>
           </Field>
         </div>
-          </>
-        )}
 
         {error && <p className="auth-error">{error}</p>}
 
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
-          {precisaConsultar ? (
-            receita.botaoConsultar()
-          ) : (
-            <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>
-          )}
+          <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Validando…' : 'Salvar'}</Button>
         </div>
       </form>
     </Modal>

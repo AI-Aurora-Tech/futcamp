@@ -23,7 +23,6 @@ import {
   type Team,
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge, VerifiedTag } from './ui'
-import { useReceitaLookup } from './ReceitaLookup'
 import { ConferirReceitaModal } from './ConferirReceitaModal'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { baixarBytesPdf } from '../lib/pdfDesenho'
@@ -354,8 +353,9 @@ function PlayerForm({
 }) {
   const categories = championship.categories
   const [role, setRole] = useState<'atleta' | 'comissao'>(initial?.role ?? 'atleta')
-  const receita = useReceitaLookup(initial, role === 'atleta')
-  const { name, cpf, birthdate, precisaConsultar } = receita
+  const [name, setName] = useState(initial?.name ?? '')
+  const [cpf, setCpf] = useState(initial?.cpf ? formatCpf(initial.cpf) : '')
+  const [birthdate, setBirthdate] = useState(initial?.birthdate ?? '')
   const [number, setNumber] = useState<string>(initial?.number != null ? String(initial.number) : '')
   const [position, setPosition] = useState<Position>(
     initial?.position ?? POSICAO_PADRAO[initial?.role ?? 'atleta'],
@@ -408,10 +408,6 @@ function PlayerForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (precisaConsultar) {
-      if (receita.lookup !== 'loading') await receita.consultar()
-      return
-    }
     const cpfConflict = checkCpfConflict({
       cpf,
       teamId,
@@ -489,10 +485,25 @@ function PlayerForm({
           </div>
         </Field>
 
-        {receita.campos()}
+        <Field label="Nome completo">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo do atleta" required />
+        </Field>
 
-        {!precisaConsultar && (
-          <>
+        {initial?.cpfVerified && (
+          <p className="muted small">
+            <VerifiedTag /> Validado na Receita. Mudar o nome, o CPF ou a data remove a validação.
+          </p>
+        )}
+
+        <div className="form-row">
+          <Field label="CPF">
+            <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} placeholder="000.000.000-00" inputMode="numeric" />
+          </Field>
+          <Field label="Data de nascimento">
+            <input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} />
+          </Field>
+        </div>
+
         {categories.length > 1 && (
           <Field label="Categoria">
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -556,18 +567,11 @@ function PlayerForm({
           </Field>
         </div>
 
-          </>
-        )}
-
         {error && <p className="auth-error">{error}</p>}
 
         <div className="form-actions">
           <Button variant="ghost" type="button" onClick={onClose}>Cancelar</Button>
-          {precisaConsultar ? (
-            receita.botaoConsultar()
-          ) : (
-            <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>
-          )}
+          <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>
         </div>
       </form>
     </Modal>

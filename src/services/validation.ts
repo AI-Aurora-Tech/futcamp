@@ -9,8 +9,8 @@
 //      VITE_VALIDATION_URL — que confere CPF × data de nascimento num provedor
 //      de consulta (mantendo a chave fora do navegador).
 //
-// Sem backend/provedor configurado, o resultado é "unverified" e a tela
-// oferece o cadastro manual.
+// Sem backend/provedor configurado, o resultado é "unverified" (aceita, mas
+// avisa que a checagem oficial não foi feita).
 // ---------------------------------------------------------------------------
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isValidCpf } from '../lib/eligibility'
@@ -24,7 +24,7 @@ export type ValidationStatus =
   | 'error' // falha ao consultar o provedor
 
 export interface AthleteValidation {
-  ok: boolean // a Receita confirmou e devolveu o nome?
+  ok: boolean // pode prosseguir com a inscrição?
   status: ValidationStatus
   message: string
   officialName?: string
@@ -58,16 +58,24 @@ export async function validateAthlete(
     return { ok: false, status: 'invalid_birthdate', message: 'Data de nascimento ausente ou implausível.' }
   }
 
-  // 2) Consulta à Receita (Edge Function). Só `ok` com nome conta como
-  //    validado; qualquer outra resposta leva ao cadastro manual.
+  // 2) Verificação oficial (se configurada)
   try {
     const remote = await callRemote(digits, birthdate)
     if (remote) return remote
   } catch {
-    return { ok: false, status: 'error', message: 'Não foi possível consultar a Receita agora.' }
+    // Não bloqueia a inscrição por indisponibilidade do provedor.
+    return {
+      ok: true,
+      status: 'error',
+      message: 'Não foi possível consultar a base oficial agora — CPF e data válidos localmente.',
+    }
   }
 
-  return { ok: false, status: 'unverified', message: 'A consulta à Receita não está disponível neste ambiente.' }
+  return {
+    ok: true,
+    status: 'unverified',
+    message: 'CPF e data de nascimento válidos. Verificação oficial não configurada.',
+  }
 }
 
 async function callRemote(cpf: string, birthdate: string): Promise<AthleteValidation | null> {
@@ -97,8 +105,7 @@ async function callRemote(cpf: string, birthdate: string): Promise<AthleteValida
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function normalize(raw: any): AthleteValidation {
   const status = (raw?.status ?? (raw?.valid ? 'valid' : 'mismatch')) as ValidationStatus
-  const officialName = String(raw?.name ?? raw?.officialName ?? '').trim() || undefined
-  const ok = status === 'valid' && Boolean(officialName)
+  const ok = status === 'valid' || status === 'unverified' || status === 'error'
   const fallback: Record<ValidationStatus, string> = {
     valid: 'CPF confirmado e compatível com a data de nascimento.',
     unverified: 'CPF e data válidos (sem verificação oficial).',
@@ -108,9 +115,9 @@ function normalize(raw: any): AthleteValidation {
     error: 'Falha ao consultar a base oficial.',
   }
   return {
-    ok,
+    ok: raw?.ok ?? ok,
     status,
     message: raw?.message ?? fallback[status] ?? 'Resultado de validação.',
-    officialName,
+    officialName: raw?.name ?? raw?.officialName,
   }
 }
