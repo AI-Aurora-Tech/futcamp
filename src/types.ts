@@ -586,6 +586,8 @@ export interface Player {
   federated?: boolean
   /** Em qual modalidade é federado. */
   federatedIn?: 'campo' | 'futsal' | 'ambos'
+  /** CPF, nascimento e nome conferidos na Receita (marcado pelo banco). */
+  cpfVerified?: boolean
   createdAt: string
 }
 

@@ -22,6 +22,7 @@ function fromRow(r: any): Player {
     role: r.role ?? undefined,
     federated: r.federated ?? false,
     federatedIn: r.federated_in ?? undefined,
+    cpfVerified: Boolean(r.cpf_verified),
     createdAt: r.created_at,
   }
 }
@@ -207,5 +208,27 @@ export async function deletePlayer(id: string): Promise<void> {
   }
   mutate((d) => {
     d.players = d.players.filter((p) => p.id !== id)
+  })
+}
+
+/**
+ * O organizador conferiu o atleta no site da Receita e confirma que nome, CPF
+ * e nascimento batem. O banco confere quem está pedindo e acende o selo
+ * (migrations 0058/0059).
+ */
+export async function confirmCpfReceita(playerId: string): Promise<void> {
+  if (authMode === 'supabase' && supabase) {
+    const { error } = await supabase.rpc('confirm_cpf_receita', { p_player: playerId })
+    if (error) {
+      if (error.code === 'PGRST202' || /confirm_cpf_receita/.test(error.message ?? '')) {
+        throw new Error('Falta aplicar a migration 0059 no banco para validar atletas.')
+      }
+      throw erroDoBanco(error, 'validar o atleta')
+    }
+    return
+  }
+  mutate((d) => {
+    const p = d.players.find((x) => x.id === playerId)
+    if (p) p.cpfVerified = true
   })
 }

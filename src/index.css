@@ -1985,3 +1985,26 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 }
 .team-group__count { font-size: 0.78rem; font-weight: 600; color: var(--muted); }
 .team-group__vazio { margin: 0; padding: 0.9rem; border: 1px dashed var(--line); border-radius: var(--radius-sm); color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+/* ---------- Atleta validado na Receita ---------- */
+.verified-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--brand-dark);
+  border: 1px solid rgba(22, 163, 74, 0.3);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* ---------- Conferir na Receita (organizador) ---------- */
+.receita-steps { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+.receita-dados { display: grid; gap: 0.35rem; background: var(--surface-2); border-radius: 10px; padding: 0.7rem 0.85rem; }
+.receita-dado { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.receita-dado__label { font-size: 0.75rem; color: var(--muted); min-width: 7.5rem; }
+.receita-dado__valor { font-variant-numeric: tabular-nums; }
+.roster td.col-actions { white-space: nowrap; }

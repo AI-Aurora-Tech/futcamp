@@ -37,7 +37,7 @@ import {
   type Position,
 } from '../types'
 import { RegulamentoButton } from './RegulamentoButton'
-import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge } from './ui'
+import { Button, ChampLogo, EmptyState, Field, Modal, PushToggle, Spinner, SuporteLink, TeamBadge, VerifiedTag } from './ui'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { abrirSessaoTime, fecharSessaoTime, temSessaoTime } from '../lib/teamSession'
 import { emailPlausivel } from '../lib/email'
@@ -655,6 +655,7 @@ function RosterCard({
                       <span>
                         <span className="strong">
                           {p.name}
+                          {p.cpfVerified && <VerifiedTag />}
                           {p.federated && (
                             <span className="fed-tag" title="Atleta federado">
                               FEDERADO{p.federatedIn ? ` · ${MODALIDADE_LABELS[p.federatedIn]}` : ''}
