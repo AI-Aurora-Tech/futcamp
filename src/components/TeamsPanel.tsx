@@ -52,7 +52,7 @@ export function TeamsPanel({
   const daCategoria = elencoDeTimes(teams, categoryId)
   const catNome = championship.categories.find((c) => c.id === categoryId)?.name
   const limite = limiteDeTimes(championship.plan)
-  // Campeonato novo: o limite vale para cada categoria. O antigo segue contando tudo.
+  // Com categorias, o limite vale para cada uma (migration 0060).
   const porCategoria = limitePorCategoria(championship)
   const vagas = vagasDeTime(championship.plan, porCategoria ? daCategoria.length : teams.length)
   const semVagas = vagas <= 0

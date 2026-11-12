@@ -83,7 +83,7 @@ function assertLimiteDemo(championshipId: string, categoryIds?: string[]): void 
     if (!c) return null
     const doCampeonato = d.teams.filter((t) => t.championshipId === championshipId)
     if (limitePorCategoria(c)) {
-      // Campeonato novo: o limite vale em cada categoria em que o clube entra.
+      // O limite vale em cada categoria em que o clube entra.
       const alvo = categoryIds?.length ? categoryIds : c.categories.map((x) => x.id)
       if (alvo.some((id) => !cabeMaisUmTime(c.plan, timesDaCategoria(doCampeonato, id).length))) {
         throw new Error(motivoLimiteDeTimes(c.plan, true))
