@@ -503,8 +503,8 @@ export function ManageChampionship({
             <div className="settings-block">
               <h3>WhatsApp (Evolution)</h3>
               <p className="muted small">
-                Quando ligado no servidor, os responsáveis dos times recebem no WhatsApp os avisos
-                de jogo marcado, remarcado, cancelado, encerrado e do prazo de inscrição. Informe
+                Quando ligado no servidor, os responsáveis dos times recebem no WhatsApp o resultado
+                ao fim de cada partida e o lembrete do prazo de inscrição. Informe
                 aqui um número para <b>receber cópia</b> de todos esses avisos (opcional).
               </p>
               <WhatsappBlock
