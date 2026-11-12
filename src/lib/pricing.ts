@@ -9,7 +9,7 @@
 //
 // Valores em CENTAVOS — dinheiro nunca em ponto flutuante.
 // ---------------------------------------------------------------------------
-import type { Category, PlanKey } from '../types'
+import type { PlanKey } from '../types'
 
 export interface PlanInfo {
   key: PlanKey
@@ -245,9 +245,12 @@ export function motivoLimiteDeTimes(key: PlanKey | undefined, porCategoria = fal
 /** Planos cobrados por campeonato, do mais barato ao mais caro. O Diamante é à parte. */
 const PLANOS_POR_CAMPEONATO: PlanKey[] = ['gratis', 'bronze', 'prata', 'ouro']
 
-/** Campeonato cujo limite de equipes vale por categoria (criado com equipes previstas). */
-export function limitePorCategoria(c: { categories?: Pick<Category, 'expectedTeams'>[] } | null | undefined): boolean {
-  return Boolean(c?.categories?.some((x) => x.expectedTeams != null))
+/**
+ * O limite de equipes vale por categoria em todo campeonato com categorias
+ * (migration 0060). Sem categorias, conta o campeonato inteiro — dá no mesmo.
+ */
+export function limitePorCategoria(c: { categories?: unknown[] } | null | undefined): boolean {
+  return (c?.categories?.length ?? 0) > 0
 }
 
 /** O plano comporta este número de categorias e de equipes em cada uma? */
