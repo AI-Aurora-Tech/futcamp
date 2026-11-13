@@ -27,6 +27,9 @@ import { ConferirReceitaModal } from './ConferirReceitaModal'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
+import { updateChampionship } from '../services/championships'
+import { useAuth } from '../context/AuthContext'
+import { categoriaEncerrada } from '../lib/categorias'
 
 export function PlayersPanel({
   championship,
@@ -54,6 +57,37 @@ export function PlayersPanel({
   onChange: () => void
 }) {
   const [selectedTeam, setSelectedTeam] = useState<string>(teams[0]?.id ?? '')
+  const { isMaster } = useAuth()
+
+  // Inscrições da categoria: o organizador encerra; só o master reabre (0062).
+  const catEfetiva = categoryId || championship.categories[0]?.id
+  const encerrada = categoriaEncerrada(championship.closedCategories, categoryId, championship.categories)
+  const [mudandoInscricoes, setMudandoInscricoes] = useState(false)
+
+  async function alternarInscricoes() {
+    if (!catEfetiva) return
+    const nome = championship.categories.find((c) => c.id === catEfetiva)?.name ?? 'esta categoria'
+    const atual = new Set(championship.closedCategories ?? [])
+    if (encerrada) {
+      if (!isMaster) return
+      if (!window.confirm(`Reabrir as inscrições de ${nome}?`)) return
+      atual.delete(catEfetiva)
+    } else {
+      if (!window.confirm(
+        `Encerrar as inscrições de ${nome}?\n\nOs times não poderão mais inscrever, editar ou remover atletas nesta categoria. Depois de encerradas, só o administrador master pode reabri-las.`,
+      )) return
+      atual.add(catEfetiva)
+    }
+    setMudandoInscricoes(true)
+    try {
+      await updateChampionship(championship.id, { closedCategories: [...atual] })
+      onChange()
+    } catch (err) {
+      window.alert((err as { message?: string })?.message || 'Não foi possível alterar as inscrições.')
+    } finally {
+      setMudandoInscricoes(false)
+    }
+  }
 
   /**
    * Trocar de categoria troca a lista de clubes.
@@ -156,12 +190,30 @@ export function PlayersPanel({
           <p className="muted">Registre os atletas de cada time (nome, CPF, nascimento e categoria).</p>
         </div>
         <div className="panel__head-actions">
+          {catEfetiva && !encerrada && (
+            <Button variant="danger" onClick={() => void alternarInscricoes()} disabled={mudandoInscricoes} title="Os times deixam de inscrever, editar ou remover atletas nesta categoria. Só o master reabre.">
+              🔒 Encerrar inscrições
+            </Button>
+          )}
+          {encerrada && isMaster && (
+            <Button variant="soft" onClick={() => void alternarInscricoes()} disabled={mudandoInscricoes} title="Só o administrador master pode reabrir">
+              🔓 Reabrir inscrições
+            </Button>
+          )}
           <Button variant="soft" onClick={() => imprimirElenco(false)} disabled={!selectedTeam} title="Baixa o PDF com os atletas e a comissão técnica do time aberto">⬇ PDF do time</Button>
           <Button variant="soft" onClick={() => imprimirElenco(true)} title="Baixa o PDF com os atletas e a comissão técnica de todos os times (um time por página)">⬇ PDF de todos os times</Button>
           <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
         </div>
       </div>
+
+      {encerrada && (
+        <div className="lock-banner">
+          🔒 Inscrições {nomeCat ? <>do <b>{nomeCat}</b> </> : ''}<b>encerradas</b>. Os times não podem mais inscrever,
+          editar ou remover atletas{isMaster ? '.' : ' — só o administrador master pode reabrir.'} Você, como organizador,
+          continua podendo ajustar os elencos.
+        </div>
+      )}
 
       <SearchField
         value={search}

@@ -23,6 +23,7 @@ import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
 import { registrationLockForTeam } from '../lib/matchWindow'
+import { categoriaEncerrada, MSG_CATEGORIA_ENCERRADA } from '../lib/categorias'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -45,8 +46,8 @@ export interface RegistrationData {
   managers: string[]
   /** Prazo de inscrição (horas antes da partida). 0 = sem prazo. */
   registrationCutoffHours: number
-  /** Rodadas com inscrições encerradas manualmente pelo organizador. */
-  closedRounds: number[]
+  /** Categorias com inscrições encerradas pelo organizador (só o master reabre). */
+  closedCategories: string[]
   /** Partidas do time (para calcular a trava de inscrição). */
   matches: Match[]
   /** Regras do campeonato, para o time baixar o regulamento. */
@@ -242,7 +243,7 @@ export async function loadRegistration(
       hasAccount: Boolean(data.has_account),
       managers: Array.isArray(data.managers) ? (data.managers as string[]) : [],
       registrationCutoffHours: data.registration_cutoff_hours ?? 0,
-      closedRounds: Array.isArray(data.closed_rounds) ? data.closed_rounds : [],
+      closedCategories: Array.isArray(data.closed_categories) ? data.closed_categories : [],
       matches: Array.isArray(data.matches) ? data.matches.map(matchFromRow) : [],
       championship: data.championship ? champFromRow(data.championship) : undefined,
     }
@@ -274,7 +275,7 @@ export async function loadRegistration(
       hasAccount: Boolean(team.username && team.passwordHash),
       managers: [team.username, team.username2].filter((u): u is string => Boolean(u)),
       registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
-      closedRounds: champ?.closedRounds ?? [],
+      closedCategories: champ?.closedCategories ?? [],
       matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
     }
   })
@@ -566,7 +567,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
-  const { category, existing, cutoff, closedRounds, matches, champPlayers, teamNames } = query((d) => {
+  const { category, existing, cutoff, encerrada, matches, champPlayers, teamNames } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
@@ -578,7 +579,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
       category,
       existing,
       cutoff: champ?.registrationCutoffHours ?? 0,
-      closedRounds: champ?.closedRounds ?? [],
+      encerrada: categoriaEncerrada(champ?.closedCategories, input.categoryId, champ?.categories),
       matches,
       champPlayers: d.players.filter((p) => p.championshipId === team?.championshipId),
       teamNames: new Map(
@@ -598,13 +599,11 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   })
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
-  const lock = registrationLockForTeam(teamId, matches, cutoff, closedRounds)
+  if (encerrada) throw new Error(MSG_CATEGORIA_ENCERRADA)
+
+  const lock = registrationLockForTeam(teamId, matches, cutoff)
   if (lock.locked) {
-    throw new Error(
-      lock.reason === 'manual'
-        ? 'As inscrições da próxima rodada foram encerradas pelo organizador.'
-        : 'As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.',
-    )
+    throw new Error('As inscrições deste time estão encerradas para a próxima partida. Reabrem após o jogo.')
   }
 
   if (role === 'atleta') {

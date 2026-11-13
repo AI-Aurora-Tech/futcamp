@@ -7,7 +7,6 @@ import {
   generateKnockout,
   generateLeague,
 } from '../services/matches'
-import { updateChampionship } from '../services/championships'
 import { flushWhatsapp } from '../services/whatsapp'
 import { flushPush } from '../services/push'
 import { useAuth } from '../context/AuthContext'
@@ -224,10 +223,6 @@ export function MatchesPanel({
     () => (verPorGrupo ? matchSectionsByGroup(matches, teams) : matchSections(matches)),
     [matches, teams, verPorGrupo],
   )
-  // Prazo 0 = inscrições abertas o tempo todo: encerrar rodada não teria efeito,
-  // então o botão e o cadeado nem aparecem.
-  const temPrazo = (championship.registrationCutoffHours ?? 0) > 0
-  const closedRounds = new Set(temPrazo ? championship.closedRounds ?? [] : [])
 
   // Fases do campeonato (cada fase de grupos e cada fase do mata-mata): as já
   // encerradas ficam reduzidas e a que está em disputa ganha destaque.
@@ -247,14 +242,6 @@ export function MatchesPanel({
   const [aberturaManual, setAberturaManual] = useState<Record<string, boolean>>({})
   const faseAberta = (f: (typeof fases)[number], i: number) =>
     aberturaManual[f.key] ?? (f.estado !== 'encerrada' || (todasEncerradas && i === fases.length - 1))
-
-  async function toggleRound(round: number) {
-    const set = new Set(championship.closedRounds ?? [])
-    if (set.has(round)) set.delete(round)
-    else set.add(round)
-    await updateChampionship(championship.id, { closedRounds: [...set].sort((a, b) => a - b) })
-    onChange()
-  }
 
   return (
     <section className="panel">
@@ -347,23 +334,11 @@ export function MatchesPanel({
           )}
           {(() => {
             const renderSecao = (sec: Section, semTitulo = false) => {
-              const roundNo = sec.byGroup ? undefined : sec.matches[0]?.round
-              const isClosed = !sec.isKnockout && roundNo != null && closedRounds.has(roundNo)
               return (
-                <div key={sec.key} className={`round ${isClosed ? 'round--closed' : ''}`}>
+                <div key={sec.key} className="round">
                   {!semTitulo && (
                     <div className="round__head">
-                      <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
-                      {temPrazo && !sec.isKnockout && roundNo != null && (
-                        <button
-                          type="button"
-                          className="round__toggle"
-                          onClick={() => void toggleRound(roundNo)}
-                          title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
-                        >
-                          {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
-                        </button>
-                      )}
+                      <h3 className="round__title">{sec.title}</h3>
                     </div>
                   )}
                   <div className="round__matches">
@@ -377,11 +352,7 @@ export function MatchesPanel({
                         venues={championship.venues}
                         // Na visão por grupo os jogos vêm pela situação, não
                         // pela rodada — então a rodada vai no próprio jogo.
-                        roundLabel={
-                          sec.byGroup
-                            ? `Rodada ${m.round}${closedRounds.has(m.round) ? ' · 🔒 inscrições encerradas' : ''}`
-                            : undefined
-                        }
+                        roundLabel={sec.byGroup ? `Rodada ${m.round}` : undefined}
                       />
                     ))}
                   </div>
