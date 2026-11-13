@@ -19,7 +19,7 @@ import {
   qualifiersOfStage,
   stageExists,
 } from '../lib/groupStages'
-import type { PlanoEliminacao } from '../lib/eliminacao'
+import { aplicarWoSeEliminado, type PlanoEliminacao } from '../lib/eliminacao'
 import type { PlanoTabela } from '../lib/tabela'
 import type {
   Championship,
@@ -130,8 +130,9 @@ export async function createMatch(input: NewMatch): Promise<Match> {
     if (error) throw error
     return fromRow(data)
   }
-  const match: Match = { ...input, id: uid('match'), createdAt: new Date().toISOString() }
   return mutate((d) => {
+    const nome = (id: string) => d.teams.find((t) => t.id === id)?.name
+    const match: Match = { ...aplicarWoSeEliminado(input, d.matches, nome), id: uid('match'), createdAt: new Date().toISOString() }
     d.matches.push(match)
     return match
   })
@@ -546,13 +547,10 @@ export async function requestKnockoutSync(
  * ainda não encerrados e, com `criarFaltantes`, cria já com W.O. os jogos que
  * ele ainda deveria disputar. Ver lib/eliminacao.ts.
  */
-export async function eliminateTeam(
-  plano: PlanoEliminacao,
-  championshipId: string,
-  criarFaltantes: boolean,
-): Promise<void> {
+export async function eliminateTeam(plano: PlanoEliminacao, championshipId: string): Promise<void> {
   for (const { match, patch } of plano.atualizar) await updateMatch(match.id, patch)
-  if (criarFaltantes && plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
+  // Os jogos que ele ainda deveria disputar entram sempre, já com o W.O.
+  if (plano.criar.length > 0) await bulkInsert(championshipId, plano.criar)
 }
 
 /**
@@ -577,8 +575,9 @@ async function bulkInsert(championshipId: string, matches: NewMatch[]): Promise<
     return
   }
   mutate((d) => {
+    const nome = (id: string) => d.teams.find((t) => t.id === id)?.name
     for (const m of matches) {
-      d.matches.push({ ...m, id: uid('match'), createdAt: new Date().toISOString() })
+      d.matches.push({ ...aplicarWoSeEliminado(m, d.matches, nome), id: uid('match'), createdAt: new Date().toISOString() })
     }
     void championshipId
   })

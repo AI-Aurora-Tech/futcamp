@@ -49,3 +49,18 @@ ok('montagem à mão: quem não está no chaveamento NÃO é bloqueado', !fora(q
 const escalonado = { ...camp, format: 'league', leagueEntries: [{ from: 1, to: 2, phase: 'semi' }] }
 ok('entrada escalonada: quem não está no chaveamento NÃO é bloqueado', !fora(quartas, 'semi', escalonado).has('i'))
 ok('sem mata-mata criado ainda: só W.O. e perdedores contam (i livre)', !fora([wo], 'quarter').has('i'))
+
+// Jogo novo com time já eliminado nasce com W.O. (aplicarWoSeEliminado)
+import { aplicarWoSeEliminado } from '../src/lib/eliminacao'
+const nome = (id: string) => id.toUpperCase()
+const jaEliminado = [fim('group', 'a', 'b', 0, 3, { incidents: WO_ELIMINACAO + ': A (derrota por 3 × 0).' })]
+const novo = (h: string, a: string, extra: any = {}) => ({ championshipId: 'c', round: 3, phase: 'group', status: 'scheduled', homeTeamId: h, awayTeamId: a, homeScore: null, awayScore: null, ...extra }) as any
+const r1 = aplicarWoSeEliminado(novo('c', 'a'), jaEliminado, nome)
+ok('jogo novo contra eliminado (fora de casa): 3 × 0 para o mandante, encerrado', r1.status === 'finished' && r1.homeScore === 3 && r1.awayScore === 0 && r1.incidents.includes(WO_ELIMINACAO))
+const r2 = aplicarWoSeEliminado(novo('a', 'd'), jaEliminado, nome)
+ok('jogo novo com eliminado em casa: 0 × 3', r2.homeScore === 0 && r2.awayScore === 3)
+ok('jogo novo sem eliminado fica como está', aplicarWoSeEliminado(novo('c', 'd'), jaEliminado, nome).status === 'scheduled')
+const r3 = aplicarWoSeEliminado(novo('a', 'e', { phase: 'quarter' }), jaEliminado, nome)
+ok('mata-mata: adversário do eliminado é o classificado', r3.winnerTeamId === 'e')
+ok('eliminado em outra categoria não conta', aplicarWoSeEliminado(novo('a', 'd', { categoryId: 'sub12' }), jaEliminado, nome).status === 'scheduled')
+ok('jogo já encerrado não muda', aplicarWoSeEliminado({ ...novo('a', 'd'), status: 'finished', homeScore: 2, awayScore: 1 }, jaEliminado, nome).homeScore === 2)

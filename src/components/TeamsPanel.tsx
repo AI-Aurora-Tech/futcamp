@@ -368,11 +368,11 @@ function EliminateModal({
   const pendentes = plano.atualizar.length
   const faltantes = plano.criar.length
 
-  async function eliminar(criarFaltantes: boolean) {
+  async function eliminar() {
     setBusy(true)
     setErro(null)
     try {
-      await eliminateTeam(plano, championship.id, criarFaltantes)
+      await eliminateTeam(plano, championship.id)
       onDone()
     } catch (e) {
       setErro((e as Error)?.message || 'Não foi possível eliminar o time agora.')
@@ -403,8 +403,9 @@ function EliminateModal({
       )}
       <p>
         O time sai da disputa: cada jogo que ele ainda teria vira <b>derrota por W.O.</b>, com{' '}
-        <b>{WO_GOLS} × 0</b> para o adversário. Os jogos já encerrados continuam valendo, e o time
-        não é apagado.
+        <b>{WO_GOLS} × 0</b> (vitória e pontos) para o adversário. Os jogos já encerrados continuam
+        valendo, e o time não é apagado. Jogos criados depois com ele (nova tabela, próxima fase)
+        também já entram com o W.O.
       </p>
       <ul className="muted">
         <li>
@@ -415,37 +416,16 @@ function EliminateModal({
         <li>
           {faltantes === 0
             ? 'Não há jogos a criar — a tabela do time já está completa.'
-            : `${faltantes} jogo(s) que ele ainda deveria disputar não existem na tabela.`}
+            : `${faltantes} jogo(s) que ele ainda deveria disputar serão criados já com o W.O.`}
         </li>
       </ul>
-
-      {faltantes > 0 && (
-        <p>
-          <b>
-            Deseja criar todos os jogos que {team.name} deveria jogar
-            {variasCategorias ? ` no ${categoryName}` : ''} e aplicar o W.O. ({WO_GOLS} × 0 para o
-            adversário)?
-          </b>
-        </p>
-      )}
 
       {erro && <p className="auth-error">{erro}</p>}
 
       <div className="form-actions">
         <Button variant="ghost" type="button" onClick={onClose} disabled={busy}>Cancelar</Button>
-        {faltantes > 0 && (
-          <Button variant="soft" type="button" onClick={() => void eliminar(false)} disabled={busy}>
-            Não, só os jogos já criados
-          </Button>
-        )}
-        <Button variant="danger" type="button" onClick={() => void eliminar(true)} disabled={busy || nada}>
-          {busy
-            ? 'Eliminando…'
-            : faltantes > 0
-              ? 'Sim, criar jogos e aplicar W.O.'
-              : variasCategorias
-                ? `Eliminar do ${categoryName}`
-                : 'Eliminar e aplicar W.O.'}
+        <Button variant="danger" type="button" onClick={() => void eliminar()} disabled={busy || nada}>
+          {busy ? 'Eliminando…' : variasCategorias ? `Eliminar do ${categoryName}` : 'Eliminar e aplicar W.O.'}
         </Button>
       </div>
     </Modal>
