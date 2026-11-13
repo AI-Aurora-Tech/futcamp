@@ -322,8 +322,10 @@ export interface Championship {
    * Reabre automaticamente após a partida ser finalizada. 0 = sem prazo.
    */
   registrationCutoffHours: number
-  /** Rodadas com inscrições encerradas manualmente pelo organizador. */
+  /** Rodadas com inscrições encerradas manualmente (legado: não é mais usado). */
   closedRounds?: number[]
+  /** Categorias com inscrições encerradas pelo organizador. Só o master reabre. */
+  closedCategories?: string[]
   /** Turno e returno (todos jogam duas vezes) no formato de pontos corridos. */
   doubleRound: boolean
   /** Número de grupos (formato grupos + mata-mata). */

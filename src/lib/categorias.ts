@@ -241,3 +241,21 @@ export function categoriaInicial(
   const ativa = cats.find((c) => statusDaCategoria(champ, c.id) === 'active')
   return (ativa ?? cats[0])?.id
 }
+
+/**
+ * As inscrições desta categoria foram encerradas pelo organizador? Atleta sem
+ * categoria conta para a primeira (mesma regra de `atletaDaCategoria`).
+ */
+export function categoriaEncerrada(
+  closedCategories: string[] | null | undefined,
+  categoryId: string | null | undefined,
+  categories: { id: string }[] | null | undefined,
+): boolean {
+  const lista = closedCategories ?? []
+  if (!lista.length) return false
+  const id = categoryId || categories?.[0]?.id
+  return id ? lista.includes(id) : false
+}
+
+/** A frase do bloqueio — igual à do banco (migration 0062). */
+export const MSG_CATEGORIA_ENCERRADA = 'As inscrições desta categoria foram encerradas pelo organizador.'

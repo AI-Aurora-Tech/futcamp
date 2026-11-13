@@ -26,6 +26,7 @@ import {
 } from '../lib/federated'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
+import { categoriaEncerrada } from '../lib/categorias'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import {
@@ -513,7 +514,7 @@ function RosterCard({
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const catById = new Map(data.categories.map((c) => [c.id, c] as const))
-  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours, data.closedRounds)
+  const lock = registrationLockForTeam(data.team.id, data.matches, data.registrationCutoffHours)
 
   /* ---------------------------------------------------------------------- */
   /* Abas de categoria                                                       */
@@ -529,6 +530,9 @@ function RosterCard({
   const varias = minhas.length > 1
   const [catId, setCatId] = useState<string>(minhas[0]?.id ?? '')
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
+  // Categoria encerrada pelo organizador: nada de inscrever, editar ou remover.
+  const encerrada = categoriaEncerrada(data.closedCategories, catAtual, data.categories)
+  const travado = lock.locked || encerrada
 
   const doElenco = (
     varias
@@ -563,8 +567,8 @@ function RosterCard({
           </p>
         </div>
         <div className="panel__head-actions">
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={lock.locked}>📊 Importar planilha</Button>
-          <Button onClick={() => setAdding(true)} disabled={lock.locked}>＋ Inscrever atleta</Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={travado}>📊 Importar planilha</Button>
+          <Button onClick={() => setAdding(true)} disabled={travado}>＋ Inscrever atleta</Button>
         </div>
       </div>
 
@@ -595,17 +599,16 @@ function RosterCard({
         disable={() => disablePush(data.championshipId)}
       />
 
-      {lock.locked && (
+      {encerrada ? (
         <div className="lock-banner">
-          {lock.reason === 'manual' ? (
-            <>🔒 As inscrições da <b>próxima rodada</b> foram <b>encerradas pelo organizador</b>. Reabrem após a rodada ser realizada.</>
-          ) : (
-            <>
-              🔒 Inscrições <b>encerradas</b> para a próxima partida
-              {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
-              Reabrem automaticamente após o jogo ser finalizado.
-            </>
-          )}
+          🔒 As inscrições {varias && nomeCat ? <>do <b>{nomeCat}</b> </> : ''}foram <b>encerradas pelo organizador</b>.
+          Não é possível inscrever, editar ou remover atletas.
+        </div>
+      ) : lock.locked && (
+        <div className="lock-banner">
+          🔒 Inscrições <b>encerradas</b> para a próxima partida
+          {lock.matchAt ? ` (${new Date(lock.matchAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})` : ''}.
+          Reabrem automaticamente após o jogo ser finalizado.
         </div>
       )}
 
@@ -671,8 +674,8 @@ function RosterCard({
                     <td>{catById.get(p.categoryId ?? '')?.name ?? '—'}</td>
                   )}
                   <td className="col-actions">
-                    <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
-                    <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
+                    <button className="icon-btn" title="Editar" onClick={() => setEditing(p)} disabled={encerrada}>✎</button>
+                    <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)} disabled={encerrada}>🗑</button>
                   </td>
                 </tr>
               ))}
