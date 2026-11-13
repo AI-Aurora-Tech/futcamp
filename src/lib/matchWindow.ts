@@ -16,8 +16,8 @@ export interface RegistrationLock {
  *  • proximidade de jogo: `cutoffHours` antes de cada partida não finalizada.
  * Em ambos os casos, ao finalizar a partida/rodada as inscrições reabrem.
  *
- * Prazo 0 = SEM prazo: o time inscreve a qualquer momento, e nem uma rodada
- * encerrada à mão trava (o organizador escolheu não limitar).
+ * Prazo 0 = sem trava AUTOMÁTICA por proximidade do jogo. A rodada encerrada
+ * à mão pelo organizador trava mesmo assim (só o master reabre).
  */
 export function registrationLockForTeam(
   teamId: string,
@@ -26,18 +26,20 @@ export function registrationLockForTeam(
   closedRounds: number[] = [],
   now: Date = new Date(),
 ): RegistrationLock {
-  if (!cutoffHours || cutoffHours <= 0) return { locked: false }
-
   const mine = matches.filter(
     (m) => (m.homeTeamId === teamId || m.awayTeamId === teamId) && m.status !== 'finished',
   )
 
   // 1) Rodada fechada manualmente (partida ainda não finalizada nessa rodada).
+  //    Vale com qualquer prazo, inclusive 0.
   if (closedRounds.length) {
     const closed = new Set(closedRounds)
     const m = mine.find((x) => closed.has(x.round))
     if (m) return { locked: true, reason: 'manual', match: m, matchAt: m.scheduledAt }
   }
+
+  // Prazo 0 = sem trava automática por proximidade do jogo.
+  if (!cutoffHours || cutoffHours <= 0) return { locked: false }
 
   // 2) Prazo por proximidade do jogo.
   const ms = cutoffHours * 3600_000
@@ -67,9 +69,10 @@ export function matchRegistrationClosed(
   now: Date = new Date(),
 ): boolean {
   if (match.status === 'live' || match.status === 'finished') return true
-  // Prazo 0 = sem prazo: nem rodada encerrada à mão fecha.
-  if (!cutoffHours || cutoffHours <= 0) return false
+  // Rodada encerrada à mão fecha com qualquer prazo, inclusive 0.
   if (closedRounds.includes(match.round)) return true
+  // Prazo 0 = sem trava automática.
+  if (!cutoffHours || cutoffHours <= 0) return false
   if (!match.scheduledAt) return false
   const at = new Date(match.scheduledAt)
   if (Number.isNaN(at.getTime())) return false

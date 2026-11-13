@@ -224,10 +224,9 @@ export function MatchesPanel({
     () => (verPorGrupo ? matchSectionsByGroup(matches, teams) : matchSections(matches)),
     [matches, teams, verPorGrupo],
   )
-  // Prazo 0 = inscrições abertas o tempo todo: encerrar rodada não teria efeito,
-  // então o botão e o cadeado nem aparecem.
-  const temPrazo = (championship.registrationCutoffHours ?? 0) > 0
-  const closedRounds = new Set(temPrazo ? championship.closedRounds ?? [] : [])
+  // Rodada encerrada à mão trava as inscrições com qualquer prazo, inclusive 0.
+  // Encerrar: organizador. Reabrir: só o master (o banco confere — 0062).
+  const closedRounds = new Set(championship.closedRounds ?? [])
 
   // Fases do campeonato (cada fase de grupos e cada fase do mata-mata): as já
   // encerradas ficam reduzidas e a que está em disputa ganha destaque.
@@ -250,9 +249,18 @@ export function MatchesPanel({
 
   async function toggleRound(round: number) {
     const set = new Set(championship.closedRounds ?? [])
-    if (set.has(round)) set.delete(round)
-    else set.add(round)
-    await updateChampionship(championship.id, { closedRounds: [...set].sort((a, b) => a - b) })
+    if (set.has(round)) {
+      if (!isMaster) return
+      set.delete(round)
+    } else {
+      if (!window.confirm(`Encerrar as inscrições da rodada ${round}? Depois de encerradas, só o administrador master pode reabri-las.`)) return
+      set.add(round)
+    }
+    try {
+      await updateChampionship(championship.id, { closedRounds: [...set].sort((a, b) => a - b) })
+    } catch (err) {
+      window.alert((err as { message?: string })?.message || 'Não foi possível alterar as inscrições da rodada.')
+    }
     onChange()
   }
 
@@ -354,12 +362,12 @@ export function MatchesPanel({
                   {!semTitulo && (
                     <div className="round__head">
                       <h3 className="round__title">{sec.title} {isClosed && <span className="round__lock">🔒 inscrições encerradas</span>}</h3>
-                      {temPrazo && !sec.isKnockout && roundNo != null && (
+                      {!sec.isKnockout && roundNo != null && (!isClosed || isMaster) && (
                         <button
                           type="button"
                           className="round__toggle"
                           onClick={() => void toggleRound(roundNo)}
-                          title={isClosed ? 'Reabrir inscrições desta rodada' : 'Encerrar inscrições desta rodada'}
+                          title={isClosed ? 'Reabrir inscrições desta rodada (master)' : 'Encerrar inscrições desta rodada'}
                         >
                           {isClosed ? '🔓 Reabrir inscrições' : '🔒 Encerrar inscrições'}
                         </button>
