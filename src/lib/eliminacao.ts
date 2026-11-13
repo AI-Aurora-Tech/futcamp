@@ -243,3 +243,36 @@ export function timesForaDaDisputa(params: {
 
   return fora
 }
+
+/**
+ * Jogo NOVO (ou vaga de mata-mata preenchida) com um time já eliminado da
+ * categoria: nasce com o W.O. — 3 × 0 para o adversário. Mesma regra do
+ * gatilho `matches_wo_eliminado` (migration 0063); aqui só para o modo demo.
+ *
+ * Devolve o jogo como está quando nenhum (ou os dois) times estão eliminados,
+ * ou quando ele já está encerrado.
+ */
+export function aplicarWoSeEliminado<M extends Omit<Match, 'id' | 'createdAt'>>(
+  match: M,
+  existentes: Match[],
+  nomeDoTime: (id: string) => string | undefined,
+): M {
+  if (match.status === 'finished' || !match.homeTeamId || !match.awayTeamId) return match
+  const daCategoria = existentes.filter(
+    (m) => m.championshipId === match.championshipId && (m.categoryId ?? '') === (match.categoryId ?? ''),
+  )
+  const fora = timesEliminados(daCategoria)
+  const casaFora = fora.has(match.homeTeamId)
+  const visitanteFora = fora.has(match.awayTeamId)
+  if (casaFora === visitanteFora) return match
+  const eliminado = casaFora ? match.homeTeamId : match.awayTeamId
+  const adversario = casaFora ? match.awayTeamId : match.homeTeamId
+  const out: M = {
+    ...match,
+    ...placarWo(match, eliminado),
+    status: 'finished',
+    incidents: relatoWo(nomeDoTime(eliminado) ?? 'equipe', match.incidents),
+  }
+  if (match.phase !== 'group') out.winnerTeamId = adversario
+  return out
+}
