@@ -79,3 +79,12 @@ export async function logoParaJpeg(
     return undefined
   }
 }
+
+/**
+ * Lê a foto escolhida como data URL, reduzindo fotos gigantes de celular
+ * (12 MP+) para no máximo `maxDim` px — o enquadramento fica leve e o
+ * resultado final sai do enquadrador, já no tamanho certo.
+ */
+export function lerFoto(file: File, maxDim = 1600): Promise<string> {
+  return fileToDataUrl(file, maxDim)
+}

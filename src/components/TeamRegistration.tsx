@@ -24,7 +24,8 @@ import {
   vagasFederados,
   type ModalidadeFederado,
 } from '../lib/federated'
-import { fileToDataUrl } from '../lib/image'
+import { fileToDataUrl, lerFoto } from '../lib/image'
+import { EnquadrarFoto } from './EnquadrarFoto'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
 import { categoriaEncerrada, limiteDePartidasAtingido, maxPartidasDaCategoria } from '../lib/categorias'
 import { registrationLockForTeam } from '../lib/matchWindow'
@@ -779,6 +780,7 @@ export function AthleteDialog({
   )
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? '')
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
+  const [enquadrando, setEnquadrando] = useState<string | null>(null)
   const [federated, setFederated] = useState(Boolean(initial?.federated))
   const [federatedIn, setFederatedIn] = useState<ModalidadeFederado>(initial?.federatedIn ?? 'campo')
   const [error, setError] = useState<string | null>(null)
@@ -817,7 +819,8 @@ export function AthleteDialog({
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      setPhoto(await fileToDataUrl(file, 320))
+      // Abre o enquadrador; a foto só é trocada ao confirmar.
+      setEnquadrando(await lerFoto(file))
     } catch {
       setError('Não foi possível carregar a foto.')
     } finally {
@@ -860,6 +863,7 @@ export function AthleteDialog({
           <div>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhoto} />
             <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>📷 Foto (opcional)</Button>
+            {photo && <button type="button" className="link-btn" onClick={() => setEnquadrando(photo)}>enquadrar</button>}
             {photo && <button type="button" className="link-btn" onClick={() => setPhoto(undefined)}>remover foto</button>}
           </div>
         </div>
@@ -960,6 +964,16 @@ export function AthleteDialog({
           <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Validando…' : 'Salvar'}</Button>
         </div>
       </form>
+      {enquadrando && (
+        <EnquadrarFoto
+          src={enquadrando}
+          onCancel={() => setEnquadrando(null)}
+          onConfirm={(foto) => {
+            setPhoto(foto)
+            setEnquadrando(null)
+          }}
+        />
+      )}
     </Modal>
   )
 }
