@@ -290,3 +290,13 @@ export function limiteDePartidasAtingido(
 export function msgLimiteDePartidas(max: number): string {
   return `Este time já disputou ${max} partida(s) nesta categoria: a inscrição de atletas está encerrada. Só o administrador master pode inscrever agora.`
 }
+
+/** Limite de partidas para inscrever da categoria (sem categoria = a primeira). */
+export function maxPartidasDaCategoria(
+  categories: Pick<Category, 'id' | 'maxMatchesToRegister'>[] | null | undefined,
+  categoryId: string | null | undefined,
+): number {
+  const lista = categories ?? []
+  const cat = lista.find((c) => c.id === categoryId) ?? (categoryId ? undefined : lista[0])
+  return cat?.maxMatchesToRegister ?? 0
+}

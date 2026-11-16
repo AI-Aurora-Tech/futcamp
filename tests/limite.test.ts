@@ -31,3 +31,8 @@ ok('limite de partidas: 2 encerradas no Sub10 (uma sem categoria = 1ª) atinge l
 ok('limite de partidas: limite 3 ainda não', !limiteDePartidasAtingido(3, 'a', jogosA, 'sub10', 'sub10'))
 ok('limite de partidas: jogo agendado não conta (Sub12 com 0 encerradas)', !limiteDePartidasAtingido(1, 'a', jogosA, 'sub12', 'sub10'))
 ok('limite de partidas: 0 = sem limite', !limiteDePartidasAtingido(0, 'a', jogosA, 'sub10', 'sub10'))
+import { maxPartidasDaCategoria } from '../src/lib/categorias'
+const catsLim = [{ id: 'sub10', maxMatchesToRegister: 2 }, { id: 'sub12', maxMatchesToRegister: 1 }, { id: 'sub14' }]
+ok('limite por categoria: Sub10 = 2, Sub12 = 1', maxPartidasDaCategoria(catsLim, 'sub10') === 2 && maxPartidasDaCategoria(catsLim, 'sub12') === 1)
+ok('limite por categoria: Sub14 sem limite = 0', maxPartidasDaCategoria(catsLim, 'sub14') === 0)
+ok('limite por categoria: sem categoria usa a primeira', maxPartidasDaCategoria(catsLim, undefined) === 2)

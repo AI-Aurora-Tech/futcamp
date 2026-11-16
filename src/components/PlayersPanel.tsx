@@ -30,7 +30,7 @@ import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
 import { updateChampionship } from '../services/championships'
 import { useAuth } from '../context/AuthContext'
-import { categoriaEncerrada, limiteDePartidasAtingido } from '../lib/categorias'
+import { categoriaEncerrada, limiteDePartidasAtingido, maxPartidasDaCategoria } from '../lib/categorias'
 
 export function PlayersPanel({
   championship,
@@ -69,7 +69,7 @@ export function PlayersPanel({
   const [mudandoInscricoes, setMudandoInscricoes] = useState(false)
 
   // Limite de partidas: o time selecionado já jogou o máximo? Daí só o master inscreve.
-  const maxPartidas = championship.registrationMaxMatches ?? 0
+  const maxPartidas = maxPartidasDaCategoria(championship.categories, catEfetiva)
   const limitePartidas =
     !!selectedTeam &&
     limiteDePartidasAtingido(maxPartidas, selectedTeam, matches, catEfetiva, championship.categories[0]?.id)

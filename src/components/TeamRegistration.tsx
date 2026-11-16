@@ -26,7 +26,7 @@ import {
 } from '../lib/federated'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
-import { categoriaEncerrada, limiteDePartidasAtingido } from '../lib/categorias'
+import { categoriaEncerrada, limiteDePartidasAtingido, maxPartidasDaCategoria } from '../lib/categorias'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import {
@@ -533,8 +533,9 @@ function RosterCard({
   // Categoria encerrada pelo organizador: nada de inscrever, editar ou remover.
   const encerrada = categoriaEncerrada(data.closedCategories, catAtual, data.categories)
   // Limite de partidas: depois de N jogos na categoria, só o master inscreve.
+  const maxPartidas = maxPartidasDaCategoria(data.categories, catAtual)
   const limitePartidas = limiteDePartidasAtingido(
-    data.registrationMaxMatches,
+    maxPartidas,
     data.team.id,
     data.matches,
     catAtual,
@@ -609,7 +610,7 @@ function RosterCard({
 
       {!encerrada && limitePartidas && (
         <div className="lock-banner">
-          🔒 Seu time já disputou <b>{data.registrationMaxMatches} partida(s)</b>
+          🔒 Seu time já disputou <b>{maxPartidas} partida(s)</b>
           {varias && nomeCat ? <> no <b>{nomeCat}</b></> : ''}: a inscrição de novos atletas está <b>encerrada</b>.
           Fale com a organização se precisar de alguma alteração.
         </div>

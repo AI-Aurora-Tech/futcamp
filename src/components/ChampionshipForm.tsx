@@ -52,6 +52,8 @@ interface CatDraft {
   exceptionYear: string
   maxAthletes: string
   maxStaff: string
+  /** Limite de partidas para inscrever atletas (vazio = sem limite). */
+  maxMatches: string
   /** Equipes previstas na categoria (escolhe o plano; só na criação). */
   expectedTeams: string
   /** Atletas federados: a permissão é desta categoria, não do campeonato. */
@@ -125,6 +127,7 @@ function toDraft(c: Category): CatDraft {
     exceptionYear: c.exceptionYear != null ? String(c.exceptionYear) : '',
     maxAthletes: c.maxAthletes != null ? String(c.maxAthletes) : '',
     maxStaff: c.maxStaff != null ? String(c.maxStaff) : '',
+    maxMatches: c.maxMatchesToRegister ? String(c.maxMatchesToRegister) : '',
     expectedTeams: c.expectedTeams != null ? String(c.expectedTeams) : '',
     allowFederated: Boolean(c.allowFederated),
     maxFederated: c.maxFederated != null ? String(c.maxFederated) : '',
@@ -163,7 +166,7 @@ function toDraft(c: Category): CatDraft {
 function emptyDraft(): CatDraft {
   return {
     id: uid('cat'), name: '', year: '', exceptions: '', exceptionYear: '',
-    maxAthletes: '', maxStaff: '', expectedTeams: '', allowFederated: false, maxFederated: '',
+    maxAthletes: '', maxStaff: '', maxMatches: '', expectedTeams: '', allowFederated: false, maxFederated: '',
     periodMinutes: '', periods: '2', substitutionMode: '', maxSubstitutions: '',
     sendOffPolicy: '',
     format: 'league', doubleRound: false, pointsWin: 3, pointsDraw: 1,
@@ -277,7 +280,6 @@ export function ChampionshipForm({
   const [logo, setLogo] = useState(initial?.logo ?? '🏆')
   const [primaryColor, setPrimaryColor] = useState(initial?.primaryColor ?? '#16a34a')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
-  const [maxMatches, setMaxMatches] = useState(initial?.registrationMaxMatches ?? 0)
   const [benchSize, setBenchSize] = useState(
     initial?.benchSize != null ? String(initial.benchSize) : '',
   )
@@ -419,6 +421,7 @@ export function ChampionshipForm({
           exceptionYear: audience === 'adulto' && c.exceptionYear ? Number(c.exceptionYear) : undefined,
           maxAthletes: c.maxAthletes ? Number(c.maxAthletes) : undefined,
           maxStaff: c.maxStaff ? Number(c.maxStaff) : undefined,
+          maxMatchesToRegister: c.maxMatches ? Math.max(0, Number(c.maxMatches)) || undefined : undefined,
           // Só existe em campeonato criado com equipes previstas; o antigo não ganha.
           expectedTeams: c.expectedTeams ? Math.max(1, Number(c.expectedTeams)) : undefined,
           // Federados só existem na base.
@@ -659,7 +662,6 @@ export function ChampionshipForm({
         pointsWin: comp0.pointsWin ?? 3,
         pointsDraw: comp0.pointsDraw ?? 1,
         registrationCutoffHours: Number(cutoffHours),
-        registrationMaxMatches: Math.max(0, Number(maxMatches) || 0),
         benchSize: benchSize ? Math.max(0, Number(benchSize)) : undefined,
         doubleRound: comp0.doubleRound ?? false,
         numGroups: comp0.numGroups,
@@ -943,6 +945,19 @@ export function ChampionshipForm({
                       placeholder="sem limite"
                     />
                     <small className="mini-field__hint">técnicos/auxiliares por time</small>
+                  </label>
+
+                  <label className="mini-field">
+                    <span className="mini-field__label">Limite de partidas p/ inscrever</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={c.maxMatches}
+                      onChange={(e) => updateCat(c.id, { maxMatches: e.target.value })}
+                      placeholder="sem limite"
+                    />
+                    <small className="mini-field__hint">após N jogos do time, só o master inscreve</small>
                   </label>
 
                   {/* Regras de jogo: tudo o que se discute na beira do campo e
@@ -1543,13 +1558,6 @@ export function ChampionshipForm({
 
         <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições de um time encerram este tempo antes da partida e reabrem após o jogo ser finalizado. Use 0 para não limitar.">
           <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />
-        </Field>
-
-        <Field
-          label="Limite de partidas para inscrever atletas"
-          hint="Depois que o time disputar este número de partidas na categoria, ele não inscreve mais atletas — só o administrador master. Use 0 para não limitar."
-        >
-          <input type="number" min={0} max={99} value={maxMatches} onChange={(e) => setMaxMatches(Number(e.target.value))} />
         </Field>
 
         <Field label="Brasão do campeonato">
