@@ -2008,3 +2008,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .receita-dado__label { font-size: 0.75rem; color: var(--muted); min-width: 7.5rem; }
 .receita-dado__valor { font-variant-numeric: tabular-nums; }
 .roster td.col-actions { white-space: nowrap; }
+
+/* ---------- Carteirinha do atleta ---------- */
+.carteirinha { display: grid; gap: 0.6rem; justify-items: center; }
+.carteirinha__img { width: 100%; max-width: 520px; height: auto; border-radius: 14px; box-shadow: 0 6px 22px rgba(15, 23, 42, 0.18); }

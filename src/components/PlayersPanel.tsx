@@ -25,6 +25,8 @@ import {
 } from '../types'
 import { Button, EmptyState, Field, Modal, SearchField, TeamBadge, VerifiedTag } from './ui'
 import { ConferirReceitaModal } from './ConferirReceitaModal'
+import { CarteirinhaModal } from './CarteirinhaModal'
+import { desenharCarteirinha, pdfDeCarteirinhas } from '../lib/carteirinha'
 import { ImportAthletesModal } from './ImportAthletesModal'
 import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
@@ -116,6 +118,7 @@ export function PlayersPanel({
   }, [teams, selectedTeam])
   const [editing, setEditing] = useState<Player | null>(null)
   const [conferindo, setConferindo] = useState<Player | null>(null)
+  const [carteirinha, setCarteirinha] = useState<Player | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const [search, setSearch] = useState('')
@@ -155,6 +158,48 @@ export function PlayersPanel({
     if (lista.length === 0) return
     const pdf = buildElencoPdf({ championship, category: categoria, teams: lista, players })
     baixarBytesPdf(pdf, nomeArquivoElenco(todos ? undefined : team?.name, categoria?.name))
+  }
+
+  /**
+   * Todas as carteirinhas de uma vez: PDF A4 com 10 por folha, no tamanho
+   * real do cartão. Do time aberto ou de todos os times desta categoria.
+   */
+  const [gerandoCarteirinhas, setGerandoCarteirinhas] = useState<string | null>(null)
+  async function baixarCarteirinhas(todos: boolean) {
+    const lista = todos ? teams : team ? [team] : []
+    const atletas = lista.flatMap((t) =>
+      players
+        .filter((p) => p.teamId === t.id)
+        .sort((a, b) => ((a.role ?? 'atleta') === (b.role ?? 'atleta') ? porNome(a, b) : a.role === 'comissao' ? 1 : -1))
+        .map((p) => ({ p, t })),
+    )
+    if (atletas.length === 0) {
+      window.alert('Não há atletas para gerar carteirinhas.')
+      return
+    }
+    try {
+      const canvases: HTMLCanvasElement[] = []
+      for (const [i, { p, t }] of atletas.entries()) {
+        setGerandoCarteirinhas(`Gerando ${i + 1} de ${atletas.length}…`)
+        canvases.push(
+          await desenharCarteirinha({
+            player: p,
+            team: t,
+            championship,
+            category: championship.categories.find((c) => c.id === (p.categoryId || catEfetiva)),
+          }),
+        )
+      }
+      const categoria = championship.categories.find((c) => c.id === catEfetiva)
+      const nome = ['Carteirinhas', todos ? 'Todos os times' : team?.name, championship.categories.length > 1 ? categoria?.name : '']
+        .filter(Boolean)
+        .join(' - ')
+      baixarBytesPdf(pdfDeCarteirinhas(canvases, nome), `${nome.replace(/[\\/:*?"<>|]+/g, '')}.pdf`)
+    } catch (err) {
+      window.alert((err as Error)?.message || 'Não foi possível gerar as carteirinhas.')
+    } finally {
+      setGerandoCarteirinhas(null)
+    }
   }
 
   async function remove(p: Player) {
@@ -212,6 +257,22 @@ export function PlayersPanel({
             </Button>
           )}
           <Button variant="soft" onClick={() => imprimirElenco(false)} disabled={!selectedTeam} title="Baixa o PDF com os atletas e a comissão técnica do time aberto">⬇ PDF do time</Button>
+          <Button
+            variant="soft"
+            onClick={() => void baixarCarteirinhas(false)}
+            disabled={!selectedTeam || !!gerandoCarteirinhas}
+            title="PDF com as carteirinhas de todos os atletas e da comissão do time aberto (10 por folha A4, tamanho real)"
+          >
+            {gerandoCarteirinhas ?? '🪪 Carteirinhas do time'}
+          </Button>
+          <Button
+            variant="soft"
+            onClick={() => void baixarCarteirinhas(true)}
+            disabled={!!gerandoCarteirinhas}
+            title="PDF com as carteirinhas de todos os times desta categoria (10 por folha A4, tamanho real)"
+          >
+            🪪 Carteirinhas de todos
+          </Button>
           <Button variant="soft" onClick={() => imprimirElenco(true)} title="Baixa o PDF com os atletas e a comissão técnica de todos os times (um time por página)">⬇ PDF de todos os times</Button>
           <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam || bloqueadoPorLimite}>📊 Importar planilha</Button>
           <Button onClick={() => setAdding(true)} disabled={!selectedTeam || bloqueadoPorLimite}>＋ Adicionar atleta</Button>
@@ -322,6 +383,7 @@ export function PlayersPanel({
                     {!p.cpfVerified && (
                       <button className="icon-btn" title="Conferir na Receita" onClick={() => setConferindo(p)}>🔎</button>
                     )}
+                    <button className="icon-btn" title="Gerar carteirinha" onClick={() => setCarteirinha(p)}>🪪</button>
                     <button className="icon-btn" title="Editar" onClick={() => setEditing(p)}>✎</button>
                     <button className="icon-btn icon-btn--danger" title="Remover" onClick={() => void remove(p)}>🗑</button>
                   </td>
@@ -350,6 +412,18 @@ export function PlayersPanel({
             setEditing(null)
             onChange()
           }}
+        />
+      )}
+
+      {carteirinha && (
+        <CarteirinhaModal
+          dados={{
+            player: carteirinha,
+            team: teams.find((t) => t.id === carteirinha.teamId),
+            championship,
+            category: championship.categories.find((c) => c.id === (carteirinha.categoryId || catEfetiva)),
+          }}
+          onClose={() => setCarteirinha(null)}
         />
       )}
 
