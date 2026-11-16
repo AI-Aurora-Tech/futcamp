@@ -2012,3 +2012,13 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 /* ---------- Carteirinha do atleta ---------- */
 .carteirinha { display: grid; gap: 0.6rem; justify-items: center; }
 .carteirinha__img { width: 100%; max-width: 520px; height: auto; border-radius: 14px; box-shadow: 0 6px 22px rgba(15, 23, 42, 0.18); }
+
+/* ---------- Enquadrar a foto do atleta ---------- */
+.enquadrar { display: grid; gap: 0.75rem; justify-items: center; }
+.enquadrar__moldura { position: relative; overflow: hidden; border-radius: 14px; background: #0f172a; touch-action: none; cursor: grab; user-select: none; box-shadow: 0 0 0 3px var(--brand); }
+.enquadrar__moldura:active { cursor: grabbing; }
+.enquadrar__moldura img { position: absolute; left: 50%; top: 50%; max-width: none; pointer-events: none; }
+/* Guia do rosto: oval no terço de cima, como numa foto 3×4. */
+.enquadrar__guia { position: absolute; left: 22%; right: 22%; top: 14%; height: 46%; border: 2px dashed rgba(255, 255, 255, 0.7); border-radius: 50%; pointer-events: none; }
+.enquadrar__zoom { display: flex; align-items: center; gap: 0.6rem; width: 100%; max-width: 280px; }
+.enquadrar__zoom input { flex: 1; }

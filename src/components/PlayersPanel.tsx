@@ -11,7 +11,8 @@ import {
   vagasFederados,
   type ModalidadeFederado,
 } from '../lib/federated'
-import { fileToDataUrl } from '../lib/image'
+import { lerFoto } from '../lib/image'
+import { EnquadrarFoto } from './EnquadrarFoto'
 import {
   POSICAO_PADRAO,
   labelDaPosicao,
@@ -509,6 +510,7 @@ function PlayerForm({
     initial?.categoryId ?? categoriaFoco ?? categories[0]?.id ?? '',
   )
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo)
+  const [enquadrando, setEnquadrando] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [federated, setFederated] = useState(Boolean(initial?.federated))
@@ -542,7 +544,8 @@ function PlayerForm({
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      setPhoto(await fileToDataUrl(file, 320))
+      // Abre o enquadrador; a foto só é trocada ao confirmar.
+      setEnquadrando(await lerFoto(file))
     } catch {
       setError('Não foi possível carregar a foto.')
     } finally {
@@ -619,6 +622,7 @@ function PlayerForm({
           <div>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhoto} />
             <Button variant="soft" type="button" onClick={() => fileRef.current?.click()}>📷 Foto (opcional)</Button>
+            {photo && <button type="button" className="link-btn" onClick={() => setEnquadrando(photo)}>enquadrar</button>}
             {photo && <button type="button" className="link-btn" onClick={() => setPhoto(undefined)}>remover foto</button>}
           </div>
         </div>
@@ -719,6 +723,16 @@ function PlayerForm({
           <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Salvando…' : 'Salvar'}</Button>
         </div>
       </form>
+      {enquadrando && (
+        <EnquadrarFoto
+          src={enquadrando}
+          onCancel={() => setEnquadrando(null)}
+          onConfirm={(foto) => {
+            setPhoto(foto)
+            setEnquadrando(null)
+          }}
+        />
+      )}
     </Modal>
   )
 }
