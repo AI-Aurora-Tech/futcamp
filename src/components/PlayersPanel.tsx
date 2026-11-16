@@ -18,6 +18,7 @@ import {
   opcoesDePosicao,
   posicaoValePara,
   type Championship,
+  type Match,
   type Player,
   type Position,
   type Team,
@@ -29,7 +30,7 @@ import { baixarBytesPdf } from '../lib/pdfDesenho'
 import { buildElencoPdf, nomeArquivoElenco } from '../lib/elencoPdf'
 import { updateChampionship } from '../services/championships'
 import { useAuth } from '../context/AuthContext'
-import { categoriaEncerrada } from '../lib/categorias'
+import { categoriaEncerrada, limiteDePartidasAtingido } from '../lib/categorias'
 
 export function PlayersPanel({
   championship,
@@ -38,10 +39,13 @@ export function PlayersPanel({
   categoryId,
   onCategoryChange,
   onChange,
+  matches = [],
 }: {
   championship: Championship
   teams: Team[]
   players: Player[]
+  /** Partidas da categoria — para o limite de partidas da inscrição. */
+  matches?: Match[]
   /**
    * Categoria em foco. Novos atletas nascem nela — o organizador está na aba
    * do Sub-13, e cadastrar ali um atleta do Sub-15 seria um erro silencioso.
@@ -63,6 +67,13 @@ export function PlayersPanel({
   const catEfetiva = categoryId || championship.categories[0]?.id
   const encerrada = categoriaEncerrada(championship.closedCategories, categoryId, championship.categories)
   const [mudandoInscricoes, setMudandoInscricoes] = useState(false)
+
+  // Limite de partidas: o time selecionado já jogou o máximo? Daí só o master inscreve.
+  const maxPartidas = championship.registrationMaxMatches ?? 0
+  const limitePartidas =
+    !!selectedTeam &&
+    limiteDePartidasAtingido(maxPartidas, selectedTeam, matches, catEfetiva, championship.categories[0]?.id)
+  const bloqueadoPorLimite = limitePartidas && !isMaster
 
   async function alternarInscricoes() {
     if (!catEfetiva) return
@@ -202,10 +213,18 @@ export function PlayersPanel({
           )}
           <Button variant="soft" onClick={() => imprimirElenco(false)} disabled={!selectedTeam} title="Baixa o PDF com os atletas e a comissão técnica do time aberto">⬇ PDF do time</Button>
           <Button variant="soft" onClick={() => imprimirElenco(true)} title="Baixa o PDF com os atletas e a comissão técnica de todos os times (um time por página)">⬇ PDF de todos os times</Button>
-          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam}>📊 Importar planilha</Button>
-          <Button onClick={() => setAdding(true)} disabled={!selectedTeam}>＋ Adicionar atleta</Button>
+          <Button variant="soft" onClick={() => setImporting(true)} disabled={!selectedTeam || bloqueadoPorLimite}>📊 Importar planilha</Button>
+          <Button onClick={() => setAdding(true)} disabled={!selectedTeam || bloqueadoPorLimite}>＋ Adicionar atleta</Button>
         </div>
       </div>
+
+      {limitePartidas && (
+        <div className="lock-banner">
+          🔒 {teams.find((t) => t.id === selectedTeam)?.name ?? 'Este time'} já disputou <b>{maxPartidas} partida(s)</b>
+          {nomeCat ? <> no <b>{nomeCat}</b></> : ''}: a inscrição de novos atletas está encerrada
+          {isMaster ? ' — como master, você ainda pode inscrever.' : '. Só o administrador master pode inscrever agora.'}
+        </div>
+      )}
 
       {encerrada && (
         <div className="lock-banner">

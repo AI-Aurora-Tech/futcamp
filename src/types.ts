@@ -322,6 +322,11 @@ export interface Championship {
    * Reabre automaticamente após a partida ser finalizada. 0 = sem prazo.
    */
   registrationCutoffHours: number
+  /**
+   * Depois de disputar este número de partidas (na categoria), o time não
+   * inscreve mais atletas — só o master. 0/indefinido = sem limite.
+   */
+  registrationMaxMatches?: number
   /** Rodadas com inscrições encerradas manualmente (legado: não é mais usado). */
   closedRounds?: number[]
   /** Categorias com inscrições encerradas pelo organizador. Só o master reabre. */

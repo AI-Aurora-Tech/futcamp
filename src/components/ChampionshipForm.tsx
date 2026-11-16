@@ -277,6 +277,7 @@ export function ChampionshipForm({
   const [logo, setLogo] = useState(initial?.logo ?? '🏆')
   const [primaryColor, setPrimaryColor] = useState(initial?.primaryColor ?? '#16a34a')
   const [cutoffHours, setCutoffHours] = useState(initial?.registrationCutoffHours ?? 3)
+  const [maxMatches, setMaxMatches] = useState(initial?.registrationMaxMatches ?? 0)
   const [benchSize, setBenchSize] = useState(
     initial?.benchSize != null ? String(initial.benchSize) : '',
   )
@@ -658,6 +659,7 @@ export function ChampionshipForm({
         pointsWin: comp0.pointsWin ?? 3,
         pointsDraw: comp0.pointsDraw ?? 1,
         registrationCutoffHours: Number(cutoffHours),
+        registrationMaxMatches: Math.max(0, Number(maxMatches) || 0),
         benchSize: benchSize ? Math.max(0, Number(benchSize)) : undefined,
         doubleRound: comp0.doubleRound ?? false,
         numGroups: comp0.numGroups,
@@ -1541,6 +1543,13 @@ export function ChampionshipForm({
 
         <Field label="Prazo de inscrição (horas antes do jogo)" hint="As inscrições de um time encerram este tempo antes da partida e reabrem após o jogo ser finalizado. Use 0 para não limitar.">
           <input type="number" min={0} max={168} value={cutoffHours} onChange={(e) => setCutoffHours(Number(e.target.value))} />
+        </Field>
+
+        <Field
+          label="Limite de partidas para inscrever atletas"
+          hint="Depois que o time disputar este número de partidas na categoria, ele não inscreve mais atletas — só o administrador master. Use 0 para não limitar."
+        >
+          <input type="number" min={0} max={99} value={maxMatches} onChange={(e) => setMaxMatches(Number(e.target.value))} />
         </Field>
 
         <Field label="Brasão do campeonato">

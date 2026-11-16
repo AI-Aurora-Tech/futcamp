@@ -23,7 +23,7 @@ import { podeMarcarFederado } from '../lib/federated'
 import { checkCpfConflict } from '../lib/duplicates'
 import { emailPlausivel, normalizarEmail } from '../lib/email'
 import { registrationLockForTeam } from '../lib/matchWindow'
-import { categoriaEncerrada, MSG_CATEGORIA_ENCERRADA } from '../lib/categorias'
+import { categoriaEncerrada, limiteDePartidasAtingido, MSG_CATEGORIA_ENCERRADA, msgLimiteDePartidas } from '../lib/categorias'
 import type { Category, Championship, Match, Player, Position, Team } from '../types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -46,6 +46,8 @@ export interface RegistrationData {
   managers: string[]
   /** Prazo de inscrição (horas antes da partida). 0 = sem prazo. */
   registrationCutoffHours: number
+  /** Limite de partidas para inscrever atletas (0 = sem limite). */
+  registrationMaxMatches: number
   /** Categorias com inscrições encerradas pelo organizador (só o master reabre). */
   closedCategories: string[]
   /** Partidas do time (para calcular a trava de inscrição). */
@@ -243,6 +245,7 @@ export async function loadRegistration(
       hasAccount: Boolean(data.has_account),
       managers: Array.isArray(data.managers) ? (data.managers as string[]) : [],
       registrationCutoffHours: data.registration_cutoff_hours ?? 0,
+      registrationMaxMatches: data.registration_max_matches ?? 0,
       closedCategories: Array.isArray(data.closed_categories) ? data.closed_categories : [],
       matches: Array.isArray(data.matches) ? data.matches.map(matchFromRow) : [],
       championship: data.championship ? champFromRow(data.championship) : undefined,
@@ -275,6 +278,7 @@ export async function loadRegistration(
       hasAccount: Boolean(team.username && team.passwordHash),
       managers: [team.username, team.username2].filter((u): u is string => Boolean(u)),
       registrationCutoffHours: champ?.registrationCutoffHours ?? 0,
+      registrationMaxMatches: champ?.registrationMaxMatches ?? 0,
       closedCategories: champ?.closedCategories ?? [],
       matches: d.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId),
     }
@@ -567,7 +571,7 @@ export async function saveTeamInfo(teamId: string, token: string, patch: TeamInf
 /** Valida prazo, elegibilidade e limites no modo demo (o Supabase valida via RPC). */
 function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: string): void {
   const role = input.role ?? 'atleta'
-  const { category, existing, cutoff, encerrada, matches, champPlayers, teamNames } = query((d) => {
+  const { category, existing, cutoff, encerrada, limitePartidas, maxPartidas, matches, champPlayers, teamNames } = query((d) => {
     const team = d.teams.find((t) => t.id === teamId)
     const champ = d.championships.find((c) => c.id === team?.championshipId)
     const category = champ?.categories.find((c) => c.id === input.categoryId)
@@ -580,6 +584,14 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
       existing,
       cutoff: champ?.registrationCutoffHours ?? 0,
       encerrada: categoriaEncerrada(champ?.closedCategories, input.categoryId, champ?.categories),
+      limitePartidas: limiteDePartidasAtingido(
+        champ?.registrationMaxMatches,
+        teamId,
+        d.matches.filter((m) => m.championshipId === team?.championshipId),
+        input.categoryId || champ?.categories[0]?.id,
+        champ?.categories[0]?.id,
+      ),
+      maxPartidas: champ?.registrationMaxMatches ?? 0,
       matches,
       champPlayers: d.players.filter((p) => p.championshipId === team?.championshipId),
       teamNames: new Map(
@@ -600,6 +612,7 @@ function validateDemo(teamId: string, input: PlayerInput, excludePlayerId?: stri
   if (!cpfCheck.ok) throw new Error(cpfCheck.reason ?? 'CPF já inscrito neste campeonato.')
 
   if (encerrada) throw new Error(MSG_CATEGORIA_ENCERRADA)
+  if (limitePartidas) throw new Error(msgLimiteDePartidas(maxPartidas))
 
   const lock = registrationLockForTeam(teamId, matches, cutoff)
   if (lock.locked) {
