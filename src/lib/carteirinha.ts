@@ -315,3 +315,121 @@ export function nomeArquivoCarteirinha(player: Pick<Player, 'name'>, team?: Pick
   const limpo = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '').trim()
   return `Carteirinha - ${limpo(player.name)}${team ? ` - ${limpo(team.name)}` : ''}.png`
 }
+
+/* -------------------------------------------------------------------------- */
+/* Folha A4 com várias carteirinhas (PDF), no tamanho real do cartão           */
+/* -------------------------------------------------------------------------- */
+
+const MM = 72 / 25.4
+const PAG_W = 595.28
+const PAG_H = 841.89
+const CARD_W = 85.6 * MM
+const CARD_H = 54 * MM
+const COLUNAS = 2
+const LINHAS = 5
+const GAP_X = 6 * MM
+const GAP_Y = 3 * MM
+
+function jpegDoCanvas(canvas: HTMLCanvasElement): Uint8Array {
+  // JPEG não tem transparência: os cantos arredondados sairiam pretos.
+  const branco = document.createElement('canvas')
+  branco.width = canvas.width
+  branco.height = canvas.height
+  const ctx = branco.getContext('2d')
+  if (ctx) {
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, branco.width, branco.height)
+    ctx.drawImage(canvas, 0, 0)
+  }
+  const b64 = (ctx ? branco : canvas).toDataURL('image/jpeg', 0.92).split(',')[1] ?? ''
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
+/**
+ * PDF A4 com 10 carteirinhas por folha (2 × 5), cada uma em 85,6 × 54 mm, com
+ * linhas de corte. Imprimir em 100% (sem "ajustar à página") e recortar.
+ */
+export function pdfDeCarteirinhas(canvases: HTMLCanvasElement[], titulo: string): Uint8Array {
+  const enc = new TextEncoder()
+  const partes: Uint8Array[] = []
+  let tamanho = 0
+  const pos: number[] = []
+  const escrever = (b: Uint8Array | string) => {
+    const u = typeof b === 'string' ? enc.encode(b) : b
+    partes.push(u)
+    tamanho += u.length
+  }
+  const objetos: (Uint8Array | string)[][] = []
+  const add = (...corpo: (Uint8Array | string)[]) => (objetos.push(corpo), objetos.length)
+
+  const idCatalogo = add('')
+  const idPages = add('')
+
+  // Imagens.
+  const imagens = canvases.map((c) => {
+    const jpg = jpegDoCanvas(c)
+    return add(
+      `<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB ` +
+        `/BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`,
+      jpg,
+      '\nendstream',
+    )
+  })
+
+  // Páginas.
+  const porPagina = COLUNAS * LINHAS
+  const larguraTotal = COLUNAS * CARD_W + (COLUNAS - 1) * GAP_X
+  const alturaTotal = LINHAS * CARD_H + (LINHAS - 1) * GAP_Y
+  const x0 = (PAG_W - larguraTotal) / 2
+  const yTopo = PAG_H - (PAG_H - alturaTotal) / 2
+  const paginas: number[] = []
+  for (let inicio = 0; inicio < imagens.length; inicio += porPagina) {
+    const daPagina = imagens.slice(inicio, inicio + porPagina)
+    let ops = ''
+    const recursos: string[] = []
+    daPagina.forEach((id, i) => {
+      const col = i % COLUNAS
+      const lin = Math.floor(i / COLUNAS)
+      const x = x0 + col * (CARD_W + GAP_X)
+      const y = yTopo - (lin + 1) * CARD_H - lin * GAP_Y
+      recursos.push(`/Im${i} ${id} 0 R`)
+      ops += `q ${CARD_W.toFixed(2)} 0 0 ${CARD_H.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /Im${i} Do Q\n`
+      // Linha de corte.
+      ops += `0.75 0.78 0.82 RG 0.4 w ${x.toFixed(2)} ${y.toFixed(2)} ${CARD_W.toFixed(2)} ${CARD_H.toFixed(2)} re S\n`
+    })
+    const conteudo = add(`<< /Length ${enc.encode(ops).length} >>\nstream\n${ops}\nendstream`)
+    paginas.push(
+      add(
+        `<< /Type /Page /Parent ${idPages} 0 R /MediaBox [0 0 ${PAG_W} ${PAG_H}] ` +
+          `/Resources << /XObject << ${recursos.join(' ')} >> >> /Contents ${conteudo} 0 R >>`,
+      ),
+    )
+  }
+  objetos[idCatalogo - 1] = [`<< /Type /Catalog /Pages ${idPages} 0 R >>`]
+  objetos[idPages - 1] = [`<< /Type /Pages /Count ${paginas.length} /Kids [${paginas.map((p) => `${p} 0 R`).join(' ')}] >>`]
+  const titOk = titulo.replace(/[()\\]/g, '').replace(/[^\x20-\x7e]/g, '')
+  const idInfo = add(`<< /Title (${titOk}) /Producer (Tabelaco) >>`)
+
+  escrever('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n')
+  objetos.forEach((corpo, i) => {
+    pos[i] = tamanho
+    escrever(`${i + 1} 0 obj\n`)
+    for (const c of corpo) escrever(c)
+    escrever('\nendobj\n')
+  })
+  const xref = tamanho
+  escrever(`xref\n0 ${objetos.length + 1}\n0000000000 65535 f \n`)
+  for (const p of pos) escrever(`${String(p).padStart(10, '0')} 00000 n \n`)
+  escrever(`trailer\n<< /Size ${objetos.length + 1} /Root ${idCatalogo} 0 R /Info ${idInfo} 0 R >>\nstartxref\n${xref}\n%%EOF\n`)
+
+  const out = new Uint8Array(tamanho)
+  let o = 0
+  for (const p of partes) {
+    out.set(p, o)
+    o += p.length
+  }
+  return out
+}
