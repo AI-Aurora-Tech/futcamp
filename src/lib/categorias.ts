@@ -259,3 +259,44 @@ export function categoriaEncerrada(
 
 /** A frase do bloqueio — igual à do banco (migration 0062). */
 export const MSG_CATEGORIA_ENCERRADA = 'As inscrições desta categoria foram encerradas pelo organizador.'
+
+/** Partidas ENCERRADAS do time na categoria (W.O. conta). */
+export function partidasDisputadas(
+  teamId: string,
+  matches: Match[] | null | undefined,
+  categoryId: string | undefined,
+  padrao?: string,
+): number {
+  return partidasDaCategoria(matches, categoryId, padrao).filter(
+    (m) => m.status === 'finished' && (m.homeTeamId === teamId || m.awayTeamId === teamId),
+  ).length
+}
+
+/**
+ * O time já disputou o número de partidas do limite de inscrição na categoria?
+ * Daí em diante só o master inscreve. Mesma regra do banco (migration 0064).
+ */
+export function limiteDePartidasAtingido(
+  maxPartidas: number | null | undefined,
+  teamId: string,
+  matches: Match[] | null | undefined,
+  categoryId: string | undefined,
+  padrao?: string,
+): boolean {
+  if (!maxPartidas || maxPartidas <= 0) return false
+  return partidasDisputadas(teamId, matches, categoryId, padrao) >= maxPartidas
+}
+
+export function msgLimiteDePartidas(max: number): string {
+  return `Este time já disputou ${max} partida(s) nesta categoria: a inscrição de atletas está encerrada. Só o administrador master pode inscrever agora.`
+}
+
+/** Limite de partidas para inscrever da categoria (sem categoria = a primeira). */
+export function maxPartidasDaCategoria(
+  categories: Pick<Category, 'id' | 'maxMatchesToRegister'>[] | null | undefined,
+  categoryId: string | null | undefined,
+): number {
+  const lista = categories ?? []
+  const cat = lista.find((c) => c.id === categoryId) ?? (categoryId ? undefined : lista[0])
+  return cat?.maxMatchesToRegister ?? 0
+}

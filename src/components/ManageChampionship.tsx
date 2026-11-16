@@ -370,6 +370,7 @@ export function ManageChampionship({
             players={atletasCat}
             categoryId={varias ? catAtual : undefined}
             onCategoryChange={varias ? setCatId : undefined}
+            matches={partidasCat}
             onChange={reload}
           />
         )}

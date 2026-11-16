@@ -22,3 +22,17 @@ ok('encerradas: categoria na lista está encerrada', categoriaEncerrada(['sub10'
 ok('encerradas: outra categoria segue aberta', !categoriaEncerrada(['sub10'], 'sub12', cats))
 ok('encerradas: atleta sem categoria conta para a primeira', categoriaEncerrada(['sub10'], undefined, cats))
 ok('encerradas: lista vazia não encerra nada', !categoriaEncerrada([], 'sub10', cats))
+
+// Limite de partidas para inscrever atletas (src/lib/categorias.ts).
+import { limiteDePartidasAtingido } from '../src/lib/categorias'
+const jg = (cat: string | undefined, status: string) => ({ categoryId: cat, status, homeTeamId: 'a', awayTeamId: 'b' }) as any
+const jogosA = [jg('sub10', 'finished'), jg(undefined, 'finished'), jg('sub10', 'scheduled'), jg('sub12', 'scheduled')]
+ok('limite de partidas: 2 encerradas no Sub10 (uma sem categoria = 1ª) atinge limite 2', limiteDePartidasAtingido(2, 'a', jogosA, 'sub10', 'sub10'))
+ok('limite de partidas: limite 3 ainda não', !limiteDePartidasAtingido(3, 'a', jogosA, 'sub10', 'sub10'))
+ok('limite de partidas: jogo agendado não conta (Sub12 com 0 encerradas)', !limiteDePartidasAtingido(1, 'a', jogosA, 'sub12', 'sub10'))
+ok('limite de partidas: 0 = sem limite', !limiteDePartidasAtingido(0, 'a', jogosA, 'sub10', 'sub10'))
+import { maxPartidasDaCategoria } from '../src/lib/categorias'
+const catsLim = [{ id: 'sub10', maxMatchesToRegister: 2 }, { id: 'sub12', maxMatchesToRegister: 1 }, { id: 'sub14' }]
+ok('limite por categoria: Sub10 = 2, Sub12 = 1', maxPartidasDaCategoria(catsLim, 'sub10') === 2 && maxPartidasDaCategoria(catsLim, 'sub12') === 1)
+ok('limite por categoria: Sub14 sem limite = 0', maxPartidasDaCategoria(catsLim, 'sub14') === 0)
+ok('limite por categoria: sem categoria usa a primeira', maxPartidasDaCategoria(catsLim, undefined) === 2)

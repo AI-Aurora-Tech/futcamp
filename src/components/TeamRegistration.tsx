@@ -26,7 +26,7 @@ import {
 } from '../lib/federated'
 import { fileToDataUrl } from '../lib/image'
 import { formatCpf, withinAgeRule, birthYearOf } from '../lib/eligibility'
-import { categoriaEncerrada } from '../lib/categorias'
+import { categoriaEncerrada, limiteDePartidasAtingido, maxPartidasDaCategoria } from '../lib/categorias'
 import { registrationLockForTeam } from '../lib/matchWindow'
 import { disablePush, enablePush, flushPush, pushAvailable } from '../services/push'
 import {
@@ -532,7 +532,16 @@ function RosterCard({
   const catAtual = varias ? (minhas.some((c) => c.id === catId) ? catId : minhas[0]?.id) : minhas[0]?.id
   // Categoria encerrada pelo organizador: nada de inscrever, editar ou remover.
   const encerrada = categoriaEncerrada(data.closedCategories, catAtual, data.categories)
-  const travado = lock.locked || encerrada
+  // Limite de partidas: depois de N jogos na categoria, só o master inscreve.
+  const maxPartidas = maxPartidasDaCategoria(data.categories, catAtual)
+  const limitePartidas = limiteDePartidasAtingido(
+    maxPartidas,
+    data.team.id,
+    data.matches,
+    catAtual,
+    data.categories[0]?.id,
+  )
+  const travado = lock.locked || encerrada || limitePartidas
 
   const doElenco = (
     varias
@@ -598,6 +607,14 @@ function RosterCard({
         enable={() => enablePush({ championshipId: data.championshipId, role: 'team', teamId: teamId, token })}
         disable={() => disablePush(data.championshipId)}
       />
+
+      {!encerrada && limitePartidas && (
+        <div className="lock-banner">
+          🔒 Seu time já disputou <b>{maxPartidas} partida(s)</b>
+          {varias && nomeCat ? <> no <b>{nomeCat}</b></> : ''}: a inscrição de novos atletas está <b>encerrada</b>.
+          Fale com a organização se precisar de alguma alteração.
+        </div>
+      )}
 
       {encerrada ? (
         <div className="lock-banner">

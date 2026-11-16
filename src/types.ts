@@ -59,6 +59,11 @@ export interface Category {
   /** Máximo de membros da comissão técnica por time nesta categoria. */
   maxStaff?: number
   /**
+   * Depois de disputar este número de partidas NESTA categoria, o time não
+   * inscreve mais atletas nela — só o master. 0/indefinido = sem limite.
+   */
+  maxMatchesToRegister?: number
+  /**
    * Equipes previstas NESTA categoria, informadas na criação do campeonato.
    * Escolhe o plano (o limite de equipes do plano vale por categoria) e liga o
    * limite por categoria. Ausente = campeonato antigo, que segue com o limite
