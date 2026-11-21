@@ -177,7 +177,7 @@ export function PublicChampionship({ championshipId, onHome }: { championshipId:
       <SponsorsStrip sponsors={champ.sponsors ?? []} />
 
       <div className="container manage__content">
-        {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} publico />}
+        {tab === 'overview' && <Overview championship={comp} teams={timesCat} matches={partidasCat} players={atletasCat} events={eventosCat} />}
         {tab === 'matches' && <MatchesReadOnly championship={comp} teams={timesCat} matches={partidasPublicas} />}
         {tab === 'stats' && <StatsPanel events={eventosCat} players={atletasCat} teams={timesCat} matches={partidasCat} categories={champ.categories} />}
       </div>
