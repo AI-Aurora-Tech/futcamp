@@ -24,15 +24,12 @@ export function Overview({
   matches,
   players = [],
   events = [],
-  publico = false,
 }: {
   championship: Championship
   teams: Team[]
   matches: Match[]
   players?: Player[]
   events?: MatchEvent[]
-  /** Painel público: "Próximos jogos" só lista os que já têm data e hora. */
-  publico?: boolean
 }) {
   // Grupos com classificação GERAL: as equipes jogam nos seus grupos, mas a
   // tabela é única (todas as equipes juntas) e vale a colocação geral.
@@ -91,15 +88,12 @@ export function Overview({
   const nomeDoTime = (id: string) => teams.find((t) => t.id === id)?.name ?? ''
   const finished = matches.filter((m) => m.status === 'finished')
   const recent = finished.slice(-5).reverse()
-  // No link público, "Próximos jogos" lista só os que já têm data e hora,
-  // em ordem cronológica.
-  const upcoming = (
-    publico
-      ? matches
-          .filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId && !!m.scheduledAt)
-          .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))
-      : matches.filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId)
-  ).slice(0, 5)
+  // "Próximos jogos" lista só os que já têm data e hora, em ordem
+  // cronológica — no painel do organizador e no link público.
+  const upcoming = matches
+    .filter((m) => m.status !== 'finished' && m.homeTeamId && m.awayTeamId && !!m.scheduledAt)
+    .sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!))
+    .slice(0, 5)
 
   const goals = finished.reduce((s, m) => s + (m.homeScore ?? 0) + (m.awayScore ?? 0), 0)
 
