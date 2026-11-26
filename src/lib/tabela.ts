@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 import type { Championship, Match, Team } from '../types'
 import { generateRoundRobin } from './fixtures'
-import { matchStage } from './groupStages'
+import { allGroupStagesComplete, matchStage, nextGroupStageToCreate } from './groupStages'
 
 export type NovoJogo = Omit<Match, 'id' | 'createdAt'>
 
@@ -183,4 +183,57 @@ export function planejarTabela(
   }
 
   return { realizados, mantidos, remover, criar, corrigirGrupo }
+}
+
+/* -------------------------------------------------------------------------- */
+/* A fase de classificação terminou de verdade?                                */
+/*                                                                            */
+/* "Todos os jogos encerrados" não basta: se a tabela ainda não tem todos os   */
+/* confrontos (o organizador gerou parte dela, ou incluiu jogos à mão), os     */
+/* jogos que existem acabam antes da fase. A fase só termina quando todos os   */
+/* confrontos previstos pelas regras existem E estão encerrados — ou seja,     */
+/* quando "Gerar tabela" não teria mais nada a criar.                          */
+/* -------------------------------------------------------------------------- */
+
+/** Confrontos da 1ª fase que as regras preveem e ainda não estão na tabela. */
+export function confrontosQueFaltam(
+  championship: Championship,
+  teams: Team[],
+  matches: Match[],
+  categoryId?: string,
+): number {
+  if (championship.format === 'knockout') return 0
+  return planejarTabela(championship, teams, matches, categoryId).criar.length
+}
+
+/**
+ * Todas as fases de grupos terminaram — com todos os confrontos possíveis
+ * jogados? Condição para montar o mata-mata. `teams` e `matches` são os DA
+ * CATEGORIA.
+ */
+export function classificacaoEncerrada(
+  championship: Championship,
+  teams: Team[],
+  matches: Match[],
+  categoryId?: string,
+): boolean {
+  return (
+    allGroupStagesComplete(championship, matches) &&
+    confrontosQueFaltam(championship, teams, matches, categoryId) === 0
+  )
+}
+
+/**
+ * Próxima fase de grupos a criar (2ª, 3ª…), exigindo que a 1ª fase tenha todos
+ * os confrontos jogados antes de passar para a 2ª.
+ */
+export function proximaFaseDeGrupos(
+  championship: Championship,
+  teams: Team[],
+  matches: Match[],
+  categoryId?: string,
+): number | null {
+  const next = nextGroupStageToCreate(championship, matches)
+  if (next === 2 && confrontosQueFaltam(championship, teams, matches, categoryId) > 0) return null
+  return next
 }

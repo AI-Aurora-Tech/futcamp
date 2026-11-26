@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { getChampionship } from '../services/championships'
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
-import { listEvents, listMatches, requestKnockoutSync } from '../services/matches'
+import { listEvents, listMatches, requestKnockoutSync, sincronizarCategorias } from '../services/matches'
 import { listAssignedMatches, mesaWriter } from '../services/officials'
 import { fecharSessaoMesa, lerSessaoMesa, type MesaSession } from '../lib/mesaSession'
 import {
@@ -80,7 +80,7 @@ export function MesaPortal({ championshipId, onHome }: { championshipId: string;
     try {
       if (champ) {
         const [all, evs] = await Promise.all([listMatches(championshipId), listEvents(championshipId)])
-        await requestKnockoutSync(champ, await listTeams(championshipId), all, evs)
+        await sincronizarCategorias(champ, await listTeams(championshipId), all, evs, requestKnockoutSync)
       }
     } catch {
       /* sem permissão de escrita: o administrador conclui ao abrir o campeonato */

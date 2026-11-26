@@ -8,7 +8,7 @@ import {
 } from '../services/championships'
 import { listTeams } from '../services/teams'
 import { listPlayers } from '../services/players'
-import { listEvents, listMatches, syncKnockout } from '../services/matches'
+import { listEvents, listMatches, sincronizarCategorias, syncKnockout } from '../services/matches'
 import { listOfficials } from '../services/officials'
 import { useAuth } from '../context/AuthContext'
 import { disablePush, enablePush, pushAvailable } from '../services/push'
@@ -133,7 +133,8 @@ export function ManageChampionship({
     // Fase de grupos encerrada? Cria o mata-mata com os classificados e leva os
     // vencedores para a fase seguinte. Só recarrega se algo mudou de fato.
     if (c) {
-      const changed = await syncKnockout(c, t, m, e).catch(() => false)
+      // Categoria por categoria: cada uma é uma competição.
+      const changed = await sincronizarCategorias(c, t, m, e, syncKnockout).catch(() => false)
       if (changed) [c, t, p, m, e, o] = await fetchAll()
     }
 

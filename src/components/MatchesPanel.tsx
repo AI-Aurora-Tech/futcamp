@@ -17,12 +17,10 @@ import {
   KNOCKOUT_ROUND_BASE,
 } from '../lib/knockout'
 import {
-  allGroupStagesComplete,
   groupStagesOf,
   grupoDoJogo,
   matchStage,
   matchesOfStage,
-  nextGroupStageToCreate,
   stageName,
 } from '../lib/groupStages'
 import {
@@ -39,7 +37,7 @@ import {
 import { Button, EmptyState, Field, Modal, TeamBadge } from './ui'
 import { MatchResultModal } from './MatchResultModal'
 import { MatchScheduler } from './MatchScheduler'
-import { planejarTabela } from '../lib/tabela'
+import { classificacaoEncerrada, confrontosQueFaltam, planejarTabela, proximaFaseDeGrupos } from '../lib/tabela'
 import { timesForaDaDisputa } from '../lib/eliminacao'
 import { agruparFases } from '../lib/fasesPartidas'
 
@@ -80,8 +78,12 @@ export function MatchesPanel({
   const stages = groupStagesOf(championship)
   // Fase de grupos em curso: a última que já tem jogos criados.
   const currentStage = Math.max(1, ...groupMatchesOnly.map(matchStage))
-  const remaining = matchesOfStage(matches, currentStage).filter((m) => m.status !== 'finished').length
-  const pendingStage = nextGroupStageToCreate(championship, matches)
+  // Confrontos da 1ª fase que as regras preveem e ainda nem estão na tabela:
+  // também faltam — a fase só termina com TODOS os confrontos jogados.
+  const naoCriados = currentStage === 1 ? confrontosQueFaltam(championship, teams, matches, categoryId) : 0
+  const remaining =
+    matchesOfStage(matches, currentStage).filter((m) => m.status !== 'finished').length + naoCriados
+  const pendingStage = proximaFaseDeGrupos(championship, teams, matches, categoryId)
   /**
    * Rótulo da fase (1-based) tolerante a campeonatos sem fases configuradas —
    * um índice inexistente não pode derrubar a tela.
@@ -94,13 +96,13 @@ export function MatchesPanel({
     !isKnockout &&
     hasKnockoutStage(championship) &&
     knockoutMatches.length === 0 &&
-    allGroupStagesComplete(championship, matches)
+    classificacaoEncerrada(championship, teams, matches, categoryId)
   const pendingTies = matches.filter(isUnresolvedTie)
 
   async function createKnockout() {
     setGenerating(true)
     try {
-      const ok = await createKnockoutStage(championship, teams, matches, events)
+      const ok = await createKnockoutStage(championship, teams, matches, events, categoryId)
       if (!ok) {
         alert('Não foi possível montar o mata-mata: confira o chaveamento e a classificação em Ajustes.')
       }
@@ -288,6 +290,9 @@ export function MatchesPanel({
             ? '🏆 Mata-mata criado com os classificados. Ao encerrar cada confronto, o vencedor avança sozinho para a fase seguinte.'
             : remaining > 0
               ? `🏁 Faltam ${remaining} jogo(s) para encerrar a fase atual (${stageLabel(currentStage)}).` +
+                (naoCriados > 0
+                  ? ` ${naoCriados} deles ainda não estão na tabela — use "Gerar tabela" para criá-los.`
+                  : '') +
                 (currentStage < stages.length
                   ? ' Depois, a fase seguinte é criada automaticamente com os classificados.'
                   : ' Depois, o mata-mata é criado automaticamente com os classificados.')
