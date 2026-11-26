@@ -4,6 +4,7 @@ import './fases.test'
 import './grupos.test'
 import './prazo.test'
 import './limite.test'
+import './mataMataPorCategoria.test'
 import { fim } from './ajuda'
 
 fim()
