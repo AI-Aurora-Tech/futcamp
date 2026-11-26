@@ -88,3 +88,25 @@ ok('duas fases de grupos: títulos "Fase de grupos" e "2ª fase de grupos"', dua
 ok('  2ª fase de grupos em disputa', duasEtapas[1].estado === 'atual' && duasEtapas[0].estado === 'encerrada')
 ok('só pontos corridos (sem mata-mata): uma fase só', fasesDoCampeonato([J('group', 'live', { stage: 1 })], titulo).length === 1)
 ok('sem jogos: nenhuma fase', fasesDoCampeonato([], titulo).length === 0)
+
+// Fase de grupos só termina com TODOS os confrontos possíveis jogados
+// (src/lib/tabela.ts → classificacaoEncerrada / confrontosQueFaltam).
+import { classificacaoEncerrada, confrontosQueFaltam } from '../src/lib/tabela'
+{
+  const camp: any = { id: 'c', format: 'groups_knockout', numGroups: 1, categories: [], doubleRound: false }
+  const times: any[] = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: id, championshipId: 'c', group: 'A' }))
+  const fim = (h: string, a: string, r: number): any => ({
+    id: `${h}${a}`, championshipId: 'c', round: r, phase: 'group', stage: 1, group: 'A',
+    homeTeamId: h, awayTeamId: a, homeScore: 1, awayScore: 0, status: 'finished',
+  })
+  const tres = [fim('a', 'b', 1), fim('c', 'd', 1), fim('a', 'c', 2)]
+  ok('grupo de 4: com 3 de 6 confrontos jogados, faltam 3 e a fase NÃO terminou',
+    confrontosQueFaltam(camp, times, tres) === 3 && !classificacaoEncerrada(camp, times, tres))
+  const seis = [...tres, fim('b', 'd', 2), fim('a', 'd', 3), fim('b', 'c', 3)]
+  ok('grupo de 4: com os 6 confrontos jogados, a fase terminou',
+    confrontosQueFaltam(camp, times, seis) === 0 && classificacaoEncerrada(camp, times, seis))
+  const comAgendado = [...tres, fim('b', 'd', 2), fim('a', 'd', 3), { ...fim('b', 'c', 3), status: 'scheduled' }]
+  ok('grupo de 4: com um jogo ainda agendado, a fase NÃO terminou', !classificacaoEncerrada(camp, times, comAgendado))
+  const turnoEReturno = { ...camp, doubleRound: true }
+  ok('turno e returno: 6 jogos de 12 não encerram a fase', confrontosQueFaltam(turnoEReturno, times, seis) === 6 && !classificacaoEncerrada(turnoEReturno, times, seis))
+}

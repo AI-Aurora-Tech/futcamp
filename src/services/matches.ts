@@ -12,15 +12,20 @@ import {
   resolveBracketTeams,
 } from '../lib/knockout'
 import {
-  allGroupStagesComplete,
   distributeIntoGroups,
   groupStagesOf,
-  nextGroupStageToCreate,
   qualifiersOfStage,
   stageExists,
 } from '../lib/groupStages'
 import { aplicarWoSeEliminado, type PlanoEliminacao } from '../lib/eliminacao'
-import type { PlanoTabela } from '../lib/tabela'
+import { classificacaoEncerrada, proximaFaseDeGrupos, type PlanoTabela } from '../lib/tabela'
+import {
+  categoriaPadrao,
+  competicaoDaCategoria,
+  elencoDeTimes,
+  partidasDaCategoria,
+  temVariasCategorias,
+} from '../lib/categorias'
 import type {
   Championship,
   LineupEntry,
@@ -275,12 +280,22 @@ export async function generateGroups(
  * novos grupos. As rodadas continuam a numeração da fase anterior, para não
  * conflitar com o fechamento de inscrições por rodada.
  */
+/**
+ * Partidas DA CATEGORIA, relidas do banco. Cada categoria é uma competição:
+ * a fase de grupos de uma não pode olhar (nem misturar) os jogos de outra.
+ * Jogo sem categoria conta para a primeira (mesma regra das telas).
+ */
+async function partidasAtuais(champ: Championship, categoryId?: string): Promise<Match[]> {
+  return partidasDaCategoria(await listMatches(champ.id), categoryId, champ.categories[0]?.id)
+}
+
 export async function createGroupStage(
   champ: Championship,
   teams: Team[],
   matches: Match[],
   stage: number,
   events: MatchEvent[] = [],
+  categoryId?: string,
 ): Promise<boolean> {
   const cfg = groupStagesOf(champ)[stage - 1]
   if (!cfg || stage < 2) return false
@@ -295,7 +310,7 @@ export async function createGroupStage(
   if (Object.keys(playable).length === 0) return false
 
   // Relê antes de inserir: não cria a mesma fase duas vezes.
-  const fresh = await listMatches(champ.id)
+  const fresh = await partidasAtuais(champ, categoryId)
   if (stageExists(fresh, stage)) return false
 
   const previousRounds = Math.max(
@@ -309,6 +324,7 @@ export async function createGroupStage(
   const pairings = generateGroupFixtures(playable, cfg.doubleRound ?? false)
   const toInsert: NewMatch[] = pairings.map((p) => ({
     championshipId: champ.id,
+    categoryId,
     round: previousRounds + p.round,
     phase: 'group' as MatchPhase,
     stage,
@@ -386,14 +402,19 @@ export async function createKnockoutStage(
   teams: Team[],
   matches: Match[],
   events: MatchEvent[] = [],
+  categoryId?: string,
 ): Promise<boolean> {
   const pairs = resolveBracketTeams(champ, teams, matches, events)
   if (pairs.length === 0 || pairs.every((p) => !p.home && !p.away)) return false
-  // Relê as partidas imediatamente antes de inserir: evita criar a fase duas
-  // vezes quando duas telas (ou dois efeitos) disparam a criação juntas.
-  const fresh = await listMatches(champ.id)
+  // Relê as partidas DA CATEGORIA imediatamente antes de inserir: evita criar
+  // a fase duas vezes quando duas telas disparam a criação juntas — e o
+  // mata-mata de outra categoria não impede o desta.
+  const fresh = await partidasAtuais(champ, categoryId)
   if (fresh.some((m) => m.phase !== 'group')) return false
-  await bulkInsert(champ.id, plannedToMatches(champ.id, planKnockout(pairs, champ.thirdPlace)))
+  await bulkInsert(
+    champ.id,
+    plannedToMatches(champ.id, planKnockout(pairs, champ.thirdPlace)).map((m) => ({ ...m, categoryId })),
+  )
   return true
 }
 
@@ -412,13 +433,15 @@ export function syncKnockout(
   teams: Team[],
   matches: Match[],
   events: MatchEvent[] = [],
+  categoryId?: string,
 ): Promise<boolean> {
-  // Uma sincronização por campeonato de cada vez: duas chamadas simultâneas
+  // Uma sincronização por categoria de cada vez: duas chamadas simultâneas
   // (React StrictMode, duas abas do app) não podem criar o mata-mata em dobro.
-  const running = inFlightSync.get(champ.id)
+  const chave = `${champ.id}:${categoryId ?? ''}`
+  const running = inFlightSync.get(chave)
   if (running) return running
-  const p = runSync(champ, teams, matches, events).finally(() => inFlightSync.delete(champ.id))
-  inFlightSync.set(champ.id, p)
+  const p = runSync(champ, teams, matches, events, categoryId).finally(() => inFlightSync.delete(chave))
+  inFlightSync.set(chave, p)
   return p
 }
 
@@ -429,30 +452,33 @@ async function runSync(
   teams: Team[],
   matches: Match[],
   events: MatchEvent[],
+  categoryId?: string,
 ): Promise<boolean> {
   let changed = false
   let current = matches
 
-  // 1) Fases de grupos seguintes (2ª, 3ª…) com os classificados da anterior.
+  // 1) Fases de grupos seguintes (2ª, 3ª…) com os classificados da anterior —
+  //    só quando a anterior teve TODOS os confrontos jogados.
   for (let guard = 0; guard < 8; guard++) {
-    const next = nextGroupStageToCreate(champ, current)
+    const next = proximaFaseDeGrupos(champ, teams, current, categoryId)
     if (next == null) break
-    if (!(await createGroupStage(champ, teams, current, next, events))) break
+    if (!(await createGroupStage(champ, teams, current, next, events, categoryId))) break
     changed = true
-    current = await listMatches(champ.id)
+    current = await partidasAtuais(champ, categoryId)
   }
 
-  // 2) Mata-mata, quando TODAS as fases de grupos terminaram.
+  // 2) Mata-mata, quando TODAS as fases de grupos terminaram com todos os
+  //    confrontos possíveis jogados.
   const hasKnockoutMatches = current.some((m) => m.phase !== 'group')
   if (
     !hasKnockoutMatches &&
     champ.autoKnockout !== false &&
     hasKnockoutStage(champ) &&
-    allGroupStagesComplete(champ, current)
+    classificacaoEncerrada(champ, teams, current, categoryId)
   ) {
-    if (await createKnockoutStage(champ, teams, current, events)) {
+    if (await createKnockoutStage(champ, teams, current, events, categoryId)) {
       changed = true
-      current = await listMatches(champ.id)
+      current = await partidasAtuais(champ, categoryId)
     }
   }
 
@@ -475,13 +501,14 @@ export async function requestKnockoutSync(
   teams: Team[],
   matches: Match[],
   events: MatchEvent[] = [],
+  categoryId?: string,
 ): Promise<void> {
   if (authMode === 'supabase' && supabase) {
     // As funções do banco revalidam as regras e serializam a criação.
     const stages = groupStagesOf(champ)
 
     // Próxima fase de grupos (2ª, 3ª…) com os classificados da anterior.
-    const next = nextGroupStageToCreate(champ, matches)
+    const next = proximaFaseDeGrupos(champ, teams, matches, categoryId)
     if (next != null) {
       const cfg = stages[next - 1]
       const qualified = qualifiersOfStage(champ, teams, matches, next - 1, events)
@@ -508,6 +535,7 @@ export async function requestKnockoutSync(
           p_champ: champ.id,
           p_stage: next,
           p_matches: plan,
+          p_category: categoryId ?? null,
         })
         if (error) console.warn('ensure_group_stage:', error.message)
       }
@@ -518,7 +546,7 @@ export async function requestKnockoutSync(
       !hasKnockoutMatches &&
       champ.autoKnockout !== false &&
       hasKnockoutStage(champ) &&
-      allGroupStagesComplete(champ, matches)
+      classificacaoEncerrada(champ, teams, matches, categoryId)
     ) {
       const pairs = resolveBracketTeams(champ, teams, matches, events)
       const plan = planKnockout(pairs, champ.thirdPlace).map((p) => ({
@@ -532,6 +560,7 @@ export async function requestKnockoutSync(
         p_champ: champ.id,
         p_matches: plan,
         p_stages: Math.max(1, stages.length),
+        p_category: categoryId ?? null,
       })
       if (error) console.warn('ensure_knockout_stage:', error.message)
     }
@@ -539,7 +568,7 @@ export async function requestKnockoutSync(
     if (error) console.warn('advance_bracket:', error.message)
     return
   }
-  await syncKnockout(champ, teams, matches, events)
+  await syncKnockout(champ, teams, matches, events, categoryId)
 }
 
 /**
@@ -663,4 +692,45 @@ export async function deleteEvent(id: string): Promise<void> {
   mutate((d) => {
     d.events = d.events.filter((e) => e.id !== id)
   })
+}
+
+/**
+ * Roda a sincronização (próxima fase de grupos, mata-mata, avanço) em CADA
+ * categoria do campeonato, com os times, partidas e regras dela. Cada
+ * categoria é uma competição: o Sub-10 encerrar a fase de grupos não pode
+ * criar (nem impedir) o mata-mata do Sub-14.
+ *
+ * `sincronizar` é `syncKnockout` (organizador) ou `requestKnockoutSync`
+ * (mesário, pelas funções do banco). Devolve se algo mudou.
+ */
+export async function sincronizarCategorias(
+  champ: Championship,
+  teams: Team[],
+  matches: Match[],
+  events: MatchEvent[],
+  sincronizar: (
+    comp: Championship,
+    teams: Team[],
+    matches: Match[],
+    events: MatchEvent[],
+    categoryId?: string,
+  ) => Promise<boolean | void>,
+): Promise<boolean> {
+  const varias = temVariasCategorias(champ)
+  const padrao = categoriaPadrao(champ)
+  const categorias = varias ? champ.categories.map((c) => c.id) : [undefined]
+  let mudou = false
+  for (const cat of categorias) {
+    const partidas = partidasDaCategoria(matches, cat, padrao)
+    const ids = new Set(partidas.map((m) => m.id))
+    const r = await sincronizar(
+      competicaoDaCategoria(champ, cat ?? padrao),
+      elencoDeTimes(teams, cat),
+      partidas,
+      events.filter((e) => ids.has(e.matchId)),
+      cat,
+    )
+    if (r) mudou = true
+  }
+  return mudou
 }
